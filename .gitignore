@@ -37,7 +37,7 @@ venv.bak/
 *.tfstate.*
 crash.log
 crash.*.log
-*.tfvars
+# *.tfvars # Removing to allow commiting our env variables
 *.tfvars.json
 override.tf
 override.tf.json
