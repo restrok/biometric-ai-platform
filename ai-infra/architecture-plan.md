@@ -79,11 +79,29 @@ biometric-ai-platform/
     │   ├── iam/                  # Configuración de Identidad y Accesos
     │   ├── network/              # VPC y Endpoints Privados
     │   └── storage/              # GCS, Artifact Registry, BigQuery
-    └── environments/
-        └── dev/                  # Entorno de desarrollo local/cloud
-            ├── main.tf
-            ├── terraform.tfvars
-            └── variables.tf
+    ├── envs/                     # Variables específicas por entorno
+    │   └── dev.tfvars            # Variables para desarrollo
+    ├── main.tf                   # Workspace único principal
+    └── variables.tf              # Definición de variables globales
 ```
 
-Esta estructura permite a los equipos de SRE trabajar independientemente en `infrastructure/` (utilizando local state inicialmente, con miras a migrar a remote state) mientras que los AI Engineers desarrollan el servidor FastAPI y los agentes en `api/`.
+Esta estructura permite a los equipos de SRE trabajar centralizadamente en `infrastructure/` (utilizando local state inicialmente, inyectando variables por entorno con `-var-file`) mientras que los AI Engineers desarrollan el servidor FastAPI y los agentes en `api/`.
+
+## 5. Storage Architecture (Data Lakehouse)
+
+To ensure high performance for AI workloads while strictly adhering to Google Cloud's Free Tier limits, the Data Pipeline will implement a Data Lakehouse architecture:
+
+*   **Extraction:** The `garmin_toolkit` SDK retrieves data as typed Pydantic objects.
+*   **Local Processing:** Data is structured into normalized DataFrames (separating Activity Fact tables from Telemetry Fact tables) and saved locally as high-compression `Parquet` files using DuckDB.
+*   **Cloud Sync:** Parquet files are synced to Google Cloud Storage (GCS), which easily stays within the 5GB regional Free Tier limit.
+*   **Querying:** BigQuery will be configured with external tables pointing to the GCS Parquet files, allowing for ultra-fast, zero-storage-cost analytics (utilizing the 1TB/month query Free Tier).
+
+## 6. Migration of Legacy Logic (Plan Generation)
+
+The legacy plan generation logic (previously `garmin-analyzer`) has been moved to the `legacy_logic/` folder in this repository. 
+
+**Instructions for the AI Agent:**
+When building the AI/Reasoning layer (LangGraph):
+*   Do NOT use the old `plan_generator.py` script as a direct dependency.
+*   Instead, read the logic inside `legacy_logic/` (especially `RESEARCH_TRAINING_PRINCIPLES.md` and `TRAINING_GUIDELINES.md`) to understand the domain rules (80/20 polarized training, recovery metrics).
+*   Re-implement this logic as Tool Functions or System Prompts within the new LangGraph Router Agent. The Agent must consume the Pydantic data contracts (like `TrainingStatusData` and `ActivityTelemetry`) exported by the `garmin_toolkit` SDK to generate personalized training plans dynamically.

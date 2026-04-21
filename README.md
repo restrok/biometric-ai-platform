@@ -11,7 +11,7 @@ The `biometric-ai-platform` is designed to be a "Product-Grade AI Platform" at a
 This project follows a monorepo approach to separate infrastructure from application logic while keeping them versioned together:
 
 - **`api/`**: The Agentic Backend. Contains the Python FastAPI application, LangGraph agents, LLM tool definitions, and Ragas evaluation pipelines. Managed using `uv`.
-- **`infrastructure/`**: The SRE/Terraform definitions. Contains reusable Terraform modules (`network`, `storage`, `iam`) and environment definitions (e.g., `dev`) to provision the GCP resources required by the platform.
+- **`infrastructure/`**: The SRE/Terraform definitions. Contains reusable Terraform modules (`network`, `storage`, `iam`), a single root workspace (`main.tf`), and environment specific variables in `envs/` (e.g., `dev.tfvars`) to provision the GCP resources required by the platform.
 - **`ai-infra/`**: Documentation imported from the original planning phase. Contains architectural goals, roadmaps, and plans.
 
 ## Documentation
@@ -37,7 +37,7 @@ uv run hello # Or activate the virtual environment
 ### Infrastructure Development
 
 ```bash
-cd infrastructure/environments/dev
+cd infrastructure
 terraform init
-terraform plan
+terraform plan -var-file="envs/dev.tfvars"
 ```
