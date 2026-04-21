@@ -8,3 +8,14 @@ variable "region" {
   type        = string
   default     = "us-central1"
 }
+
+variable "datalake_bucket_name" {
+  description = "Name of the GCS bucket for the datalake."
+  type        = string
+}
+
+variable "dataset_name" {
+  description = "Name of the BigQuery dataset."
+  type        = string
+  default     = "biometric_data"
+}

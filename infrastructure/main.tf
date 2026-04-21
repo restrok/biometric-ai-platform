@@ -8,8 +8,6 @@ terraform {
     }
   }
 
-  # Starting with local state for development as requested.
-  # This should be migrated to a GCS backend (using the storage module) for production.
   backend "local" {
     path = "terraform.tfstate"
   }
@@ -20,8 +18,17 @@ provider "google" {
   region  = var.region
 }
 
-# Example module invocation (To be expanded)
-# module "network" {
-#   source = "../../modules/network"
-#   # variables...
-# }
+module "storage" {
+  source       = "./modules/storage"
+  project_id   = var.project_id
+  region       = var.region
+  bucket_name  = var.datalake_bucket_name
+  dataset_name = var.dataset_name
+}
+
+module "iam" {
+  source       = "./modules/iam"
+  project_id   = var.project_id
+  api_sa_name  = "biometric-api-dev-sa"
+}
+
