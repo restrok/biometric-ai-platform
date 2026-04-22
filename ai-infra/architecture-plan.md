@@ -87,14 +87,31 @@ biometric-ai-platform/
 
 Esta estructura permite a los equipos de SRE trabajar centralizadamente en `infrastructure/` (utilizando local state inicialmente, inyectando variables por entorno con `-var-file`) mientras que los AI Engineers desarrollan el servidor FastAPI y los agentes en `api/`.
 
-## 5. Storage Architecture (Data Lakehouse)
+## 5. Storage Architecture (Data Lakehouse) - V2 (Optimized)
 
-To ensure high performance for AI workloads while strictly adhering to Google Cloud's Free Tier limits, the Data Pipeline will implement a Data Lakehouse architecture:
+To ensure high performance for AI workloads while strictly adhering to Google Cloud's Free Tier limits, the Data Pipeline has evolved from External Tables to a **Native BigQuery Lakehouse** with Incremental Sync:
 
 *   **Extraction:** The `garmin_toolkit` SDK retrieves data as typed Pydantic objects.
-*   **Local Processing:** Data is structured into normalized DataFrames (separating Activity Fact tables from Telemetry Fact tables) and saved locally as high-compression `Parquet` files using DuckDB.
-*   **Cloud Sync:** Parquet files are synced to Google Cloud Storage (GCS), which easily stays within the 5GB regional Free Tier limit.
-*   **Querying:** BigQuery will be configured with external tables pointing to the GCS Parquet files, allowing for ultra-fast, zero-storage-cost analytics (utilizing the 1TB/month query Free Tier).
+*   **Incremental Sync Logic:** The ETL pipeline now queries BigQuery for the `MAX(date)` of existing records and only fetches new data (deltas) from the Garmin API. This prevents rate limiting and redundant data transfer.
+*   **Native BigQuery Tables:** We have moved from External GCS tables to Native BigQuery tables. This allows for:
+    *   **Append Support:** Efficiently adding new activities and telemetry without rewriting the entire dataset.
+    *   **High-Speed Retrieval:** Native tables provide faster response times for the LangGraph agent's retrieval tool.
+*   **Archival & Audit:** Every sync continues to archive a timestamped Parquet file to **GCS** before loading into BigQuery, serving as an immutable audit log and backup.
+
+## 6. AI Reasoning & Personalization (Advanced Agentic RAG)
+
+The platform now implements a sophisticated reasoning layer in LangGraph that bridges the gap between generic scientific formulas and individual athlete reality:
+
+*   **Data-Driven Customization:** The agent is instructed to prioritize observed data (e.g., a real Max HR of 196 bpm found in telemetry) over standard formulas (like 220-age).
+*   **Subjective Integration (The Talk Test):** The agent integrates user feedback (e.g., "I can talk at 160 bpm") to propose **Custom HR Zones**, recognizing that individual Aerobic Thresholds (AeT) can vary significantly.
+*   **Detailed Telemetry Analysis:** The retriever now provides second-by-second summaries of the last 3 activities, allowing the AI to analyze heart rate stability and drift to validate the user's fitness state.
+
+## 7. Current Project State & Accomplishments
+
+*   **SDK Integrated:** `garmin-toolkit` linked via `uv` as a local project dependency.
+*   **Fail-Safe Pipeline:** ETL handles missing data (e.g., days without watch wear) gracefully.
+*   **Zero-Cost Production Ready:** The entire stack runs within GCP Free Tier and Google AI Studio Free Tier (Gemini 1.5/2.5 Flash).
+*   **Infrastructure as Code:** Terraform modules ready for Storage, IAM, and Service Accounts.
 
 ## 6. Migration of Legacy Logic (Plan Generation)
 

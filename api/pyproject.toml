@@ -5,11 +5,20 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "db-dtypes>=1.5.1",
     "fastapi>=0.136.0",
     "google-cloud-bigquery>=3.41.0",
+    "google-cloud-storage>=2.19.0",
     "langchain>=1.2.15",
     "langchain-google-genai>=4.2.2",
     "langgraph>=1.1.8",
+    "pandas>=2.3.3",
+    "pyarrow>=23.0.1",
     "pydantic>=2.13.3",
+    "python-dotenv>=1.2.2",
     "uvicorn>=0.44.0",
+    "garmin-toolkit",
 ]
+
+[tool.uv.sources]
+garmin-toolkit = { path = "../../garmin-training-toolkit/garmin_toolkit" }

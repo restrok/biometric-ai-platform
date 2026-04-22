@@ -1,8 +1,38 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import os
+import base64
+import logging
+from dotenv import load_dotenv
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
+log = logging.getLogger("api")
+
+# Load environment variables from .env
+load_dotenv()
+
+# Decode GOOGLE_API_KEY if it's base64 encoded
+api_key = os.getenv("GOOGLE_API_KEY")
+if api_key:
+    try:
+        # Check if it looks like base64 (not perfect but helpful)
+        # Most base64 strings have a specific length and set of characters
+        decoded_bytes = base64.b64decode(api_key, validate=True)
+        decoded_str = decoded_bytes.decode("utf-8")
+        # If it successfully decodes and looks like a Gemini key (starts with AIza)
+        if decoded_str.startswith("AIza"):
+            os.environ["GOOGLE_API_KEY"] = decoded_str
+    except Exception:
+        # If it fails to decode, we assume it's already plain text or invalid
+        pass
+
 from src.agent.graph import graph
 from langchain_core.messages import HumanMessage
-import os
 
 app = FastAPI(
     title="Biometric AI Platform API",

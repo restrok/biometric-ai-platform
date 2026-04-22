@@ -53,3 +53,12 @@ Base (Senior Engineering)
 Próxima Acción Inmediata
 Comenzar con la estructura del repositorio en GitHub utilizando un enfoque de Monorepo para separar claramente la infraestructura de la lógica del Agente de IA.
 
+---
+
+### Siguiente Hito (Next Feature): The Autonomous Planner
+Tras consolidar el Data Lakehouse y el "Reasoning Loop", el siguiente gran paso es dar "manos" a la IA:
+*   **Objetivo:** Permitir que el Agente LangGraph diseñe y publique entrenamientos directamente en el calendario de Garmin del usuario.
+*   **Integración:** Envolver el módulo `garmin_toolkit.uploaders.workouts` (creado durante el refactor) como una **Tool** callable para el Agente.
+*   **Flujo:** El usuario pide un plan -> La IA lee la biometría en BigQuery -> Diseña el plan bajo la regla 80/20 -> Llama a la Tool `upload_workouts_to_garmin` -> El plan aparece en el reloj del usuario, adaptado a su estado de recuperación actual.
+
+
