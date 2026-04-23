@@ -1,6 +1,7 @@
 /*
 # Budget created via gcloud because of local ADC quota project issues in Terraform:
-# gcloud billing budgets create --billing-account=018CA1-78622C-D17780 --display-name="POC Budget - $10" --budget-amount=10USD --filter-projects=projects/bio-intelligence-dev --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0,basis=forecasted-spend
+# Create a budget for the project
+# gcloud billing budgets create --billing-account=YOUR_BILLING_ACCOUNT_ID --display-name="POC Budget - $10" --budget-amount=10USD --filter-projects=projects/YOUR_PROJECT_ID --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0,basis=forecasted-spend
 
 resource "google_billing_budget" "budget" {
   billing_account = var.billing_account_id

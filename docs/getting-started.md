@@ -5,7 +5,7 @@ This guide will help you set up the Biometric AI Platform from zero.
 ## Prerequisites
 
 1.  **Google Cloud Project (GCP):**
-    *   Create a project (e.g., `bio-intelligence-dev`).
+    *   Create a project (e.g., `your-project-id`).
     *   Enable **BigQuery API** and **Cloud Storage API**.
     *   Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install).
     *   Authenticate locally: `gcloud auth application-default login`.

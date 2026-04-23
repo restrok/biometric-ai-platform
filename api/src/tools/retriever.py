@@ -16,7 +16,11 @@ def get_bq_client(project_id):
         _bq_clients[project_id] = bigquery.Client(project=project_id)
     return _bq_clients[project_id]
 
-def retrieve_biometric_data(project_id: str = "bio-intelligence-dev", dataset: str = "biometric_data_dev") -> dict:
+def retrieve_biometric_data(project_id: str = None, dataset: str = "biometric_data_dev") -> dict:
+    if not project_id:
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not project_id:
+        raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
     """
     Retrieves the user's latest biometric context from BigQuery in parallel.
     Handles missing tables or data gracefully.

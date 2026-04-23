@@ -53,3 +53,6 @@ garmin_tokens.json
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Gemini CLI
+.gemini/settings.json

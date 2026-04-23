@@ -1,0 +1,6 @@
+{
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "your-gcp-project-id",
+    "PYTHONPATH": "/path/to/your/repo/biometric-ai-platform/api"
+  }
+}

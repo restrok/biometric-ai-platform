@@ -23,7 +23,9 @@ if api_key_raw:
     except Exception:
         pass
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+if not PROJECT_ID:
+    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
 DATASET_ID = "biometric_data_dev"
 TABLE_ID = "knowledge_base"
 

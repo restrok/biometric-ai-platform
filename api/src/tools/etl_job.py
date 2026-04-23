@@ -21,9 +21,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 log = logging.getLogger(__name__)
 
 # Config
-PROJECT_ID = "bio-intelligence-dev"
-BUCKET_NAME = "datalake-bio-intelligence-dev"
-DATASET_NAME = "biometric_data_dev"
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+BUCKET_NAME = os.getenv("DATALAKE_BUCKET")
+DATASET_NAME = os.getenv("DATASET_NAME", "biometric_data_dev")
+
+if not PROJECT_ID or not BUCKET_NAME:
+    raise ValueError("GOOGLE_CLOUD_PROJECT and DATALAKE_BUCKET environment variables must be set.")
 
 def get_last_sync_date(table_name):
     """Queries BigQuery to find the latest date we have stored."""

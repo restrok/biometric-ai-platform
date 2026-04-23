@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 DATASET_ID = "biometric_data_dev"
 
 def create_profile_tables():

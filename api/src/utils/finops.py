@@ -16,7 +16,7 @@ PRICING = {
     "gemini-2.5-pro": {"input": 3.50 / 1_000_000, "output": 10.50 / 1_000_000},
 }
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 DATASET_ID = "biometric_data_dev"
 TABLE_ID = "finops_logs"
 

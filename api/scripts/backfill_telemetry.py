@@ -13,7 +13,7 @@ api_key_raw = os.getenv("GOOGLE_API_KEY")
 from garmin_training_toolkit_sdk.extractors import get_activity_telemetry
 from garmin_training_toolkit_sdk.utils import get_authenticated_client, find_token_file
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
+PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 DATASET_ID = "biometric_data_dev"
 TABLE_ID = "latest_activity_telemetry"
 
