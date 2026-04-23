@@ -37,14 +37,18 @@ venv.bak/
 *.tfstate.*
 crash.log
 crash.*.log
-# *.tfvars # Removing to allow commiting our env variables
+*.tfvars
 *.tfvars.json
+tfplan
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 .terraformrc
 terraform.rc
+
+# Garmin
+garmin_tokens.json
 
 # OS Files
 .DS_Store

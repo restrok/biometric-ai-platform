@@ -1,5 +1,0 @@
-project_id           = "bio-intelligence-dev"
-billing_account_id   = "018CA1-78622C-D17780"
-region               = "us-central1"
-datalake_bucket_name = "datalake-bio-intelligence-dev"
-dataset_name         = "biometric_data_dev"

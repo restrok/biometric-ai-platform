@@ -1,0 +1,5 @@
+project_id           = "your-gcp-project-id"
+billing_account_id   = "your-billing-account-id"
+region               = "us-central1"
+datalake_bucket_name = "your-unique-bucket-name"
+dataset_name         = "biometric_data_dev"
