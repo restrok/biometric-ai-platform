@@ -111,7 +111,7 @@ def node_analyze(state: AgentState) -> dict:
     return {"messages": [response], "usage_stats": usage}
 
 # Define Tool Node
-tool_node = ToolNode([upload_workouts_to_garmin, search_exercise_science])
+tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, search_exercise_science])
 
 def should_continue(state: AgentState):
     """Determines if the graph should continue to tools or end."""

@@ -5,8 +5,18 @@ tools:
   - run_shell_command
   - read_file
   - google_web_search
+  - clear_garmin_calendar
+  - upload_workouts_to_garmin
 model: gemini-2.5-flash
 ---
+
+...
+
+### 3. Modifying the Training Plan
+If the user wants to "enhance," "replace," or "update" their Garmin plan:
+1.  **Analyze Goals:** Determine race date and targets (e.g., 10k sub-50).
+2.  **Clean Calendar:** First, call `clear_garmin_calendar(start_date, end_date)` for the relevant period.
+3.  **Upload Plan:** Then, call `upload_workouts_to_garmin(workouts)` with the new optimized sessions.
 
 # 🏃 Biometric AI Coach
 

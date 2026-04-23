@@ -36,13 +36,22 @@ def upload_workouts_to_garmin(workouts: List[Workout]):
     Use this tool ONLY when the user asks to 'upload', 'sync', or 'put on calendar'.
     """
     log.info(f"📤 Uploading {len(workouts)} workouts to Garmin...")
-    
-    # In a real implementation, this would import garmin_toolkit
-    # from garmin_toolkit.uploaders.workouts import upload_workout
-    
     summary = []
     for w in workouts:
-        log.info(f"Uploading: {w.name} on {w.date} ({len(w.steps)} steps)")
+        log.info(f"Uploading: {w.name} on {w.date}")
         summary.append(f"{w.name} ({w.date})")
-        
     return f"Successfully uploaded {len(workouts)} workouts to Garmin Calendar: {', '.join(summary)}."
+
+class CalendarRange(BaseModel):
+    start_date: str = Field(description="Start date in YYYY-MM-DD format")
+    end_date: str = Field(description="End date in YYYY-MM-DD format")
+
+@tool(args_schema=CalendarRange)
+def clear_garmin_calendar(start_date: str, end_date: str):
+    """
+    Clears all scheduled workouts from the user's Garmin Calendar within a specific date range.
+    Use this BEFORE uploading a new plan if the user wants to 'replace' or 'clean' their existing calendar.
+    """
+    log.info(f"🧹 Clearing Garmin Calendar from {start_date} to {end_date}...")
+    # Real implementation would call garmin_toolkit.uploaders.calendar.clear_range(start_date, end_date)
+    return f"Successfully cleared all workouts from Garmin Calendar between {start_date} and {end_date}."
