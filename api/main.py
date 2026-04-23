@@ -75,7 +75,24 @@ async def chat_with_agent(req: ChatRequest):
         result = await graph.ainvoke(initial_state)
         
         # Extract the AI message from the end of the messages sequence
-        ai_reply = result["messages"][-1].content
+        msg = result["messages"][-1]
+        ai_reply = msg.content
+        
+        # Handle list-style content (Gemini rich responses) or non-string content
+        if isinstance(ai_reply, list):
+            # Extract text from all text-bearing items in the list
+            text_parts = []
+            for item in ai_reply:
+                if isinstance(item, str):
+                    text_parts.append(item)
+                elif isinstance(item, dict):
+                    if "text" in item:
+                        text_parts.append(item["text"])
+            ai_reply = "\n".join(text_parts)
+        elif not isinstance(ai_reply, str):
+            # Fallback for any other weird type
+            ai_reply = str(ai_reply)
+            
         context = result.get("biometric_context", {})
         
         return ChatResponse(reply=ai_reply, context_used=context)

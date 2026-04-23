@@ -17,8 +17,10 @@ dependencies = [
     "pydantic>=2.13.3",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.44.0",
-    "garmin-toolkit",
+    "langchain-community>=0.2.0",
+    "ragas>=0.2.0",
+    "garmin-training-toolkit-sdk>=0.1.4",
 ]
 
-[tool.uv.sources]
-garmin-toolkit = { path = "../../garmin-training-toolkit/garmin_toolkit" }
+# [tool.uv.sources]
+# garmin-training-toolkit-sdk = { path = "../../garmin-training-toolkit/garmin_toolkit" }

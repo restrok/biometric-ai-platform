@@ -7,14 +7,15 @@ from google.cloud import bigquery
 from pathlib import Path
 
 # Import our custom SDK
-from garmin_toolkit.extractors import (
+from garmin_training_toolkit_sdk.extractors import (
     get_activities, 
     get_hrv_data, 
     get_sleep_data, 
     get_training_status,
     get_activity_telemetry
 )
-from garmin_toolkit.utils import get_authenticated_client, find_token_file
+from garmin_training_toolkit_sdk.extractors.biometrics import get_user_profile, get_body_composition
+from garmin_training_toolkit_sdk.utils import get_authenticated_client, find_token_file
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
@@ -110,7 +111,11 @@ def run_etl():
                     all_telemetry.append(df_t)
             
             if all_telemetry:
-                upload_to_bq(pd.concat(all_telemetry), "latest_activity_telemetry", "telemetry", mode="WRITE_APPEND")
+                df_telemetry = pd.concat(all_telemetry)
+                # Fix schema mismatch: ensure run_walk_index is float to match BQ
+                if 'run_walk_index' in df_telemetry.columns:
+                    df_telemetry['run_walk_index'] = df_telemetry['run_walk_index'].astype(float)
+                upload_to_bq(df_telemetry, "latest_activity_telemetry", "telemetry", mode="WRITE_APPEND")
         else:
             log.info("No new activities to sync.")
 
@@ -131,6 +136,31 @@ def run_etl():
     status = get_training_status(client, end_date.strftime("%Y-%m-%d"))
     if status:
         upload_to_bq(pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE")
+
+    # --- 5. User Profile (Always refresh latest) ---
+    try:
+        log.info("Syncing User Profile...")
+        profile = get_user_profile(client)
+        if profile:
+            df_profile = pd.DataFrame([profile.model_dump()])
+            df_profile['updated_at'] = datetime.utcnow()
+            upload_to_bq(df_profile, "user_profile", "biometrics", mode="WRITE_TRUNCATE")
+    except Exception as e:
+        log.warning(f"User Profile sync failed: {e}")
+
+    # --- 6. Body Composition (Incremental) ---
+    try:
+        last_body_date = get_last_sync_date("body_composition")
+        start_body = (last_body_date + timedelta(days=1)) if last_body_date else (datetime.now() - timedelta(days=30))
+        
+        if start_body.date() <= end_date.date():
+            log.info(f"Syncing Body Composition from {start_body.date()}...")
+            body_data = get_body_composition(client, start_body.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            if body_data:
+                df_body = pd.DataFrame([b.model_dump() for b in body_data])
+                upload_to_bq(df_body, "body_composition", "biometrics", mode="WRITE_APPEND")
+    except Exception as e:
+        log.warning(f"Body Composition sync failed: {e}")
 
     log.info("Incremental Sync Complete!")
 

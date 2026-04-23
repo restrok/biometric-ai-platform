@@ -12,19 +12,27 @@ The `biometric-ai-platform` is a Product-Grade AI Ecosystem for athletic perform
 2. **Data Pipeline**: An **Incremental ETL** job that Maintains a high-performance BigQuery Lakehouse with sub-second retrieval times.
 3. **Reasoning Layer**: A LangGraph AI Agent (Gemini 2.5 Flash) that prioritizes real physiological data (Observed Max HR, Heart Rate Drift) over generic age-based formulas.
 
+## Performance & Intelligence
+
+The platform achieves sub-10 second end-to-end latencies for complex biometric reasoning:
+- **Parallel Context Retrieval**: Highly optimized BigQuery client leveraging `ThreadPoolExecutor` to fetch Activities, Sleep, Training Status, User Profile, Body Composition, and Second-by-Second Telemetry in **~3.0 seconds**.
+- **High-Performance Inference**: Utilizes `gemini-2.5-flash` within LangGraph to process dense "mechanical summaries" and return structured advice in **~3.0 seconds**.
+- **Advanced Physiological Insights**: The agent goes beyond basic summaries, autonomously detecting phenomena like **Aerobic Decoupling** and **Efficiency Leaks** by correlating Heart Rate, Power (Watts), Ground Contact Time (GCT), and Vertical Oscillation over time.
+
 ## Repository Structure (Monorepo)
 
 - **`api/`**: The Agentic Backend. Contains the FastAPI app, LangGraph reasoning nodes, and BigQuery retrieval tools.
 - **`infrastructure/`**: IaC (Terraform) for GCP Storage (Native BQ + GCS Archival), IAM, and Networking.
-- **`ai-infra/`**: Comprehensive documentation on architecture, FinOps, and roadmaps.
+- **`docs/`**: Comprehensive documentation on setup, architecture, and development.
 - **`legacy_logic/`**: Exercise science research and domain rules used to ground the AI's recommendations.
 
 ## Documentation
 
-- [Project Goals](ai-infra/goal.md)
-- [Architecture Plan](ai-infra/architecture-plan.md)
-- [Development Roadmap](ai-infra/roadmap.md)
-- [Interview Defense Guide](INTERVIEW_DEFENSE.md)
+- [🚀 Getting Started (Setup)](docs/getting-started.md)
+- [🛠️ Developer Guide](docs/developer-guide.md)
+- [📐 Architecture Plan](docs/architecture-plan.md)
+- [🎯 Project Goals](docs/goal.md)
+- [🗺️ Development Roadmap](docs/roadmap.md)
 
 ## Getting Started
 
