@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from datasets import Dataset
 from dotenv import load_dotenv
@@ -48,16 +49,16 @@ async def run_evaluation():
         inputs = {"messages": [HumanMessage(content=question)]}
 
         # Invoke Agent
-        result = await graph.ainvoke(inputs)
+        result_agent = await graph.ainvoke(cast(Any, inputs))
 
         # Extract Answer
-        answer = result["messages"][-1].content
+        answer = result_agent["messages"][-1].content
         if isinstance(answer, list):
             answer = "\n".join([t.get("text", "") for t in answer if isinstance(t, dict) and "text" in t])
 
         # Extract Context (from ToolMessages)
         contexts = []
-        for msg in result["messages"]:
+        for msg in result_agent["messages"]:
             if isinstance(msg, ToolMessage):
                 contexts.append(msg.content)
 
@@ -91,7 +92,7 @@ async def run_evaluation():
     output_path = Path(__file__).parent.parent / "eval_results.json"
     with open(output_path, "w") as f:
         # Convert EvaluationResult to dict
-        serializable_result = {k: v for k, v in result.items()}
+        serializable_result = dict(cast(Any, result).items())
         json.dump(serializable_result, f, indent=2)
     print(f"\n📁 Detailed results saved to {output_path}")
 

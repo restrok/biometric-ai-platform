@@ -3,6 +3,7 @@ import base64
 import os
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from dotenv import load_dotenv
 
@@ -41,7 +42,7 @@ async def test_finops_integration():
     print("\nInvoking Agent...")
 
     # Run the graph
-    result = await graph.ainvoke(inputs)
+    result = await graph.ainvoke(cast(Any, inputs))
 
     # Verify usage_stats in result
     usage = result.get("usage_stats", {})

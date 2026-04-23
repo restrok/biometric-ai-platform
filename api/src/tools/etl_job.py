@@ -14,7 +14,8 @@ from garmin_training_toolkit_sdk.extractors import (
 )
 from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition, get_user_profile
 from garmin_training_toolkit_sdk.utils import find_token_file, get_authenticated_client
-from google.cloud import bigquery, storage
+import google.cloud.bigquery as bigquery
+import google.cloud.storage as storage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)

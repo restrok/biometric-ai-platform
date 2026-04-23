@@ -125,7 +125,7 @@ tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, search_e
 def should_continue(state: AgentState):
     """Determines if the graph should continue to tools or end."""
     last_message = state["messages"][-1]
-    if last_message.tool_calls:
+    if getattr(last_message, "tool_calls", None):
         return "tools"
     return END
 

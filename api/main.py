@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -56,7 +57,7 @@ async def chat_with_agent(req: ChatRequest):
         initial_state = {"messages": [HumanMessage(content=req.message)]}
 
         # Invoke LangGraph
-        result = await graph.ainvoke(initial_state)
+        result = await graph.ainvoke(cast(Any, initial_state))
 
         # Extract the AI message from the end of the messages sequence
         msg = result["messages"][-1]

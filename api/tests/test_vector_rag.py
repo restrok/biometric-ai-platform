@@ -1,6 +1,7 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 from src.utils.config import setup_environment
 
@@ -34,7 +35,7 @@ def test_vector_rag_flow():
     print("\nProcessing...\n")
 
     # Run the graph
-    for output in graph.stream(inputs):
+    for output in graph.stream(cast(Any, inputs)):
         for node_name, state in output.items():
             print(f"\n--- Node: {node_name} ---")
             if "messages" in state:
