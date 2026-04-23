@@ -1,10 +1,13 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union, Any
+from typing import List, Optional, Union
 from langchain_core.tools import tool
 import logging
-from datetime import datetime
 from garmin_training_toolkit_sdk.utils import get_authenticated_client, find_token_file
-from garmin_training_toolkit_sdk.uploaders.workouts import create_workout
+from garmin_training_toolkit_sdk.uploaders.workouts import (
+    create_workout, 
+    schedule_workout, 
+    clear_calendar_range
+)
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +52,6 @@ def upload_workouts_to_garmin(workouts: List[Workout]):
     summary = []
 
     for w in workouts:
-        # Map our Pydantic model to the format expected by SDK's create_workout
-        # SDK expects: {"name": str, "description": str, "duration": int, "steps": [("type", val, target), ...]}
         sdk_steps = []
         total_duration = 0
         for s in w.steps:
@@ -76,12 +77,12 @@ def upload_workouts_to_garmin(workouts: List[Workout]):
         # Create RunningWorkout object using SDK
         garmin_workout = create_workout(workout_data)
 
-        # Upload template
+        # Upload template via client (using SDK pattern)
         uploaded = client.upload_running_workout(garmin_workout)
         workout_id = uploaded["workoutId"]
 
-        # Schedule on calendar
-        client.schedule_workout(workout_id, w.date)
+        # Schedule on calendar via SDK
+        schedule_workout(client, workout_id, w.date)
         
         log.info(f"Successfully uploaded and scheduled: {w.name} on {w.date}")
         summary.append(f"{w.name} ({w.date})")
@@ -101,38 +102,7 @@ def clear_garmin_calendar(start_date: str, end_date: str):
     log.info(f"🧹 Clearing Garmin Calendar from {start_date} to {end_date}...")
     client = get_client()
     
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-    
-    # Garmin API fetches by month. Iterate through all months in range.
-    curr_year = start_dt.year
-    curr_month = start_dt.month
-    
-    cleared_count = 0
-    while (curr_year < end_dt.year) or (curr_year == end_dt.year and curr_month <= end_dt.month):
-        log.info(f"Fetching scheduled workouts for {curr_year}-{curr_month:02d}...")
-        cal_data = client.get_scheduled_workouts(curr_year, curr_month)
-        
-        if cal_data and "calendarItems" in cal_data:
-            for item in cal_data["calendarItems"]:
-                item_date_str = item.get("date")
-                if not item_date_str: continue
-                
-                try:
-                    item_date = datetime.strptime(item_date_str, "%Y-%m-%d")
-                    if start_dt <= item_date <= end_dt:
-                        scheduled_id = item.get("calendarItemId")
-                        if scheduled_id:
-                            log.info(f"Unscheduling workout {item.get('itemType')} on {item_date_str}...")
-                            client.unschedule_workout(scheduled_id)
-                            cleared_count += 1
-                except ValueError:
-                    continue
-        
-        # Move to next month
-        curr_month += 1
-        if curr_month > 12:
-            curr_month = 1
-            curr_year += 1
+    # Use the new SDK method
+    cleared_count = clear_calendar_range(client, start_date, end_date)
             
     return f"Successfully cleared {cleared_count} workouts from Garmin Calendar between {start_date} and {end_date}."
