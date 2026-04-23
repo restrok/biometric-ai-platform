@@ -25,21 +25,23 @@ An API (on Cloud Run or GKE) that acts as an "AI Personal Trainer."
 A Terraform repository that deploys everything with a single command and a dashboard (Grafana/Cloud Monitoring) that shows how much each question you ask the AI costs.
 **Value:** This is what differentiates you from an average developer. It shows order, security, and cost control.
 
-## 3. What will we make available? (The Outcome)
-In the end, you will have a public URL or a Video/Demo showing:
-- **The Interface:** A simple chat where you ask: "Based on my last 4 weeks of Garmin, am I ready to run a marathon?"
-- **The "Magic" Behind:** The system retrieves your real metrics from BigQuery, the LLM analyzes your fatigue, and gives you a personalized training plan.
-- **The Technical Dashboard:** A screen showing CPU/GPU usage and the cost of that response (e.g., $0.002 USD).
+## 4. Strategic Vision: The "Garmin" Integration Case Study
+If this platform were integrated natively into the Garmin ecosystem, it would transform from a data dashboard into an **Autonomous Intelligence Engine**. Here are the top 3 strategic integration paths:
 
-## In Summary
-What we are generating is irrefutable technical evidence.
-Instead of telling a company "I know how to use Kubernetes and LLMs," you will show them a system that:
-- Ingests real data.
-- Processes it automatically with IaC (Terraform).
-- Uses frontier AI with private context.
-- Is monitored like a real production system.
+### A. The "Dynamic Training Plan" (Native Ecosystem)
+**The Problem:** Current training plans are static.
+**The Solution:** The agent uses the `upload_workouts_to_garmin` tool to constantly overwrite the user's calendar based on daily recovery.
+**User Experience:** If a user's HRV or Sleep Score is "Poor," the agent automatically replaces a scheduled "Tempo Run" with a "Rest Day" on their watch, explaining the scientific reasoning via a push notification.
 
-This is the profile that commands high-tier engineering roles.
+### B. The "Coach-in-Your-Ear" (Connect IQ)
+**The Problem:** Users only see analysis after syncing, often hours after a run.
+**The Solution:** A Connect IQ (Monkey C) app that acts as the real-time interface for the agent's reasoning.
+**User Experience:** Immediately after a workout, the user receives a briefing on their watch: *"Vertical Oscillation increased by 2cm in the last mile—you were fatiguing. Recommendation: 2 extra hours of recovery and focus on glute activation."*
+
+### C. The "Intelligence API" (B2B Partner Strategy)
+**The Problem:** Professional coaches struggle to analyze second-by-second telemetry for dozens of athletes.
+**The Solution:** Expose the LangGraph nodes as a high-scale API for coaching platforms (Strava, TrainingPeaks).
+**User Experience:** Coaches see an "AI Diagnostic" flag next to athletes, highlighting "Aerobic Decoupling" or form breakdowns automatically, allowing them to intervene before injury occurs.
 
 ---
 
