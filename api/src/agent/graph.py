@@ -16,7 +16,8 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     biometric_context: dict
     usage_stats: dict  # Track cumulative tokens/calls
-    
+
+
 # System prompt incorporating legacy_logic rules (summarized)
 SYSTEM_PROMPT = """You are a highly advanced AI Running Coach and Exercise Physiologist. 
 Your goal is to provide personalized, research-backed training advice based on the user's query and their current biometric context.
@@ -66,6 +67,7 @@ Analyze these to provide a holistic view of the runner's economy.
 - Ensure the tone is that of a professional Exercise Physiologist.
 """
 
+
 def node_retrieve_context(state: AgentState) -> dict:
     """Simulates retrieving data from Vector DB / Data Lake."""
     # In a real scenario, we would parse the user query to determine what to fetch.
@@ -73,48 +75,52 @@ def node_retrieve_context(state: AgentState) -> dict:
     context = retrieve_biometric_data()
     return {"biometric_context": context}
 
+
 import logging
 import time
 
 log = logging.getLogger(__name__)
+
 
 def node_analyze(state: AgentState) -> dict:
     """Calls the LLM to generate the training plan/response."""
     t0 = time.time()
     model_name = "gemini-2.5-flash"
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
-    
+
     # Bind tools to the LLM
     tools = [upload_workouts_to_garmin, search_exercise_science]
     llm_with_tools = llm.bind_tools(tools)
-    
+
     # Format the prompt
     context_str = f"\nUser Biometric Context:\n{state.get('biometric_context', {})}"
     messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
-    
+
     response = llm_with_tools.invoke(messages)
-    
+
     latency_ms = (time.time() - t0) * 1000
-    token_usage = getattr(response, 'usage_metadata', {})
-    
+    token_usage = getattr(response, "usage_metadata", {})
+
     # Update cumulative usage (Agent State Tracking)
     usage = state.get("usage_stats", {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0})
-    
+
     # Log to BigQuery (FinOps)
     if token_usage:
-        in_t = getattr(token_usage, 'input_tokens', 0)
-        out_t = getattr(token_usage, 'output_tokens', 0)
+        in_t = getattr(token_usage, "input_tokens", 0)
+        out_t = getattr(token_usage, "output_tokens", 0)
         finops_row = log_llm_call(model_name, in_t, out_t, latency_ms, node_name="analyzer")
-        
-        usage["total_tokens"] += (in_t + out_t)
+
+        usage["total_tokens"] += in_t + out_t
         usage["total_cost_usd"] += finops_row["cost_usd"]
-        
+
     usage["calls"] += 1
-    
+
     return {"messages": [response], "usage_stats": usage}
+
 
 # Define Tool Node
 tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, search_exercise_science])
+
 
 def should_continue(state: AgentState):
     """Determines if the graph should continue to tools or end."""
@@ -122,6 +128,7 @@ def should_continue(state: AgentState):
     if last_message.tool_calls:
         return "tools"
     return END
+
 
 # Build Graph
 builder = StateGraph(AgentState)
@@ -133,14 +140,7 @@ builder.add_edge(START, "retriever")
 builder.add_edge("retriever", "analyzer")
 
 # Conditional edge from analyzer to tools or end
-builder.add_conditional_edges(
-    "analyzer",
-    should_continue,
-    {
-        "tools": "tools",
-        END: END
-    }
-)
+builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", END: END})
 
 # After tools, go back to analyzer to summarize or finish
 builder.add_edge("tools", "analyzer")

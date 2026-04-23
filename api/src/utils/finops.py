@@ -22,16 +22,17 @@ PROJECT_ID = config["project_id"]
 DATASET_ID = config["dataset_id"]
 TABLE_ID = config["finops_table"]
 
+
 def log_llm_call(model: str, input_tokens: int, output_tokens: int, latency_ms: float, node_name: str = "analyzer"):
     """
     Calculates cost and logs LLM usage to BigQuery.
     """
     total_tokens = input_tokens + output_tokens
-    
+
     # Calculate cost
     model_pricing = PRICING.get(model, PRICING["gemini-2.5-flash"])
     cost = (input_tokens * model_pricing["input"]) + (output_tokens * model_pricing["output"])
-    
+
     row = {
         "timestamp": datetime.utcnow().isoformat(),
         "request_id": str(uuid.uuid4()),
@@ -41,12 +42,12 @@ def log_llm_call(model: str, input_tokens: int, output_tokens: int, latency_ms: 
         "total_tokens": total_tokens,
         "cost_usd": round(cost, 8),
         "latency_ms": round(latency_ms, 2),
-        "node_name": node_name
+        "node_name": node_name,
     }
-    
+
     # Log to console
     log.info(f"💰 FinOps | Model: {model} | Cost: ${cost:.6f} | Latency: {latency_ms:.0f}ms")
-    
+
     # Asynchronously stream to BigQuery (best effort)
     try:
         client = bigquery.Client(project=PROJECT_ID)
@@ -56,5 +57,5 @@ def log_llm_call(model: str, input_tokens: int, output_tokens: int, latency_ms: 
             log.error(f"❌ BigQuery FinOps Error: {errors}")
     except Exception as e:
         log.warning(f"⚠️ Could not log to BigQuery FinOps: {e}")
-        
+
     return row

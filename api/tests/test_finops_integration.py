@@ -29,27 +29,29 @@ from src.agent.graph import graph
 
 logging.basicConfig(level=logging.INFO)
 
+
 async def test_finops_integration():
     print("\n🚀 Testing FinOps & Observability Integration...")
-    print("="*60)
-    
+    print("=" * 60)
+
     query = "Explain why my heart rate zones are important for training."
     inputs = {"messages": [HumanMessage(content=query)]}
-    
+
     print(f"User Query: {query}")
     print("\nInvoking Agent...")
-    
+
     # Run the graph
     result = await graph.ainvoke(inputs)
-    
+
     # Verify usage_stats in result
     usage = result.get("usage_stats", {})
     print("\n✅ Session Usage Stats (Agent State):")
     print(f"   - Total Tokens: {usage.get('total_tokens')}")
     print(f"   - Total Calls:  {usage.get('calls')}")
     print(f"   - Total Cost:   ${usage.get('total_cost_usd', 0):.8f}")
-    
+
     print("\n🔍 Check your BigQuery table 'biometric_data_dev.finops_logs' to see the persistent entry!")
+
 
 if __name__ == "__main__":
     asyncio.run(test_finops_integration())

@@ -32,40 +32,35 @@ from src.agent.graph import graph
 
 async def run_evaluation():
     print("🧪 Starting Ragas Evaluation...")
-    
+
     # 1. Load Dataset
     dataset_path = Path(__file__).parent.parent / "tests" / "eval_dataset.json"
     with open(dataset_path) as f:
         test_samples = json.load(f)
 
-    evaluation_data: dict[str, list] = {
-        "question": [],
-        "answer": [],
-        "contexts": [],
-        "ground_truth": []
-    }
+    evaluation_data: dict[str, list] = {"question": [], "answer": [], "contexts": [], "ground_truth": []}
 
     # 2. Generate Answers and Collect Contexts
     for sample in test_samples:
         question = sample["question"]
         print(f"🤔 Querying: {question}")
-        
+
         inputs = {"messages": [HumanMessage(content=question)]}
-        
+
         # Invoke Agent
         result = await graph.ainvoke(inputs)
-        
+
         # Extract Answer
         answer = result["messages"][-1].content
         if isinstance(answer, list):
             answer = "\n".join([t.get("text", "") for t in answer if isinstance(t, dict) and "text" in t])
-        
+
         # Extract Context (from ToolMessages)
         contexts = []
         for msg in result["messages"]:
             if isinstance(msg, ToolMessage):
                 contexts.append(msg.content)
-        
+
         evaluation_data["question"].append(question)
         evaluation_data["answer"].append(answer)
         evaluation_data["contexts"].append(contexts)
@@ -85,13 +80,13 @@ async def run_evaluation():
         dataset=dataset,
         metrics=[faithfulness, answer_relevancy, context_precision],
         llm=evaluator_llm,
-        embeddings=embeddings
+        embeddings=embeddings,
     )
 
     print("\n✅ EVALUATION COMPLETE!")
     print("-" * 30)
     print(result)
-    
+
     # Save results
     output_path = Path(__file__).parent.parent / "eval_results.json"
     with open(output_path, "w") as f:
@@ -99,6 +94,7 @@ async def run_evaluation():
         serializable_result = {k: v for k, v in result.items()}
         json.dump(serializable_result, f, indent=2)
     print(f"\n📁 Detailed results saved to {output_path}")
+
 
 if __name__ == "__main__":
     asyncio.run(run_evaluation())

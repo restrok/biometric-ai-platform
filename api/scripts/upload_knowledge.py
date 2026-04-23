@@ -26,10 +26,11 @@ TABLE_ID = config["knowledge_base_table"]
 if not PROJECT_ID:
     log.error("GOOGLE_CLOUD_PROJECT environment variable is not set. BigQuery tools will fail.")
 
+
 def upload_knowledge(reset=False, folder="knowledge_base"):
     client = bigquery.Client(project=PROJECT_ID)
     table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"
-    
+
     # 1. Ensure Table Exists
     schema = [
         bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
@@ -37,7 +38,7 @@ def upload_knowledge(reset=False, folder="knowledge_base"):
         bigquery.SchemaField("embedding", "FLOAT64", mode="REPEATED"),
         bigquery.SchemaField("metadata", "STRING", mode="NULLABLE"),
     ]
-    
+
     table = bigquery.Table(table_ref, schema=schema)
     client.create_table(table, exists_ok=True)
     log.info(f"Target table: {table_ref}")
@@ -51,7 +52,7 @@ def upload_knowledge(reset=False, folder="knowledge_base"):
     log.info(f"Loading files from {kb_path}...")
     loader = DirectoryLoader(str(kb_path), glob="**/*.md", loader_cls=TextLoader)
     docs = loader.load()
-    
+
     if not docs:
         log.warning("No markdown files found.")
         return
@@ -63,17 +64,19 @@ def upload_knowledge(reset=False, folder="knowledge_base"):
     # 3. Generate Embeddings
     log.info("Generating embeddings via Gemini...")
     embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
-    
+
     rows_to_insert = []
     for i, split in enumerate(splits):
         try:
             embedding = embeddings_model.embed_query(split.page_content)
-            rows_to_insert.append({
-                "id": str(uuid.uuid4()),
-                "content": split.page_content,
-                "embedding": embedding,
-                "metadata": json.dumps(split.metadata)
-            })
+            rows_to_insert.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "content": split.page_content,
+                    "embedding": embedding,
+                    "metadata": json.dumps(split.metadata),
+                }
+            )
             if (i + 1) % 10 == 0:
                 log.info(f"Processed {i + 1}/{len(splits)} chunks...")
         except Exception as e:
@@ -83,7 +86,7 @@ def upload_knowledge(reset=False, folder="knowledge_base"):
     if rows_to_insert:
         write_disposition = "WRITE_TRUNCATE" if reset else "WRITE_APPEND"
         log.info(f"Uploading {len(rows_to_insert)} rows (Mode: {write_disposition})...")
-        
+
         job_config = bigquery.LoadJobConfig(
             schema=schema,
             write_disposition=write_disposition,
@@ -92,10 +95,11 @@ def upload_knowledge(reset=False, folder="knowledge_base"):
         job.result()
         log.info("✅ Knowledge base sync complete!")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload markdown knowledge to BigQuery RAG.")
     parser.add_argument("--reset", action="store_true", help="Wipe existing knowledge before uploading.")
     parser.add_argument("--folder", type=str, default="knowledge_base", help="Folder containing .md files.")
     args = parser.parse_args()
-    
+
     upload_knowledge(reset=args.reset, folder=args.folder)

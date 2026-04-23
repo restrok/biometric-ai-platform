@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 log = logging.getLogger(__name__)
 
+
 def setup_environment():
     """
     Loads environment variables and decodes the Google API Key if necessary.
@@ -15,7 +16,7 @@ def setup_environment():
     # Find .env file (assuming it's in the api directory)
     env_path = Path(__file__).parent.parent.parent / ".env"
     load_dotenv(env_path)
-    
+
     # Decode GOOGLE_API_KEY if it's base64 encoded
     api_key = os.getenv("GOOGLE_API_KEY")
     if api_key:
@@ -30,6 +31,7 @@ def setup_environment():
             # If it fails to decode, we assume it's already plain text
             pass
 
+
 def get_config():
     """
     Returns common configuration values.
@@ -38,7 +40,7 @@ def get_config():
     if not project_id:
         # Don't raise error here, let the caller decide if it's critical
         log.warning("GOOGLE_CLOUD_PROJECT environment variable is not set.")
-        
+
     return {
         "project_id": project_id,
         "dataset_id": os.getenv("BQ_DATASET", "biometric_data_dev"),

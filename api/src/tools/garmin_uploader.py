@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
+
 class WorkoutTarget(BaseModel):
     workoutTargetTypeId: int
     workoutTargetTypeKey: str
@@ -16,11 +17,13 @@ class WorkoutTarget(BaseModel):
     targetValueOne: float | None = None
     targetValueTwo: float | None = None
 
+
 class WorkoutStep(BaseModel):
     type: str
     duration_sec: int | None = None
     duration_dist: int | None = None
     target: WorkoutTarget | None = None
+
 
 class Workout(BaseModel):
     name: str
@@ -28,14 +31,17 @@ class Workout(BaseModel):
     date: str
     steps: list[WorkoutStep]
 
+
 class TrainingPlan(BaseModel):
     workouts: list[Workout]
+
 
 def get_client():
     token_file = find_token_file()
     if not token_file:
         raise Exception("Garmin authentication token not found.")
     return get_authenticated_client(token_file)
+
 
 @tool(args_schema=TrainingPlan)
 def upload_workouts_to_garmin(workouts: list[Workout]):
@@ -50,24 +56,15 @@ def upload_workouts_to_garmin(workouts: list[Workout]):
         for s in w.steps:
             duration = s.duration_sec or s.duration_dist or 600
             total_duration += duration if s.duration_sec else 0
-            
+
             target_dict = None
             if s.target:
                 # PRESERVE ALL FIELDS for the SDK to pick up
                 target_dict = s.target.model_dump(exclude_none=True)
-            
-            sdk_steps.append({
-                "type": s.type,
-                "duration": duration,
-                "target": target_dict
-            })
 
-        workout_data = {
-            "name": w.name,
-            "description": w.description,
-            "duration": total_duration,
-            "steps": sdk_steps
-        }
+            sdk_steps.append({"type": s.type, "duration": duration, "target": target_dict})
+
+        workout_data = {"name": w.name, "description": w.description, "duration": total_duration, "steps": sdk_steps}
 
         # create_workout in SDK now handles raw dicts
         garmin_workout = create_workout(workout_data)
@@ -79,9 +76,11 @@ def upload_workouts_to_garmin(workouts: list[Workout]):
 
     return f"Successfully uploaded {len(workouts)} workouts: {', '.join(summary)}."
 
+
 class CalendarRange(BaseModel):
     start_date: str
     end_date: str
+
 
 @tool(args_schema=CalendarRange)
 def clear_garmin_calendar(start_date: str, end_date: str):
