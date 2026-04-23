@@ -123,14 +123,19 @@ def run_etl():
     last_sleep_date = get_last_sync_date("sleep_history")
     start_sleep = (last_sleep_date + timedelta(days=1)) if last_sleep_date else (datetime.now() - timedelta(days=30))
     
-    if start_sleep.date() < end_date.date():
-        log.info(f"Syncing Sleep from {start_sleep.date()}...")
+    if start_sleep.date() <= end_date.date():
+        log.info(f"Syncing Sleep from {start_sleep.date()} to {end_date.date()}...")
         sleep_data = get_sleep_data(client, start_sleep.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+        log.info(f"Retrieved {len(sleep_data)} sleep records from SDK.")
         if sleep_data:
             df_sleep = pd.DataFrame([s.model_dump() for s in sleep_data])
-            upload_to_bq(df_sleep, "sleep_history", "biometrics", mode="WRITE_APPEND")
-    else:
-        log.info("Sleep data is already up to date.")
+            try:
+                upload_to_bq(df_sleep, "sleep_history", "biometrics", mode="WRITE_APPEND")
+            except Exception as e:
+                log.error(f"Sleep sync failed during upload: {e}")
+        else:
+            log.info("No sleep data returned from SDK for this range.")
+
 
     # --- 4. Training Status (Always refresh latest) ---
     status = get_training_status(client, end_date.strftime("%Y-%m-%d"))
