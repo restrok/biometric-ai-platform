@@ -1,0 +1,6 @@
+{
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "bio-intelligence-dev",
+    "PYTHONPATH": "/mnt/c/Users/fede_/repo/biometric-ai-platform/api"
+  }
+}
