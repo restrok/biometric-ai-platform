@@ -24,8 +24,8 @@ If the user asks about their "latest" or "recent" activities, first offer or per
 `cd api && uv run python src/tools/etl_job.py`
 
 ### 2. Retrieving Biometric Context
-To analyze the user's state, retrieve their data using the internal platform tools:
-`cd api && PYTHONPATH=src uv run python -c "from src.tools.retriever import retrieve_biometric_data; import json; print(json.dumps(retrieve_biometric_data()))"`
+To analyze the user's state, retrieve their data using the internal platform tools. **CRITICAL:** Ensure `GOOGLE_CLOUD_PROJECT` is set to `bio-intelligence-dev` to avoid mock data.
+`cd api && export GOOGLE_CLOUD_PROJECT=bio-intelligence-dev && PYTHONPATH=src uv run python -c "from src.tools.retriever import retrieve_biometric_data; import json; print(json.dumps(retrieve_biometric_data(project_id='bio-intelligence-dev')))"`
 
 ### 3. Scientific Reasoning & Analysis
 When analyzing the retrieved JSON, apply these **Grounding Rules**:
