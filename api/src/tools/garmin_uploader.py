@@ -1,10 +1,10 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Union
-from langchain_core.tools import tool
 import logging
-from garmin_training_toolkit_sdk.utils import get_authenticated_client, find_token_file
+
+from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range, schedule_workout
 from garmin_training_toolkit_sdk.uploaders.workouts import create_workout
-from garmin_training_toolkit_sdk.uploaders.calendar import schedule_workout, clear_calendar_range
+from garmin_training_toolkit_sdk.utils import find_token_file, get_authenticated_client
+from langchain_core.tools import tool
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -12,24 +12,24 @@ class WorkoutTarget(BaseModel):
     workoutTargetTypeId: int
     workoutTargetTypeKey: str
     displayOrder: int = 1
-    zone: Optional[Union[dict, str, int]] = None
-    targetValueOne: Optional[float] = None
-    targetValueTwo: Optional[float] = None
+    zone: dict | str | int | None = None
+    targetValueOne: float | None = None
+    targetValueTwo: float | None = None
 
 class WorkoutStep(BaseModel):
     type: str
-    duration_sec: Optional[int] = None
-    duration_dist: Optional[int] = None
-    target: Optional[WorkoutTarget] = None
+    duration_sec: int | None = None
+    duration_dist: int | None = None
+    target: WorkoutTarget | None = None
 
 class Workout(BaseModel):
     name: str
     description: str
     date: str
-    steps: List[WorkoutStep]
+    steps: list[WorkoutStep]
 
 class TrainingPlan(BaseModel):
-    workouts: List[Workout]
+    workouts: list[Workout]
 
 def get_client():
     token_file = find_token_file()
@@ -38,7 +38,7 @@ def get_client():
     return get_authenticated_client(token_file)
 
 @tool(args_schema=TrainingPlan)
-def upload_workouts_to_garmin(workouts: List[Workout]):
+def upload_workouts_to_garmin(workouts: list[Workout]):
     """Uploads workouts to Garmin Calendar."""
     log.info(f"📤 Uploading {len(workouts)} workouts...")
     client = get_client()
@@ -86,7 +86,7 @@ class CalendarRange(BaseModel):
 @tool(args_schema=CalendarRange)
 def clear_garmin_calendar(start_date: str, end_date: str):
     """Clears calendar range."""
-    log.info(f"🧹 Clearing Garmin Calendar...")
+    log.info("🧹 Clearing Garmin Calendar...")
     client = get_client()
     cleared_count = clear_calendar_range(client, start_date, end_date)
     return f"Successfully cleared {cleared_count} workouts."

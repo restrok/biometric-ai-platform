@@ -1,11 +1,14 @@
-from google.cloud import bigquery
-import os
 import logging
-import pandas as pd
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from google.cloud import bigquery
+
+from src.utils.config import get_config
+
 log = logging.getLogger(__name__)
+config = get_config()
 
 # Cache clients per project to reduce initialization overhead
 _bq_clients = {}
@@ -16,11 +19,14 @@ def get_bq_client(project_id):
         _bq_clients[project_id] = bigquery.Client(project=project_id)
     return _bq_clients[project_id]
 
-def retrieve_biometric_data(project_id: str = None, dataset: str = "biometric_data_dev") -> dict:
+def retrieve_biometric_data(project_id: str | None = None, dataset: str | None = None) -> dict:
     if not project_id:
-        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+        project_id = config["project_id"]
+    if not dataset:
+        dataset = config["dataset_id"]
+        
     if not project_id:
-        raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
+        log.warning("GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data.")
     """
     Retrieves the user's latest biometric context from BigQuery in parallel.
     Handles missing tables or data gracefully.
@@ -122,7 +128,7 @@ def retrieve_biometric_data(project_id: str = None, dataset: str = "biometric_da
             """
             rows = list(client.query(query_tel_series).result())
             
-            series_data = {}
+            series_data: dict[str, list[str]] = {}
             for row in rows:
                 key = f"{row.activity_name} (ID: {row.activity_id})"
                 if key not in series_data: series_data[key] = []

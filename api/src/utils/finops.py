@@ -1,11 +1,13 @@
-import os
-import time
 import logging
 import uuid
 from datetime import datetime
+
 from google.cloud import bigquery
 
+from src.utils.config import get_config
+
 log = logging.getLogger(__name__)
+config = get_config()
 
 # Gemini Pricing (approx. based on 2.5 Flash expectations)
 PRICING = {
@@ -16,9 +18,9 @@ PRICING = {
     "gemini-2.5-pro": {"input": 3.50 / 1_000_000, "output": 10.50 / 1_000_000},
 }
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
-DATASET_ID = "biometric_data_dev"
-TABLE_ID = "finops_logs"
+PROJECT_ID = config["project_id"]
+DATASET_ID = config["dataset_id"]
+TABLE_ID = config["finops_table"]
 
 def log_llm_call(model: str, input_tokens: int, output_tokens: int, latency_ms: float, node_name: str = "analyzer"):
     """

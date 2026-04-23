@@ -1,33 +1,23 @@
-import os
-import base64
-from pathlib import Path
-from dotenv import load_dotenv
-from google.cloud import bigquery
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_core.tools import tool
 import logging
+
+from google.cloud import bigquery
+from langchain_core.tools import tool
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+from src.utils.config import get_config, setup_environment
 
 log = logging.getLogger(__name__)
 
-# Load and decode API Key (matching main.py logic)
-env_path = Path(__file__).parent.parent.parent / ".env"
-load_dotenv(env_path)
-api_key_raw = os.getenv("GOOGLE_API_KEY")
+# Load environment
+setup_environment()
+config = get_config()
 
-if api_key_raw:
-    try:
-        decoded_bytes = base64.b64decode(api_key_raw, validate=True)
-        decoded_str = decoded_bytes.decode("utf-8")
-        if decoded_str.startswith("AIza"):
-            os.environ["GOOGLE_API_KEY"] = decoded_str
-    except Exception:
-        pass
+PROJECT_ID = config["project_id"]
+DATASET_ID = config["dataset_id"]
+TABLE_ID = config["knowledge_base_table"]
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 if not PROJECT_ID:
-    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
-DATASET_ID = "biometric_data_dev"
-TABLE_ID = "knowledge_base"
+    log.error("GOOGLE_CLOUD_PROJECT environment variable is not set. BigQuery tools will fail.")
 
 @tool
 def search_exercise_science(query: str) -> str:

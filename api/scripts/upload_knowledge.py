@@ -1,39 +1,30 @@
-import os
-import base64
-import uuid
-import json
 import argparse
+import json
 import logging
+import uuid
 from pathlib import Path
-from dotenv import load_dotenv
+
 from google.cloud import bigquery
-from langchain_community.document_loaders import TextLoader, DirectoryLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from src.utils.config import get_config, setup_environment
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
 
-# Load and decode API Key
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(env_path)
-api_key_raw = os.getenv("GOOGLE_API_KEY")
+# Load environment
+setup_environment()
+config = get_config()
 
-if api_key_raw:
-    try:
-        decoded_bytes = base64.b64decode(api_key_raw, validate=True)
-        decoded_str = decoded_bytes.decode("utf-8")
-        if decoded_str.startswith("AIza"):
-            os.environ["GOOGLE_API_KEY"] = decoded_str
-    except Exception:
-        pass
+PROJECT_ID = config["project_id"]
+DATASET_ID = config["dataset_id"]
+TABLE_ID = config["knowledge_base_table"]
 
-PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 if not PROJECT_ID:
-    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is not set.")
-DATASET_ID = "biometric_data_dev"
-TABLE_ID = "knowledge_base"
+    log.error("GOOGLE_CLOUD_PROJECT environment variable is not set. BigQuery tools will fail.")
 
 def upload_knowledge(reset=False, folder="knowledge_base"):
     client = bigquery.Client(project=PROJECT_ID)

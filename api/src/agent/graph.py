@@ -1,13 +1,16 @@
-from typing import TypedDict, Annotated, Sequence
-from langgraph.graph import StateGraph, START, END, add_messages
-from langgraph.prebuilt import ToolNode
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from collections.abc import Sequence
+from typing import Annotated, TypedDict
+
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from src.tools.retriever import retrieve_biometric_data
-from src.tools.garmin_uploader import upload_workouts_to_garmin
+from langgraph.graph import END, START, StateGraph, add_messages
+from langgraph.prebuilt import ToolNode
+
+from src.tools.garmin_uploader import clear_garmin_calendar, upload_workouts_to_garmin
 from src.tools.research_assistant import search_exercise_science
+from src.tools.retriever import retrieve_biometric_data
 from src.utils.finops import log_llm_call
-import os
+
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -70,8 +73,8 @@ def node_retrieve_context(state: AgentState) -> dict:
     context = retrieve_biometric_data()
     return {"biometric_context": context}
 
-import time
 import logging
+import time
 
 log = logging.getLogger(__name__)
 

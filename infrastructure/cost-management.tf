@@ -38,6 +38,6 @@ resource "google_service_usage_consumer_quota_override" "bq_query_usage" {
   service        = "bigquery.googleapis.com"
   metric         = urlencode("bigquery.googleapis.com/quota/query/usage")
   limit          = urlencode("/d/project")
-  override_value = "1024" 
+  override_value = "1024"
   force          = true
 }

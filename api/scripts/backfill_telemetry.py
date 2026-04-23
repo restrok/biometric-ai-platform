@@ -1,9 +1,9 @@
 import os
-import base64
-import pandas as pd
-from google.cloud import bigquery
 from pathlib import Path
+
+import pandas as pd
 from dotenv import load_dotenv
+from google.cloud import bigquery
 
 # Load and decode tokens
 env_path = Path(__file__).parent.parent / ".env"
@@ -11,7 +11,7 @@ load_dotenv(env_path)
 api_key_raw = os.getenv("GOOGLE_API_KEY")
 
 from garmin_training_toolkit_sdk.extractors import get_activity_telemetry
-from garmin_training_toolkit_sdk.utils import get_authenticated_client, find_token_file
+from garmin_training_toolkit_sdk.utils import find_token_file, get_authenticated_client
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 DATASET_ID = "biometric_data_dev"

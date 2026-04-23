@@ -1,15 +1,16 @@
-import sys
-import os
+import asyncio
 import base64
 import json
-import asyncio
+import os
+import sys
 from pathlib import Path
-from dotenv import load_dotenv
+
 from datasets import Dataset
-from ragas import evaluate
-from ragas.metrics import faithfulness, answer_relevancy, context_precision
+from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_core.messages import HumanMessage, ToolMessage, AIMessage
+from ragas import evaluate
+from ragas.metrics import answer_relevancy, context_precision, faithfulness
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -28,15 +29,16 @@ if api_key_raw:
 
 from src.agent.graph import graph
 
+
 async def run_evaluation():
     print("🧪 Starting Ragas Evaluation...")
     
     # 1. Load Dataset
     dataset_path = Path(__file__).parent.parent / "tests" / "eval_dataset.json"
-    with open(dataset_path, "r") as f:
+    with open(dataset_path) as f:
         test_samples = json.load(f)
 
-    evaluation_data = {
+    evaluation_data: dict[str, list] = {
         "question": [],
         "answer": [],
         "contexts": [],

@@ -1,21 +1,20 @@
-import os
 import logging
+import os
 from datetime import datetime, timedelta
-import pandas as pd
-from google.cloud import storage
-from google.cloud import bigquery
 from pathlib import Path
+
+import pandas as pd
 
 # Import our custom SDK
 from garmin_training_toolkit_sdk.extractors import (
-    get_activities, 
-    get_hrv_data, 
-    get_sleep_data, 
+    get_activities,
+    get_activity_telemetry,
+    get_sleep_data,
     get_training_status,
-    get_activity_telemetry
 )
-from garmin_training_toolkit_sdk.extractors.biometrics import get_user_profile, get_body_composition
-from garmin_training_toolkit_sdk.utils import get_authenticated_client, find_token_file
+from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition, get_user_profile
+from garmin_training_toolkit_sdk.utils import find_token_file, get_authenticated_client
+from google.cloud import bigquery, storage
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)

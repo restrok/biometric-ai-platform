@@ -1,7 +1,8 @@
 import os
-from google.cloud import bigquery
 from pathlib import Path
+
 from dotenv import load_dotenv
+from google.cloud import bigquery
 
 # Load env
 env_path = Path(__file__).parent.parent / ".env"

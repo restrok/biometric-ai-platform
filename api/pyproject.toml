@@ -22,5 +22,32 @@ dependencies = [
     "garmin-training-toolkit-sdk>=0.2.0",
 ]
 
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "RET", "SIM", "ARG", "PTH"]
+ignore = [
+    "B008", # Allow FastAPI Depends
+    "E402", # Allow imports after environment setup
+    "T201", # Allow print in CLI/scripts
+    "E501", # Ignore line length
+    "SIM102", # Allow nested if
+    "B904", # Ignore raise from
+    "N815", # Allow mixedCase (Garmin API fields)
+    "E701", # Allow multiple statements on one line (colon)
+    "PTH",  # Don't force Path.open() over open()
+    "C416", # Don't force dict() over dict comprehension
+    "ARG001", # Allow unused arguments (common in LangGraph nodes)
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+check_untyped_defs = true
+explicit_package_bases = true
+
 # [tool.uv.sources]
 # garmin-training-toolkit-sdk = { path = "../../garmin-training-toolkit/garmin_toolkit" }

@@ -1,6 +1,6 @@
 terraform {
   required_version = ">= 1.5.0"
-  
+
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -36,8 +36,8 @@ module "storage" {
 }
 
 module "iam" {
-  source       = "./modules/iam"
-  project_id   = var.project_id
-  api_sa_name  = "biometric-api-dev-sa"
+  source      = "./modules/iam"
+  project_id  = var.project_id
+  api_sa_name = "biometric-api-dev-sa"
 }
 

@@ -1,9 +1,10 @@
-import sys
-import os
-import base64
-from pathlib import Path
-from dotenv import load_dotenv
 import asyncio
+import base64
+import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -20,9 +21,11 @@ if api_key_raw:
     except Exception:
         pass
 
-from src.agent.graph import graph
-from langchain_core.messages import HumanMessage
 import logging
+
+from langchain_core.messages import HumanMessage
+
+from src.agent.graph import graph
 
 logging.basicConfig(level=logging.INFO)
 
