@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 # Configure logging to stderr to avoid polluting stdout
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
@@ -24,12 +25,13 @@ def list_tools():
     # Convert LangChain tool metadata to Gemini CLI expected format
     definitions = []
     for name, tool in TOOLS.items():
-        parameters = {}
+        parameters: dict[str, Any] = {}
         if hasattr(tool, "args_schema") and tool.args_schema:
-            if hasattr(tool.args_schema, "model_json_schema"):
-                parameters = tool.args_schema.model_json_schema()
-            else:
-                parameters = tool.args_schema.schema()
+            schema_obj = tool.args_schema
+            if hasattr(schema_obj, "model_json_schema"):
+                parameters = schema_obj.model_json_schema()
+            elif hasattr(schema_obj, "schema"):
+                parameters = schema_obj.schema()
         else:
             parameters = {"type": "object", "properties": {}}
 
