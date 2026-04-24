@@ -5,8 +5,9 @@ tools:
   - run_shell_command
   - read_file
   - google_web_search
-  - clear_garmin_calendar
-  - upload_workouts_to_garmin
+  - discovered_tool_clear_garmin_calendar
+  - discovered_tool_upload_workouts_to_garmin
+  - discovered_tool_search_exercise_science
 model: gemini-2.5-flash
 ---
 
