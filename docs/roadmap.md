@@ -61,3 +61,58 @@ After consolidating the Data Lakehouse and the Reasoning Loop, the next big step
 - **Goal:** Allow the LangGraph Agent to design and publish workouts directly to the user's Garmin calendar.
 - **Integration:** Wrap the `garmin_toolkit.uploaders.workouts` module as a callable **Tool** for the Agent.
 - **Workflow:** User asks for a plan -> AI reads biometrics in BigQuery -> Designs plan using 80/20 rule -> Calls `upload_workouts_to_garmin` tool -> Plan appears on the user's watch, adapted to their current recovery state.
+
+---
+
+🏗️ Arquitectura del Módulo: "The Coach Bot"
+Host: Tu Raspberry Pi 5 (Contenedor Docker).
+
+Modo: Long Polling (Cero configuración de red/puertos en el MikroTik).
+
+Lógica: Integración directa con tu agent_executor de LangGraph.
+
+Trigger: Dual (Reactivo por mensajes y Proactivo por tiempo).
+
+📝 Prompt para pasarle a Gemini CLI
+Copiá esto y dáselo como contexto inicial:
+
+Contexto del Proyecto:
+Tenemos una API en FastAPI y un Agente en LangGraph que analiza archivos FIT de Garmin guardados en BigQuery. Ahora queremos agregar un nuevo módulo independiente llamado coach-bot.
+
+Objetivo:
+Crear un bot de Telegram que funcione como un "Socio de Entrenamiento". El bot debe:
+
+Ser Proactivo: Enviarme un mensaje cada mañana (8:00 AM) analizando mi recuperación (Sleep/HRV) de BigQuery y dándome un consejo motivacional o de salud.
+
+Ser Reactivo: Responder a comandos básicos como /status (resumen del día) o /coach (consejo instantáneo).
+
+Costo Cero: Debe correr mediante Long Polling (no Webhooks) para evitar exponer puertos.
+
+Plan de Implementación:
+
+Dependencias: Usar python-telegram-bot[job-queue] para el bot y la programación de tareas.
+
+Estructura: Crear src/bot/main.py. Debe importar el agent_executor del módulo de la API existente.
+
+Jobs Asíncronos: Configurar un JobQueue que dispare una tarea diaria. Esta tarea debe llamar al agente de IA pasando el contexto de los últimos datos de BigQuery.
+
+Prompting: El bot debe tener una personalidad de "Coach Profesional" (basado en principios de educación física) pero con el toque analítico de un SRE.
+
+Docker: Generar un Dockerfile.bot liviano basado en python:3.12-slim que instale las dependencias de los otros módulos (SDK y Agent) para poder funcionar.
+
+Instrucción:
+Generame el código de src/bot/main.py y el Dockerfile.bot necesario para que esto funcione como un contenedor independiente en mi Raspberry Pi 5.
+
+🛠️ Detalles técnicos para tu "Vibe-coding"
+Para que no reniegues cuando la IA te tire el código, tené en cuenta estos tres puntos:
+
+Secrets: Vas a necesitar el TELEGRAM_BOT_TOKEN (lo sacás hablando con @BotFather) y tu TELEGRAM_USER_ID (para que el bot no le conteste a cualquiera).
+
+Compartir Lógica: Como el bot vive en la misma estructura que tu API, decile a Gemini que use Relative Imports o que asuma que el PYTHONPATH incluye la raíz del proyecto.
+
+El "Factor Motivación": Pedile que en el System Prompt del agente incluya: "Usa los datos de sueño y estrés para validar si el usuario está listo para entrenar. Si los datos son malos, prioriza el descanso; si son buenos, sé exigente".
+
+💡 Bonus de SRE: Salud del Bot
+Como sos SRE, pedile también que incluya un Healthcheck sencillo: que el bot loguee en consola cada vez que el "Polling" se reinicia. Así, desde tu terminal en Tigre, podés tirar un docker logs -f coach-bot y ver que todo sigue vivo.
+
+¿Querés que profundicemos en algún comando específico que te gustaría que el bot entienda (tipo "/dieta" o "/recuperacion") antes de que lo mandes al CLI?
