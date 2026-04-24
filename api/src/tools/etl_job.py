@@ -51,7 +51,7 @@ def get_last_sync_date(table_name):
 
 
 def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND"):
-    """Uploads data to a NATIVE BigQuery table (supports appending)."""
+    """Uploads data to a NATIVE BigQuery table."""
     if df.empty:
         return
 
@@ -61,24 +61,24 @@ def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND"):
     # Configure the load job
     job_config = bigquery.LoadJobConfig(
         write_disposition=mode,
-        source_format=bigquery.SourceFormat.PARQUET,
     )
 
-    local_path = Path(f"/tmp/{table_name}.parquet")
-    df.to_parquet(local_path, engine="pyarrow", index=False)
-
-    # Upload to GCS (Archive / Audit Log)
-    gcs_client = storage.Client(project=PROJECT_ID)
-    bucket = gcs_client.bucket(BUCKET_NAME)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    blob_path = f"archive/{folder_name}/{table_name}_{timestamp}.parquet"
-    bucket.blob(blob_path).upload_from_filename(str(local_path))
-
-    # Load into BigQuery (Native Table)
-    with open(local_path, "rb") as source_file:
-        job = client.load_table_from_file(source_file, table_id, job_config=job_config)
-
+    # Load into BigQuery
+    job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     job.result()  # Wait for completion
+
+    # Optional: Still archive to GCS as Parquet for audit
+    try:
+        local_path = Path(f"/tmp/{table_name}.parquet")
+        df.to_parquet(local_path, engine="pyarrow", index=False)
+        gcs_client = storage.Client(project=PROJECT_ID)
+        bucket = gcs_client.bucket(BUCKET_NAME)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        blob_path = f"archive/{folder_name}/{table_name}_{timestamp}.parquet"
+        bucket.blob(blob_path).upload_from_filename(str(local_path))
+    except Exception as e:
+        log.warning(f"GCS archival failed (but BQ load succeeded): {e}")
+
     log.info(f"Synced {len(df)} rows to {table_id} ({mode}).")
 
 
@@ -126,6 +126,29 @@ def get_wellness_stats(client, days=7):
     peak_mhr = max(max_hrs) if max_hrs else None
 
     return avg_rhr, peak_mhr
+
+
+def get_manual_weigh_ins(client, start_date, end_date):
+    """Fetches manual weight entries that might not appear in body composition."""
+    weigh_ins = []
+    try:
+        data = client.get_weigh_ins(start_date, end_date)
+        if data and "dailyWeightSummaries" in data:
+            for summary in data["dailyWeightSummaries"]:
+                for m in summary.get("allWeightMetrics", []):
+                    # Weight is in grams in this endpoint
+                    weigh_ins.append(
+                        {
+                            "date": m.get("calendarDate"),
+                            "weight_kg": m.get("weight") / 1000.0 if m.get("weight") else None,
+                            "bmi": m.get("bmi"),
+                            "fat_percentage": m.get("bodyFat"),
+                            "muscle_mass_kg": m.get("muscleMass") / 1000.0 if m.get("muscleMass") else None,
+                        }
+                    )
+    except Exception as e:
+        log.warning(f"Manual weigh-in fetch failed: {e}")
+    return weigh_ins
 
 
 def run_etl():
@@ -214,7 +237,7 @@ def run_etl():
                     log.info(f"Patched VO2 Max from latest activity: {row.vo2max}")
             except Exception:
                 pass
-        
+
         upload_to_bq(pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE")
 
     # --- 5. User Profile (Always refresh latest, but preserve/patch custom HRs) ---
@@ -257,10 +280,30 @@ def run_etl():
         start_body = (last_body_date + timedelta(days=1)) if last_body_date else (datetime.now() - timedelta(days=30))
 
         if start_body.date() <= end_date.date():
-            log.info(f"Syncing Body Composition from {start_body.date()}...")
-            body_data = get_body_composition(client, start_body.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-            if body_data:
-                df_body = pd.DataFrame([b.model_dump() for b in body_data])
+            start_str = start_body.strftime("%Y-%m-%d")
+            end_str = end_date.strftime("%Y-%m-%d")
+
+            log.info(f"Syncing Body Composition from {start_str}...")
+            # 1. Try smart scale data
+            body_data = get_body_composition(client, start_str, end_str)
+            df_body = pd.DataFrame([b.model_dump() for b in body_data]) if body_data else pd.DataFrame()
+
+            # 2. Try manual weigh-ins
+            manual_data = get_manual_weigh_ins(client, start_str, end_str)
+            if manual_data:
+                df_manual = pd.DataFrame(manual_data)
+                df_body = pd.concat([df_body, df_manual]).drop_duplicates(subset=["date"], keep="first")
+
+            if not df_body.empty:
+                # BigQuery 'DATE' type needs strings or datetime objects, 
+                # but Parquet + Pandas often makes them nullable or changes mode.
+                df_body["date"] = pd.to_datetime(df_body["date"])
+                df_body = df_body.dropna(subset=["date"])
+                
+                # Ensure metrics are float to match BQ schema
+                for col in ["weight_kg", "bmi", "fat_percentage", "muscle_mass_kg"]:
+                    if col in df_body.columns:
+                        df_body[col] = df_body[col].astype(float)
                 upload_to_bq(df_body, "body_composition", "biometrics", mode="WRITE_APPEND")
     except Exception as e:
         log.warning(f"Body Composition sync failed: {e}")
