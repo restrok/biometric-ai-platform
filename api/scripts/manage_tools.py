@@ -16,29 +16,27 @@ from src.tools.research_assistant import search_exercise_science
 TOOLS = {
     "clear_garmin_calendar": clear_garmin_calendar,
     "upload_workouts_to_garmin": upload_workouts_to_garmin,
-    "search_exercise_science": search_exercise_science
+    "search_exercise_science": search_exercise_science,
 }
+
 
 def list_tools():
     # Convert LangChain tool metadata to Gemini CLI expected format
     definitions = []
     for name, tool in TOOLS.items():
         parameters = {}
-        if hasattr(tool, 'args_schema') and tool.args_schema:
-            if hasattr(tool.args_schema, 'model_json_schema'):
+        if hasattr(tool, "args_schema") and tool.args_schema:
+            if hasattr(tool.args_schema, "model_json_schema"):
                 parameters = tool.args_schema.model_json_schema()
             else:
                 parameters = tool.args_schema.schema()
         else:
             parameters = {"type": "object", "properties": {}}
-            
-        definitions.append({
-            "name": name,
-            "description": tool.description,
-            "parameters": parameters
-        })
+
+        definitions.append({"name": name, "description": tool.description, "parameters": parameters})
     # Print only JSON to stdout
     print(json.dumps(definitions))
+
 
 def call_tool(name):
     try:
@@ -47,7 +45,7 @@ def call_tool(name):
             args = {} if not args_str else json.loads(args_str)
         else:
             args = {}
-        
+
         tool = TOOLS.get(name)
         if tool:
             result = tool.invoke(args)
@@ -61,10 +59,11 @@ def call_tool(name):
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
 
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(1)
-        
+
     command = sys.argv[1]
     if command == "list":
         list_tools()

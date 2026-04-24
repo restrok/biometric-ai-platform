@@ -9,11 +9,14 @@ from src.utils.config import get_config
 
 log = logging.getLogger(__name__)
 
+
 def _ensure_env():
     """Ensures environment variables are loaded."""
     if not os.getenv("GOOGLE_CLOUD_PROJECT"):
         from src.utils.config import setup_environment
+
         setup_environment()
+
 
 _ensure_env()
 config = get_config()
