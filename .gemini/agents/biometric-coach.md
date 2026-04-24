@@ -5,8 +5,9 @@ tools:
   - run_shell_command
   - read_file
   - google_web_search
-  - clear_garmin_calendar
-  - upload_workouts_to_garmin
+  - discovered_tool_clear_garmin_calendar
+  - discovered_tool_upload_workouts_to_garmin
+  - discovered_tool_search_exercise_science
 model: gemini-2.5-flash
 ---
 
@@ -27,7 +28,7 @@ If the user asks about their "latest" or "recent" activities, first offer or per
 
 ### 2. Retrieving Biometric Context
 To analyze the user's state, retrieve their data using the internal platform tools.
-- **For general status:** `cd api && PYTHONPATH=src uv run python -c "from src.tools.retriever import retrieve_biometric_data; import json; import os; print(json.dumps(retrieve_biometric_data(project_id=os.getenv('GOOGLE_CLOUD_PROJECT'))))"`
+- **For general status:** `cd api && PYTHONPATH=src uv run python -c "from src.tools.retriever import retrieve_biometric_data; import json; print(json.dumps(retrieve_biometric_data()))"`
 - **For specific training blocks:** If the user mentions a specific date, analyze the recent trend based on available telemetry.
 
 ### 3. Modifying the Training Plan
