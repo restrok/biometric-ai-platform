@@ -307,7 +307,7 @@ def run_etl():
                         axis=1,
                     )
                     log.info("Calculated missing BMI values using profile height.")
-                
+
                 # Ensure metrics are float to match BQ schema
                 for col in ["weight_kg", "bmi", "fat_percentage", "muscle_mass_kg"]:
                     if col in df_body.columns:
