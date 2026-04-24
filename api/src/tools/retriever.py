@@ -16,7 +16,6 @@ def _ensure_env():
         setup_environment()
 
 _ensure_env()
-from src.utils.config import get_config
 config = get_config()
 
 # Cache clients per project to reduce initialization overhead

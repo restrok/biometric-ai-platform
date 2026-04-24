@@ -1,7 +1,7 @@
-import sys
 import json
-import os
 import logging
+import os
+import sys
 
 # Configure logging to stderr to avoid polluting stdout
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
@@ -44,10 +44,7 @@ def call_tool(name):
     try:
         if not sys.stdin.isatty():
             args_str = sys.stdin.read()
-            if not args_str:
-                args = {}
-            else:
-                args = json.loads(args_str)
+            args = {} if not args_str else json.loads(args_str)
         else:
             args = {}
         
