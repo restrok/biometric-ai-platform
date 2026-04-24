@@ -1,0 +1,14 @@
+[
+    {
+        "question": "What are the core principles of polarized 80/20 training?",
+        "ground_truth": "The core principles of polarized 80/20 training state that 80% of training volume should be at low intensity (Zone 2) to build aerobic base, and 20% should be at high intensity (Zone 4/5) to improve VO2max and performance. It explicitly recommends avoiding the 'gray zone' (Zone 3)."
+    },
+    {
+        "question": "If my observed Max HR is 196 bpm, what should my Zone 2 range be according to the 80/20 rule?",
+        "ground_truth": "For a Max HR of 196 bpm, Zone 2 (Aerobic) typically ranges from 60% to 70% of Max HR, which is approximately 118 bpm to 137 bpm. However, if telemetry shows sustained comfortable efforts at higher rates (e.g., 155-165 bpm), the Zone 2 cap may be adjusted upwards to reflect individual physiology."
+    },
+    {
+        "question": "What are the benefits of Zone 2 training?",
+        "ground_truth": "Zone 2 training improves mitochondrial density, increases capillary density, enhances fat oxidation, and builds a solid aerobic base. It allows for high volume training with relatively low stress and faster recovery compared to high-intensity sessions."
+    }
+]

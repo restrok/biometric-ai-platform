@@ -1,0 +1,59 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "db-dtypes>=1.5.1",
+    "fastapi>=0.136.0",
+    "google-cloud-bigquery>=3.41.0",
+    "google-cloud-storage>=2.19.0",
+    "langchain>=1.2.15",
+    "langchain-google-genai>=4.2.2",
+    "langgraph>=1.1.8",
+    "pandas>=2.3.3",
+    "pyarrow>=23.0.1",
+    "pydantic>=2.13.3",
+    "python-dotenv>=1.2.2",
+    "uvicorn>=0.44.0",
+    "langchain-community>=0.2.0",
+    "ragas>=0.2.0",
+    "garmin-training-toolkit-sdk>=0.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.6",
+    "mypy>=1.15.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "RET", "SIM", "ARG", "PTH"]
+ignore = [
+    "B008", # Allow FastAPI Depends
+    "E402", # Allow imports after environment setup
+    "T201", # Allow print in CLI/scripts
+    "E501", # Ignore line length
+    "SIM102", # Allow nested if
+    "B904", # Ignore raise from
+    "N815", # Allow mixedCase (Garmin API fields)
+    "E701", # Allow multiple statements on one line (colon)
+    "PTH",  # Don't force Path.open() over open()
+    "C416", # Don't force dict() over dict comprehension
+    "ARG001", # Allow unused arguments (common in LangGraph nodes)
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+check_untyped_defs = true
+explicit_package_bases = true
+
+# [tool.uv.sources]
+# garmin-training-toolkit-sdk = { path = "../../garmin-training-toolkit/garmin_toolkit" }
