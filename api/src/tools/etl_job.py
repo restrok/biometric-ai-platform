@@ -295,10 +295,18 @@ def run_etl():
                 df_body = pd.concat([df_body, df_manual]).drop_duplicates(subset=["date"], keep="first")
 
             if not df_body.empty:
-                # BigQuery 'DATE' type needs strings or datetime objects, 
-                # but Parquet + Pandas often makes them nullable or changes mode.
                 df_body["date"] = pd.to_datetime(df_body["date"])
                 df_body = df_body.dropna(subset=["date"])
+
+                # Auto-calculate BMI if missing
+                profile = get_user_profile(client)
+                if profile and profile.height_cm:
+                    height_m = profile.height_cm / 100.0
+                    df_body["bmi"] = df_body.apply(
+                        lambda row: round(row["weight_kg"] / (height_m**2), 1) if pd.isna(row["bmi"]) else row["bmi"],
+                        axis=1,
+                    )
+                    log.info("Calculated missing BMI values using profile height.")
                 
                 # Ensure metrics are float to match BQ schema
                 for col in ["weight_kg", "bmi", "fat_percentage", "muscle_mass_kg"]:
