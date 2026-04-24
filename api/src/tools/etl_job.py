@@ -1,5 +1,6 @@
 import logging
 import os
+import statistics
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -81,6 +82,52 @@ def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND"):
     log.info(f"Synced {len(df)} rows to {table_id} ({mode}).")
 
 
+def get_current_user_metrics():
+    """Queries BigQuery to find the current max_hr and resting_hr."""
+    client = bigquery.Client(project=PROJECT_ID)
+    table_id = f"{PROJECT_ID}.{DATASET_NAME}.user_profile"
+    try:
+        query = f"SELECT max_hr, resting_hr FROM `{table_id}` LIMIT 1"
+        results = client.query(query).result()
+        row = next(results)
+        return row.max_hr, row.resting_hr
+    except Exception:
+        return None, None
+
+
+def get_wellness_stats(client, days=7):
+    """Retrieves heart rate statistics from wellness data for the last N days."""
+    # Ensure display_name is set for wellness API calls
+    if not client.display_name:
+        try:
+            settings = client.get_userprofile_settings()
+            client.display_name = settings.get("displayName")
+        except Exception as e:
+            log.warning(f"Could not retrieve display_name for wellness sync: {e}")
+
+    resting_hrs = []
+    max_hrs = []
+
+    for i in range(1, days + 1):
+        date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        try:
+            hr_data = client.get_heart_rates(date)
+            if hr_data:
+                rhr = hr_data.get("restingHeartRate")
+                mhr = hr_data.get("maxHeartRate")
+                if rhr:
+                    resting_hrs.append(rhr)
+                if mhr:
+                    max_hrs.append(mhr)
+        except Exception as e:
+            log.debug(f"Wellness data for {date} not available: {e}")
+
+    avg_rhr = round(statistics.mean(resting_hrs)) if resting_hrs else None
+    peak_mhr = max(max_hrs) if max_hrs else None
+
+    return avg_rhr, peak_mhr
+
+
 def run_etl():
     log.info("Starting Incremental Biometric Sync...")
 
@@ -157,12 +204,35 @@ def run_etl():
     if status:
         upload_to_bq(pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE")
 
-    # --- 5. User Profile (Always refresh latest) ---
+    # --- 5. User Profile (Always refresh latest, but preserve/patch custom HRs) ---
     try:
-        log.info("Syncing User Profile...")
+        log.info("Syncing User Profile & Wellness Metrics...")
         profile = get_user_profile(client)
         if profile:
+            curr_max, curr_rest = get_current_user_metrics()
+            # Fetch wellness fallbacks (7-day stats)
+            avg_rhr, peak_mhr = get_wellness_stats(client)
+
             df_profile = pd.DataFrame([profile.model_dump()])
+
+            # Patch Max HR
+            if pd.isna(df_profile["max_hr"].iloc[0]):
+                # Take the highest between the 7-day peak and what we have in BQ
+                potential_maxes = [m for m in [peak_mhr, curr_max] if m]
+                fallback_max = max(potential_maxes) if potential_maxes else None
+                if fallback_max:
+                    df_profile.loc[0, "max_hr"] = fallback_max
+                    log.info(f"Patched Max HR with highest fallback: {fallback_max}")
+
+            # Patch Resting HR
+            if pd.isna(df_profile["resting_hr"].iloc[0]):
+                # 1. Try wellness average from last 7 days
+                # 2. Try what we already have in BQ
+                fallback_rest = avg_rhr or curr_rest
+                if fallback_rest:
+                    df_profile.loc[0, "resting_hr"] = fallback_rest
+                    log.info(f"Patched Resting HR with fallback: {fallback_rest}")
+
             df_profile["updated_at"] = datetime.utcnow()
             upload_to_bq(df_profile, "user_profile", "biometrics", mode="WRITE_TRUNCATE")
     except Exception as e:
