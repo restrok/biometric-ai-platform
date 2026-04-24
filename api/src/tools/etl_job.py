@@ -202,6 +202,19 @@ def run_etl():
     # --- 4. Training Status (Always refresh latest) ---
     status = get_training_status(client, end_date.strftime("%Y-%m-%d"))
     if status:
+        # Fallback for VO2 Max: if not in training status, check latest activity
+        if status.vo2max is None:
+            try:
+                query = f"SELECT vo2max FROM `{PROJECT_ID}.{DATASET_NAME}.recent_activities` WHERE vo2max IS NOT NULL ORDER BY date DESC LIMIT 1"
+                bq_client = bigquery.Client(project=PROJECT_ID)
+                results = bq_client.query(query).result()
+                row = next(results)
+                if row.vo2max:
+                    status.vo2max = row.vo2max
+                    log.info(f"Patched VO2 Max from latest activity: {row.vo2max}")
+            except Exception:
+                pass
+        
         upload_to_bq(pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE")
 
     # --- 5. User Profile (Always refresh latest, but preserve/patch custom HRs) ---
