@@ -7,7 +7,7 @@ from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 
 from src.tools.etl_tool import trigger_biometric_sync
-from src.tools.garmin_uploader import clear_garmin_calendar, upload_workouts_to_garmin
+from src.tools.garmin_uploader import clear_garmin_calendar, upload_workouts_to_garmin, remove_garmin_workout
 from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -121,7 +121,7 @@ def node_analyze(state: AgentState) -> dict:
 
 
 # Define Tool Node
-tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, search_exercise_science, update_user_zones, trigger_biometric_sync])
+tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, remove_garmin_workout, search_exercise_science, update_user_zones, trigger_biometric_sync])
 
 
 def should_continue(state: AgentState):

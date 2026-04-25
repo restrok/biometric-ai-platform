@@ -1,7 +1,7 @@
 import logging
 
 from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range, schedule_workout
-from garmin_training_toolkit_sdk.uploaders.workouts import create_workout
+from garmin_training_toolkit_sdk.uploaders.workouts import create_workout, delete_workout
 from garmin_training_toolkit_sdk.utils import find_token_file, get_authenticated_client
 from langchain_core.tools import tool
 from pydantic import BaseModel
@@ -10,16 +10,14 @@ log = logging.getLogger(__name__)
 
 
 class WorkoutTarget(BaseModel):
-    workoutTargetTypeId: int
-    workoutTargetTypeKey: str
     displayOrder: int = 1
-    zone: dict | str | int | None = None
-    targetValueOne: float | None = None
-    targetValueTwo: float | None = None
+    target_type: str | None = None  # e.g., 'heart.rate.zone'
+    min_target: float | None = None  # e.g., 145
+    max_target: float | None = None  # e.g., 165
 
 
 class WorkoutStep(BaseModel):
-    type: str
+    type: str  # e.g., 'run', 'recovery', 'interval'
     duration_sec: int | None = None
     duration_dist: int | None = None
     target: WorkoutTarget | None = None
@@ -59,7 +57,7 @@ def upload_workouts_to_garmin(workouts: list[Workout]):
 
             target_dict = None
             if s.target:
-                # PRESERVE ALL FIELDS for the SDK to pick up
+                # The SDK now internally maps these semantic names to Garmin API IDs
                 target_dict = s.target.model_dump(exclude_none=True)
 
             sdk_steps.append({"type": s.type, "duration": duration, "target": target_dict})
@@ -89,3 +87,22 @@ def clear_garmin_calendar(start_date: str, end_date: str):
     client = get_client()
     cleared_count = clear_calendar_range(client, start_date, end_date)
     return f"Successfully cleared {cleared_count} workouts."
+
+
+class WorkoutID(BaseModel):
+    workout_id: str
+
+
+@tool(args_schema=WorkoutID)
+def remove_garmin_workout(workout_id: str):
+    """
+    Deletes a specific workout from the Garmin library using its ID.
+    """
+    log.info(f"🗑️ Deleting Garmin workout {workout_id}...")
+    client = get_client()
+    try:
+        client.delete_workout(workout_id)
+        return f"Successfully deleted workout {workout_id}."
+    except Exception as e:
+        log.error(f"❌ Failed to delete workout {workout_id}: {e}")
+        return f"Error deleting workout {workout_id}: {e}"

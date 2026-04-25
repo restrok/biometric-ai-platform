@@ -123,7 +123,7 @@ dev = [
 requires-dist = [
     { name = "db-dtypes", specifier = ">=1.5.1" },
     { name = "fastapi", specifier = ">=0.136.0" },
-    { name = "garmin-training-toolkit-sdk", specifier = ">=0.3.1" },
+    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&branch=feat%2Fllm-native-sdk" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-storage", specifier = ">=2.19.0" },
     { name = "langchain", specifier = ">=1.2.15" },
@@ -478,7 +478,7 @@ http = [
 [[package]]
 name = "garmin-training-toolkit-sdk"
 version = "0.3.1"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&branch=feat%2Fllm-native-sdk#b67903072346aa87c98686fd3121fa595bc61d03" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },
@@ -486,10 +486,6 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "requests-oauthlib" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/17/e9518c38f4713a2d6e8dd5b2fd3417b797e8257f36bec418d748fc347084/garmin_training_toolkit_sdk-0.3.1.tar.gz", hash = "sha256:be2a6f04967d75eac6706ecd82a643ba43170ec28cb32673196db981f4f750be", size = 31338, upload-time = "2026-04-25T04:27:29.491Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/7b/ad0d7508ce1ddc20d2d535c7114251137c5330fb6a238efc6011a871053e/garmin_training_toolkit_sdk-0.3.1-py3-none-any.whl", hash = "sha256:a3c60a8cb5e0d933ef22fd013c80c9ea40a30c89ef30dd98b16a8abe16e8cd8f", size = 40818, upload-time = "2026-04-25T04:27:28.058Z" },
 ]
 
 [[package]]
