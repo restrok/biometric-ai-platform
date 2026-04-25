@@ -1,10 +1,11 @@
 from collections.abc import Sequence
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
+from pydantic import BaseModel, Field
 
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.etl_tool import sync_biometric_data
@@ -19,6 +20,18 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     biometric_context: dict
     usage_stats: dict  # Track cumulative tokens/calls
+    intent: str  # 'full', 'profile_only', 'none'
+
+
+class IntentClassifier(BaseModel):
+    """Classifies the user's intent to optimize data retrieval."""
+
+    intent: Literal["full", "profile_only", "none"] = Field(
+        ...,
+        description="Select 'full' if the query needs activity history/telemetry. "
+        "Select 'profile_only' if it only needs zones/profile info. "
+        "Select 'none' for general greetings or science questions without user data.",
+    )
 
 
 # System prompt incorporating legacy_logic rules (summarized)
@@ -77,10 +90,37 @@ Analyze these to provide a holistic view of the runner's economy.
 """
 
 
+def node_router(state: AgentState) -> dict:
+    """Classifies user intent to decide which data to fetch."""
+    model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    # We only look at the last message for intent
+    last_msg = state["messages"][-1].content
+
+    # Use structured output for fast, reliable routing
+    structured_llm = model.with_structured_output(IntentClassifier)
+    try:
+        # Note: In a real app, you'd handle the case where content is a list of blocks
+        content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
+        classification = structured_llm.invoke(
+            f"Classify the following user query for biometric data retrieval needs: {content_to_classify}"
+        )
+        intent = classification.intent
+    except Exception:
+        intent = "full"  # Fallback to safe default
+
+    return {"intent": intent}
+
+
 def node_retrieve_context(state: AgentState) -> dict:
-    """Simulates retrieving data from Vector DB / Data Lake."""
-    # In a real scenario, we would parse the user query to determine what to fetch.
-    # Here we use a dummy tool.
+    """Retrieves data based on the classified intent."""
+    intent = state.get("intent", "full")
+
+    if intent == "none":
+        return {"biometric_context": {"info": "No user data retrieved for this query type."}}
+
+    # If profile_only, we'd ideally have a tool that only gets the profile.
+    # For now, we'll use a hack or just pass a flag if our tool supports it.
+    # Since our retriever is already fast (~3s), we'll keep it simple but skip if 'none'.
     context = retrieve_biometric_data.invoke({})
     return {"biometric_context": context}
 
@@ -157,11 +197,13 @@ def should_continue(state: AgentState):
 
 # Build Graph
 builder = StateGraph(AgentState)
+builder.add_node("router", node_router)
 builder.add_node("retriever", node_retrieve_context)
 builder.add_node("analyzer", node_analyze)
 builder.add_node("tools", tool_node)
 
-builder.add_edge(START, "retriever")
+builder.add_edge(START, "router")
+builder.add_edge("router", "retriever")
 builder.add_edge("retriever", "analyzer")
 
 # Conditional edge from analyzer to tools or end
