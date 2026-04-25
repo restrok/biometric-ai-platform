@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-garmin-training-toolkit-sdk = { git = "ssh://git@github.com/restrok/garmin-training-toolkit-sdk.git", branch = "main", subdirectory = "garmin_toolkit" }
+garmin-training-toolkit-sdk = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git", branch = "main", subdirectory = "garmin_toolkit" }
 
 [dependency-groups]
 dev = [
