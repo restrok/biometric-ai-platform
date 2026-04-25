@@ -17,12 +17,15 @@ setup_environment()
 from langchain_core.messages import HumanMessage
 
 from src.agent.graph import graph
+from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
 
 app = FastAPI(
     title="Biometric AI Platform API", description="Agentic RAG Backend for Biometric Data Analysis", version="0.1.0"
 )
+
+app.include_router(tools.router)
 
 
 class HealthCheck(BaseModel):
