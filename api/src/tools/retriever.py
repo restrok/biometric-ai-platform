@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from datetime import date, datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from google.cloud import bigquery
@@ -32,7 +33,19 @@ def get_bq_client(project_id):
     return _bq_clients[project_id]
 
 
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+
+class RetrieverInput(BaseModel):
+    project_id: str | None = Field(None, description="GCP Project ID")
+    dataset: str | None = Field(None, description="BigQuery Dataset ID")
+
+@tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(project_id: str | None = None, dataset: str | None = None) -> dict:
+    """
+    Retrieves the user's latest biometric context from BigQuery in parallel.
+    Includes recent activities, training status, sleep history, and telemetry summaries.
+    """
     if not project_id:
         project_id = config["project_id"]
     if not dataset:
@@ -202,7 +215,18 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
     context["hrv"] = {"info": "HRV baseline not yet established."}
 
     log.info(f"✅ Total context retrieval time: {time.time() - start_total:.2f}s")
-    return context
+
+    # Final deep serialization for JSON compliance
+    def serialize_dates(obj):
+        if isinstance(obj, dict):
+            return {k: serialize_dates(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [serialize_dates(i) for i in obj]
+        elif isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        return obj
+
+    return serialize_dates(context)
 
 
 def _get_mock_data() -> dict:

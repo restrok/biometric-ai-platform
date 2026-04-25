@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import select
 import sys
 from typing import Any
 
@@ -12,12 +13,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.tools.garmin_uploader import clear_garmin_calendar, upload_workouts_to_garmin
 from src.tools.research_assistant import search_exercise_science
+from src.tools.retriever import retrieve_biometric_data
 
 # Mapping of names to LangChain tools
 TOOLS = {
     "clear_garmin_calendar": clear_garmin_calendar,
     "upload_workouts_to_garmin": upload_workouts_to_garmin,
     "search_exercise_science": search_exercise_science,
+    "retrieve_biometric_data": retrieve_biometric_data,
 }
 
 
@@ -42,9 +45,11 @@ def list_tools():
 
 def call_tool(name):
     try:
+        # Read from stdin if there is data available
         if not sys.stdin.isatty():
-            args_str = sys.stdin.read()
-            args = {} if not args_str else json.loads(args_str)
+            args_str = sys.stdin.read().strip()
+            # logging.error(f"Read from stdin: {args_str}") # Debug
+            args = json.loads(args_str) if args_str else {}
         else:
             args = {}
 
