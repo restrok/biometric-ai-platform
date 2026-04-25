@@ -19,11 +19,11 @@ dependencies = [
     "uvicorn>=0.44.0",
     "langchain-community>=0.2.0",
     "ragas>=0.2.0",
-    "garmin-training-toolkit-sdk>=0.3.1",
+    "garmin-training-toolkit-sdk>=0.4.0",
 ]
 
 [tool.uv.sources]
-garmin-training-toolkit-sdk = { git = "ssh://git@github.com/restrok/garmin-training-toolkit-sdk.git", branch = "feat/llm-native-sdk", subdirectory = "garmin_toolkit" }
+garmin-training-toolkit-sdk = { git = "ssh://git@github.com/restrok/garmin-training-toolkit-sdk.git", branch = "main", subdirectory = "garmin_toolkit" }
 
 [dependency-groups]
 dev = [
