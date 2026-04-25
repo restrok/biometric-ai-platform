@@ -31,6 +31,10 @@ def test_workout_protocol_validation():
         }
     ]
     # If this doesn't raise a Pydantic error, the SDK is compatible with our tool's logic
-    plan = WorkoutPlan(root=raw_plan)
+    from typing import Any, cast
+
+    plan = WorkoutPlan(root=cast(Any, raw_plan))
     assert len(plan.root) == 1
-    assert plan.root[0].steps[0].target.min_target == 140.0
+    # Cast to Any to bypass complex union attribute check
+    step: Any = plan.root[0].steps[0]
+    assert step.target.min_target == 140.0

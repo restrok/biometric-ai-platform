@@ -15,8 +15,10 @@ def test_retriever_not_empty():
 @pytest.mark.asyncio
 async def test_agent_invocation():
     """Verify that the agent can be invoked and returns a message."""
+    from typing import Any, cast
+
     initial_state = {"messages": [HumanMessage(content="Hello coach, how am I doing?")]}
-    result = await graph.ainvoke(initial_state)
+    result = await graph.ainvoke(cast(Any, initial_state))
 
     assert "messages" in result
     assert len(result["messages"]) > 1

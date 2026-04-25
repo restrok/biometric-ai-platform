@@ -43,11 +43,12 @@ def upload_training_plan(workouts: list[Workout]):
 
     try:
         # Map our LangChain tool models to the SDK Protocol models
+        from typing import Any, cast
+
         plan_data = [w.model_dump() for w in workouts]
-        workout_plan = WorkoutPlan(root=plan_data)
+        workout_plan = WorkoutPlan(root=cast(Any, plan_data))
 
         report = provider.upload_training_plan(workout_plan)
-
         if report.success:
             return f"Success: {report.message}. IDs: {', '.join(report.uploaded_ids)}"
         return f"Failed: {report.message}"

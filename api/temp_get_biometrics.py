@@ -23,7 +23,7 @@ def serialize_dates(obj):
 
 
 try:
-    data = retrieve_biometric_data()
+    data = retrieve_biometric_data.invoke({})
     serialized_data = serialize_dates(data)
     print(json.dumps(serialized_data, indent=2))
 except Exception as e:

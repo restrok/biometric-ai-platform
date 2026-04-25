@@ -10,14 +10,21 @@ logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 # Add src to path if needed
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from src.tools.garmin_uploader import clear_garmin_calendar, upload_workouts_to_garmin
+from src.tools.analytics import analyze_activity_efficiency
+from src.tools.etl_tool import sync_biometric_data
+from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
+from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 
 # Mapping of names to LangChain tools
 TOOLS = {
-    "clear_garmin_calendar": clear_garmin_calendar,
-    "upload_workouts_to_garmin": upload_workouts_to_garmin,
+    "clear_calendar": clear_calendar,
+    "upload_training_plan": upload_training_plan,
+    "remove_workout": remove_workout,
+    "update_user_zones": update_user_zones,
+    "sync_biometric_data": sync_biometric_data,
+    "analyze_activity_efficiency": analyze_activity_efficiency,
     "search_exercise_science": search_exercise_science,
     "retrieve_biometric_data": retrieve_biometric_data,
 }
