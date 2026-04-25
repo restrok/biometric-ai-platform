@@ -4,20 +4,20 @@ This repository contains the core Agentic RAG and SRE Infrastructure system for 
 
 ## Overview
 
-The `biometric-ai-platform` is a Product-Grade AI Ecosystem for athletic performance. It implements an **Agentic RAG** architecture that ingests Garmin fitness data into a **Native BigQuery Lakehouse**, performs second-by-second telemetry analysis, and provides research-backed training recommendations via a **LangGraph** agent.
+The `biometric-ai-platform` is a Product-Grade AI Ecosystem for athletic performance. It implements an **Agentic RAG** architecture that ingests multi-brand fitness data (Garmin, and future providers) into a **Native BigQuery Lakehouse**, performs second-by-second telemetry analysis, and provides research-backed training recommendations via a brand-agnostic **LangGraph** agent.
 
 ## Core Architecture
 
-1. **SDK Layer (`garmin-toolkit`)**: A custom Python SDK that acts as an Anti-Corruption Layer, enforcing strict Pydantic contracts on raw Garmin data.
-2. **Data Pipeline**: An **Incremental ETL** job that Maintains a high-performance BigQuery Lakehouse with sub-second retrieval times.
-3. **Reasoning Layer**: A LangGraph AI Agent (Gemini 2.5 Flash) that prioritizes real physiological data (Observed Max HR, Heart Rate Drift) over generic age-based formulas.
+1. **Provider Layer (`garmin-training-toolkit-sdk`)**: A standardized, LLM-native SDK that implements a **Provider Pattern**. It abstracts proprietary brand logic behind a "Common Language" (Semantic Pydantic models).
+2. **Data Pipeline**: An **Incremental ETL** job that maintains a high-performance BigQuery Lakehouse.
+3. **Reasoning Layer**: A LangGraph AI Agent (Gemini 2.5 Flash) that prioritizes real physiological data and persists user-specific discoveries (like custom HR zones) back to the Data Lake.
 
 ## Performance & Intelligence
 
-The platform achieves sub-10 second end-to-end latencies for complex biometric reasoning:
-- **Parallel Context Retrieval**: Highly optimized BigQuery client leveraging `ThreadPoolExecutor` to fetch Activities, Sleep, Training Status, User Profile, Body Composition, and Second-by-Second Telemetry in **~3.0 seconds**.
-- **High-Performance Inference**: Utilizes `gemini-2.5-flash` within LangGraph to process dense "mechanical summaries" and return structured advice in **~3.0 seconds**.
-- **Advanced Physiological Insights**: The agent goes beyond basic summaries, autonomously detecting phenomena like **Aerobic Decoupling** and **Efficiency Leaks** by correlating Heart Rate, Power (Watts), Ground Contact Time (GCT), and Vertical Oscillation over time.
+- **Standardized Provider Interface**: Swappable hardware providers (Garmin, Suunto, etc.) without changing agent logic.
+- **Persistent Bio-Profiles**: The agent autonomously discovers physiological thresholds (like AeT) and updates the user's profile in BigQuery.
+- **Actionable API**: Beyond chat, the API exposes endpoints for deterministic synchronization and profile management.
+- **Parallel Context Retrieval**: Highly optimized BigQuery client leveraging `ThreadPoolExecutor`.
 
 ## Repository Structure (Monorepo)
 
