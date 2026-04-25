@@ -3,6 +3,7 @@ from .research_assistant import search_exercise_science
 from .retriever import retrieve_biometric_data
 from .profile_manager import update_user_zones
 from .etl_tool import sync_biometric_data
+from .analytics import analyze_activity_efficiency
 
 __all__ = [
     "upload_training_plan",
@@ -11,5 +12,6 @@ __all__ = [
     "search_exercise_science",
     "retrieve_biometric_data",
     "update_user_zones",
-    "sync_biometric_data"
+    "sync_biometric_data",
+    "analyze_activity_efficiency"
 ]
