@@ -35,8 +35,8 @@ class TrainingPlan(BaseModel):
 
 
 @tool(args_schema=TrainingPlan)
-def upload_workouts_to_garmin(workouts: list[Workout]):
-    """Uploads workouts to the active biometric provider (e.g., Garmin)."""
+def upload_training_plan(workouts: list[Workout]):
+    """Uploads a training plan to the active biometric provider."""
     log.info(f"📤 Uploading {len(workouts)} workouts via Provider...")
     provider = get_provider()
     
@@ -61,7 +61,7 @@ class CalendarRange(BaseModel):
 
 
 @tool(args_schema=CalendarRange)
-def clear_garmin_calendar(start_date: str, end_date: str):
+def clear_calendar(start_date: str, end_date: str):
     """Clears calendar range for the active provider."""
     log.info("🧹 Clearing Calendar...")
     provider = get_provider()
@@ -78,7 +78,7 @@ class WorkoutID(BaseModel):
 
 
 @tool(args_schema=WorkoutID)
-def remove_garmin_workout(workout_id: str):
+def remove_workout(workout_id: str):
     """Deletes a specific workout using the active provider."""
     log.info(f"🗑️ Deleting workout {workout_id}...")
     provider = get_provider()

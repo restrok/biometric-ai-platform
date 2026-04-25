@@ -66,6 +66,7 @@ async def update_zones(zones: ZoneUpdate):
     Updates the user's custom heart rate zones.
     """
     try:
+        # tool names are internal but for clarity we use the new one
         result = update_user_zones.invoke(zones.model_dump())
         return {"status": "success", "message": result}
     except Exception as e:

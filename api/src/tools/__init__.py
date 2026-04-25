@@ -1,15 +1,15 @@
-from .garmin_uploader import upload_workouts_to_garmin, clear_garmin_calendar, remove_garmin_workout
+from .garmin_uploader import upload_training_plan, clear_calendar, remove_workout
 from .research_assistant import search_exercise_science
 from .retriever import retrieve_biometric_data
 from .profile_manager import update_user_zones
-from .etl_tool import trigger_biometric_sync
+from .etl_tool import sync_biometric_data
 
 __all__ = [
-    "upload_workouts_to_garmin",
-    "clear_garmin_calendar",
-    "remove_garmin_workout",
+    "upload_training_plan",
+    "clear_calendar",
+    "remove_workout",
     "search_exercise_science",
     "retrieve_biometric_data",
     "update_user_zones",
-    "trigger_biometric_sync"
+    "sync_biometric_data"
 ]
