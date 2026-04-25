@@ -19,13 +19,15 @@ dependencies = [
     "uvicorn>=0.44.0",
     "langchain-community>=0.2.0",
     "ragas>=0.2.0",
-    "garmin-training-toolkit-sdk>=0.2.0",
+    "garmin-training-toolkit-sdk>=0.3.1",
 ]
 
 [dependency-groups]
 dev = [
     "ruff>=0.9.6",
     "mypy>=1.15.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
 ]
 
 [tool.ruff]

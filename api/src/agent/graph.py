@@ -6,7 +6,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 
+from src.tools.etl_tool import trigger_biometric_sync
 from src.tools.garmin_uploader import clear_garmin_calendar, upload_workouts_to_garmin
+from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 from src.utils.finops import log_llm_call
@@ -72,7 +74,7 @@ def node_retrieve_context(state: AgentState) -> dict:
     """Simulates retrieving data from Vector DB / Data Lake."""
     # In a real scenario, we would parse the user query to determine what to fetch.
     # Here we use a dummy tool.
-    context = retrieve_biometric_data()
+    context = retrieve_biometric_data.invoke({})
     return {"biometric_context": context}
 
 
@@ -89,7 +91,7 @@ def node_analyze(state: AgentState) -> dict:
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
 
     # Bind tools to the LLM
-    tools = [upload_workouts_to_garmin, search_exercise_science]
+    tools = [upload_workouts_to_garmin, search_exercise_science, update_user_zones, trigger_biometric_sync]
     llm_with_tools = llm.bind_tools(tools)
 
     # Format the prompt
@@ -119,7 +121,7 @@ def node_analyze(state: AgentState) -> dict:
 
 
 # Define Tool Node
-tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, search_exercise_science])
+tool_node = ToolNode([upload_workouts_to_garmin, clear_garmin_calendar, search_exercise_science, update_user_zones, trigger_biometric_sync])
 
 
 def should_continue(state: AgentState):

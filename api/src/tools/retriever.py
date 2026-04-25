@@ -69,7 +69,7 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
         nonlocal top_3_ids
         try:
             t0 = time.time()
-            query_act = f"SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max FROM `{project_id}.{dataset}.recent_activities` ORDER BY date DESC LIMIT 5"
+            query_act = f"SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max FROM `{project_id}.{dataset}.recent_activities` ORDER BY date DESC LIMIT 20"
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
             log.info(f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
@@ -113,7 +113,7 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
     def fetch_user_profile():
         try:
             t0 = time.time()
-            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr FROM `{project_id}.{dataset}.user_profile` LIMIT 1"
+            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max FROM `{project_id}.{dataset}.user_profile` LIMIT 1"
             profile_rows = list(client.query(query_profile).result())
             log.info(f"⏱️ BigQuery: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", (dict(profile_rows[0]) if profile_rows else None)

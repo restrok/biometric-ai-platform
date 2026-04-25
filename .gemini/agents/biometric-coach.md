@@ -6,6 +6,7 @@ tools:
   - discovered_tool_upload_workouts_to_garmin
   - discovered_tool_search_exercise_science
   - discovered_tool_retrieve_biometric_data
+  - discovered_tool_update_user_zones
   - google_web_search
 model: gemini-2.5-flash
 ---

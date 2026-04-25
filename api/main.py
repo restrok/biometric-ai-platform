@@ -17,6 +17,8 @@ setup_environment()
 from langchain_core.messages import HumanMessage
 
 from src.agent.graph import graph
+from src.tools.etl_job import run_etl
+from src.tools.profile_manager import update_user_zones, ZoneUpdate
 
 app = FastAPI(
     title="Biometric AI Platform API", description="Agentic RAG Backend for Biometric Data Analysis", version="0.1.0"
@@ -43,6 +45,31 @@ async def health_check():
     Returns the current health status of the API.
     """
     return HealthCheck(status="ok", version="0.1.0")
+
+
+@app.post("/sync", tags=["System"])
+async def trigger_sync():
+    """
+    Manually triggers the Garmin-to-BigQuery ETL process.
+    """
+    try:
+        # In a production environment, this should be a background task
+        run_etl()
+        return {"status": "success", "message": "Biometric data sync completed."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/profile/zones", tags=["User Profile"])
+async def update_zones(zones: ZoneUpdate):
+    """
+    Updates the user's custom heart rate zones.
+    """
+    try:
+        result = update_user_zones.invoke(zones.model_dump())
+        return {"status": "success", "message": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["AI Agent"])
