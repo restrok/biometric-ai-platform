@@ -92,6 +92,7 @@ This structure allows SRE teams to work centrally in `infrastructure/` while AI 
 To ensure high performance for AI workloads while strictly adhering to Google Cloud's Free Tier limits, the Data Pipeline has evolved into a **Native BigQuery Lakehouse** with Incremental Sync:
 
 *   **Extraction:** The `garmin_toolkit` SDK retrieves data as typed Pydantic objects.
+*   **Power Analytics:** The ETL job now extracts `avg_power` from second-by-second telemetry and stores it in the `recent_activities` summary table for historical trend analysis.
 *   **Incremental Sync Logic:** The ETL pipeline queries BigQuery for the `MAX(date)` of existing records and only fetches new data (deltas) from the Garmin API. This prevents rate limiting and redundant data transfer.
 *   **Native BigQuery Tables:** We have moved from External GCS tables to Native BigQuery tables for:
     *   **Append Support:** Efficiently adding new activities and telemetry without rewriting the entire dataset.

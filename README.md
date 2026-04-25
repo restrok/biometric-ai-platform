@@ -17,6 +17,7 @@ The `biometric-ai-platform` is a Product-Grade AI Ecosystem for athletic perform
 - **Standardized Provider Interface**: Swappable hardware providers (Garmin, Suunto, etc.) without changing agent logic.
 - **Persistent Bio-Profiles**: The agent autonomously discovers physiological thresholds (like AeT) and updates the user's profile in BigQuery.
 - **Actionable API**: Beyond chat, the API exposes endpoints for deterministic synchronization and profile management.
+- **Power & Efficiency Analytics**: The ETL pipeline calculates `avg_power` from telemetry, enabling historical **Watts per Kilogram (W/kg)** trend analysis.
 - **Parallel Context Retrieval**: Highly optimized BigQuery client leveraging `ThreadPoolExecutor`.
 
 ## Intelligence & Safety
