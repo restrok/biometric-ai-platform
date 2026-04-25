@@ -68,10 +68,10 @@ uv run scripts/upload_knowledge.py --reset
 
 ---
 
-## 🔄 Synchronizing Data (Garmin to BigQuery)
+## 🔄 Synchronizing Data (Provider to BigQuery)
 
-### 1. Authenticate with Garmin
-Run the browser-based authentication to generate session tokens:
+### 1. Authenticate with your Provider
+For Garmin, run the browser-based authentication to generate session tokens:
 ```bash
 cd api
 uv run python -m garmin_training_toolkit_sdk.auth
@@ -81,26 +81,13 @@ uv run python -m garmin_training_toolkit_sdk.auth
 ### 2. Run the Incremental ETL
 Fetch your latest activities and telemetry:
 ```bash
+# Option A: Command line
 cd api
 PYTHONPATH=src uv run python src/tools/etl_job.py
+
+# Option B: API endpoint
+curl -X 'POST' 'http://localhost:8000/sync'
 ```
-
-### 3. Update the Knowledge Base (RAG)
-The AI agent uses a RAG (Retrieval-Augmented Generation) system to answer questions about exercise science. You can add your own research papers, training plans, or notes in Markdown format to the `/knowledge_base` directory.
-
-To sync new files to the AI's research base:
-```bash
-cd api
-# To add new files without deleting existing ones:
-uv run scripts/upload_knowledge.py
-
-# To specify a different folder:
-uv run scripts/upload_knowledge.py --folder my_research_folder
-
-# To wipe the research base and re-upload everything:
-uv run scripts/upload_knowledge.py --reset
-```
-*Note: This process generates embeddings using Gemini and stores them in BigQuery.*
 
 ---
 
@@ -113,13 +100,23 @@ uv run python main.py
 ```
 
 ### 2. Interact with the Agent
-Access the Swagger UI at `http://localhost:8000/docs` or use `curl`:
-```bash
-curl -X 'POST' \
-  'http://localhost:8000/chat' \
-  -H 'Content-Type: application/json' \
-  -d '{"message": "Analyze my last run efficiency."}'
-```
+The API now supports both **Agentic Chat** and **Deterministic Actions**:
+
+*   **Chat (Agentic RAG):** `POST /chat`
+    ```bash
+    curl -X 'POST' \
+      'http://localhost:8000/chat' \
+      -H 'Content-Type: application/json' \
+      -d '{"message": "Sync my data and analyze my last run efficiency."}'
+    ```
+*   **Manual Sync:** `POST /sync`
+*   **Profile Management:** `POST /profile/zones`
+    ```bash
+    curl -X 'POST' \
+      'http://localhost:8000/profile/zones' \
+      -H 'Content-Type: application/json' \
+      -d '{"z1_max": 143, "z2_max": 165, "z3_max": 176, "z4_max": 186}'
+    ```
 
 ---
 

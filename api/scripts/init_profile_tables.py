@@ -25,6 +25,10 @@ def create_profile_tables():
         bigquery.SchemaField("weight_kg", "FLOAT64", mode="NULLABLE"),
         bigquery.SchemaField("max_hr", "INTEGER", mode="NULLABLE"),
         bigquery.SchemaField("resting_hr", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("custom_z1_max", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("custom_z2_max", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("custom_z3_max", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("custom_z4_max", "INTEGER", mode="NULLABLE"),
         bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
     ]
 

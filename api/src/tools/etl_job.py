@@ -179,23 +179,40 @@ def run_etl():
         ]
 
         if new_activities:
-            df_act = pd.DataFrame([a.model_dump() for a in new_activities])
-            if "splits" in df_act.columns:
-                df_act.drop(columns=["splits"], inplace=True)
-            df_act["date"] = pd.to_datetime(df_act["date"])
-            upload_to_bq(df_act, "recent_activities", "activities", mode="WRITE_APPEND")
-
             # --- 2. Telemetry for the NEW activities ONLY ---
             all_telemetry = []
+            activity_summaries = []
+
             for act in new_activities:
                 log.info(f"Fetching telemetry for new activity: {act.name} ({act.id})")
                 telemetry = get_activity_telemetry(client, act.id)
+
+                avg_pwr = None
                 if telemetry and telemetry.ticks:
                     df_t = pd.DataFrame([t.model_dump() for t in telemetry.ticks])
                     df_t["activity_id"] = str(act.id)
                     df_t["activity_name"] = act.name
                     all_telemetry.append(df_t)
 
+                    # Delegate math to pandas/local processing for the new rows before upload
+                    if "power_w" in df_t.columns:
+                        valid_pwr = df_t[df_t["power_w"] > 0]["power_w"]
+                        if not valid_pwr.empty:
+                            avg_pwr = float(valid_pwr.mean())
+
+                # Build summary row
+                summary = act.model_dump()
+                summary["avg_power"] = avg_pwr
+                activity_summaries.append(summary)
+
+            # Upload Activity Summaries
+            df_act = pd.DataFrame(activity_summaries)
+            if "splits" in df_act.columns:
+                df_act.drop(columns=["splits"], inplace=True)
+            df_act["date"] = pd.to_datetime(df_act["date"])
+            upload_to_bq(df_act, "recent_activities", "activities", mode="WRITE_APPEND")
+
+            # Upload Telemetry
             if all_telemetry:
                 df_telemetry = pd.concat(all_telemetry)
                 # Fix schema mismatch: ensure run_walk_index is float to match BQ

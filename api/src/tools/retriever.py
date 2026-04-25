@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime
 
 from google.cloud import bigquery
 
@@ -32,7 +33,21 @@ def get_bq_client(project_id):
     return _bq_clients[project_id]
 
 
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+
+
+class RetrieverInput(BaseModel):
+    project_id: str | None = Field(None, description="GCP Project ID")
+    dataset: str | None = Field(None, description="BigQuery Dataset ID")
+
+
+@tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(project_id: str | None = None, dataset: str | None = None) -> dict:
+    """
+    Retrieves the user's latest biometric context from BigQuery in parallel.
+    Includes recent activities, training status, sleep history, and telemetry summaries.
+    """
     if not project_id:
         project_id = config["project_id"]
     if not dataset:
@@ -56,7 +71,7 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
         nonlocal top_3_ids
         try:
             t0 = time.time()
-            query_act = f"SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max FROM `{project_id}.{dataset}.recent_activities` ORDER BY date DESC LIMIT 5"
+            query_act = f"SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max FROM `{project_id}.{dataset}.recent_activities` ORDER BY date DESC LIMIT 20"
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
             log.info(f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
@@ -100,7 +115,7 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
     def fetch_user_profile():
         try:
             t0 = time.time()
-            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr FROM `{project_id}.{dataset}.user_profile` LIMIT 1"
+            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max FROM `{project_id}.{dataset}.user_profile` LIMIT 1"
             profile_rows = list(client.query(query_profile).result())
             log.info(f"⏱️ BigQuery: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", (dict(profile_rows[0]) if profile_rows else None)
@@ -202,7 +217,18 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
     context["hrv"] = {"info": "HRV baseline not yet established."}
 
     log.info(f"✅ Total context retrieval time: {time.time() - start_total:.2f}s")
-    return context
+
+    # Final deep serialization for JSON compliance
+    def serialize_dates(obj):
+        if isinstance(obj, dict):
+            return {k: serialize_dates(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [serialize_dates(i) for i in obj]
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        return obj
+
+    return serialize_dates(context)
 
 
 def _get_mock_data() -> dict:

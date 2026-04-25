@@ -17,18 +17,31 @@ The platform is designed as an **Agentic RAG** system, decoupled into several sp
 
 ### 2. SDK Layer (`garmin-toolkit`)
 *   Acts as an **Anti-Corruption Layer**.
-*   All data fetched from Garmin is transformed into **Pydantic Models** before entering the data lake.
+*   Implements a **Standardized Provider Interface** (Provider Pattern) to support multiple hardware brands (Garmin, Suunto, etc.).
+*   All models (Activity, Telemetry, Workout) use **Semantic Naming** (e.g., `min_target`) for LLM compatibility.
 
 ### 3. Reasoning Layer (LangGraph)
 *   The agent is defined in `api/src/agent/graph.py`.
 *   **State Graph Nodes:**
     *   `retriever`: Fetches 6 context domains (Activities, Sleep, etc.) from BigQuery in parallel using `ThreadPoolExecutor`.
     *   `analyzer`: Uses **Gemini 2.5 Flash** to reason over the user query and the retrieved context.
-    *   `tools`: Executes external actions like uploading workouts or searching the knowledge base.
+    *   `tools`: Executes external actions. Standard tools include:
+        *   `upload_training_plan`: Schedules tailored workouts on the user's device.
+        *   `sync_biometric_data`: Triggers the ETL pipeline to refresh BigQuery.
+        *   **update_user_zones**: Persists detected physiological thresholds to the user profile.
+        *   **search_knowledge_base**: Native BigQuery vector search for exercise science.
 
----
+        ### 4. Intelligence Implementation (Safety & Stability)
+        The agent's reasoning loop is governed by several core logic patterns to ensure reliability:
 
-## 🛠️ Development Workflows
+        *   **Noise Reduction (Windowing):** The `analyzer` node is prompted to look for reproducibility. It must compare multiple telemetry segments from the `retriever` before suggesting a profile update.
+        *   **Cold Start Logic:** If `biometric_context['recent_activities']` is empty or only contains info messages, the `analyzer` is programmed to switch to "Calibration Mode." It will refuse to call `upload_training_plan` with high-intensity workouts and instead recommend a 2-week baseline-gathering phase.
+        *   **Scientific Grounding:** The system uses the `Karvonen Formula` as a fallback when empirical Aerobic Threshold (AeT) data is unavailable.
+
+        ---
+
+        ## 🛠️ Development Workflows
+
 
 ### 1. Adding a New Tool
 1.  Define the tool function in `api/src/tools/`.
