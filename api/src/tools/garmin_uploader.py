@@ -17,15 +17,15 @@ class WorkoutTarget(BaseModel):
 
 
 class WorkoutStep(BaseModel):
-    type: str  # e.g., 'run', 'recovery', 'interval'
-    duration_sec: int | None = None
-    duration_dist: int | None = None
+    type: str  # e.g., 'run', 'recovery', 'interval', 'warmup', 'cooldown'
+    duration: float  # Duration in minutes (e.g. 10.5)
     target: WorkoutTarget | None = None
 
 
 class Workout(BaseModel):
     name: str
-    description: str
+    description: str = ""
+    duration: float  # Total duration in minutes
     date: str
     steps: list[WorkoutStep]
 

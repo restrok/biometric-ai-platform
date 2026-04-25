@@ -12,4 +12,4 @@ def get_provider():
     if not token_file:
         raise Exception("Authentication token not found for the primary provider.")
     
-    return GarminProvider(token_file=token_file)
+    return GarminProvider(token_path=token_file)
