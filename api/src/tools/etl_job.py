@@ -182,18 +182,18 @@ def run_etl():
             # --- 2. Telemetry for the NEW activities ONLY ---
             all_telemetry = []
             activity_summaries = []
-            
+
             for act in new_activities:
                 log.info(f"Fetching telemetry for new activity: {act.name} ({act.id})")
                 telemetry = get_activity_telemetry(client, act.id)
-                
+
                 avg_pwr = None
                 if telemetry and telemetry.ticks:
                     df_t = pd.DataFrame([t.model_dump() for t in telemetry.ticks])
                     df_t["activity_id"] = str(act.id)
                     df_t["activity_name"] = act.name
                     all_telemetry.append(df_t)
-                    
+
                     # Delegate math to pandas/local processing for the new rows before upload
                     if "power_w" in df_t.columns:
                         valid_pwr = df_t[df_t["power_w"] > 0]["power_w"]

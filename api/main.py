@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage
 
 from src.agent.graph import graph
 from src.tools.etl_job import run_etl
-from src.tools.profile_manager import update_user_zones, ZoneUpdate
+from src.tools.profile_manager import ZoneUpdate, update_user_zones
 
 app = FastAPI(
     title="Biometric AI Platform API", description="Agentic RAG Backend for Biometric Data Analysis", version="0.1.0"

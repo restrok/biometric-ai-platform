@@ -1,13 +1,16 @@
 import json
-from datetime import date
-from src.tools.retriever import retrieve_biometric_data
 import os
 import sys
+from datetime import date
+
+from src.tools.retriever import retrieve_biometric_data
 
 # Ensure environment is set up if not already
 if not os.getenv("GOOGLE_CLOUD_PROJECT"):
     from src.utils.config import setup_environment
+
     setup_environment()
+
 
 def serialize_dates(obj):
     if isinstance(obj, date):
@@ -17,6 +20,7 @@ def serialize_dates(obj):
     if isinstance(obj, list):
         return [serialize_dates(elem) for elem in obj]
     return obj
+
 
 try:
     data = retrieve_biometric_data()

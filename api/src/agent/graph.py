@@ -8,7 +8,7 @@ from langgraph.prebuilt import ToolNode
 
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.etl_tool import sync_biometric_data
-from src.tools.garmin_uploader import clear_calendar, upload_training_plan, remove_workout
+from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
 from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -98,7 +98,13 @@ def node_analyze(state: AgentState) -> dict:
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
 
     # Bind tools to the LLM
-    tools = [upload_training_plan, search_exercise_science, update_user_zones, sync_biometric_data, analyze_activity_efficiency]
+    tools = [
+        upload_training_plan,
+        search_exercise_science,
+        update_user_zones,
+        sync_biometric_data,
+        analyze_activity_efficiency,
+    ]
     llm_with_tools = llm.bind_tools(tools)
 
     # Format the prompt
@@ -128,7 +134,17 @@ def node_analyze(state: AgentState) -> dict:
 
 
 # Define Tool Node
-tool_node = ToolNode([upload_training_plan, clear_calendar, remove_workout, search_exercise_science, update_user_zones, sync_biometric_data, analyze_activity_efficiency])
+tool_node = ToolNode(
+    [
+        upload_training_plan,
+        clear_calendar,
+        remove_workout,
+        search_exercise_science,
+        update_user_zones,
+        sync_biometric_data,
+        analyze_activity_efficiency,
+    ]
+)
 
 
 def should_continue(state: AgentState):

@@ -1,10 +1,11 @@
 import logging
 
-from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range
 from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
-from src.utils.provider_factory import get_provider
+from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range
 from langchain_core.tools import tool
 from pydantic import BaseModel
+
+from src.utils.provider_factory import get_provider
 
 log = logging.getLogger(__name__)
 
@@ -39,14 +40,14 @@ def upload_training_plan(workouts: list[Workout]):
     """Uploads a training plan to the active biometric provider."""
     log.info(f"📤 Uploading {len(workouts)} workouts via Provider...")
     provider = get_provider()
-    
+
     try:
         # Map our LangChain tool models to the SDK Protocol models
         plan_data = [w.model_dump() for w in workouts]
         workout_plan = WorkoutPlan(root=plan_data)
-        
+
         report = provider.upload_training_plan(workout_plan)
-        
+
         if report.success:
             return f"Success: {report.message}. IDs: {', '.join(report.uploaded_ids)}"
         return f"Failed: {report.message}"

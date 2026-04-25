@@ -1,8 +1,8 @@
 import logging
 import os
 import time
-from datetime import date, datetime
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime
 
 from google.cloud import bigquery
 
@@ -36,9 +36,11 @@ def get_bq_client(project_id):
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+
 class RetrieverInput(BaseModel):
     project_id: str | None = Field(None, description="GCP Project ID")
     dataset: str | None = Field(None, description="BigQuery Dataset ID")
+
 
 @tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(project_id: str | None = None, dataset: str | None = None) -> dict:
@@ -220,9 +222,9 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
     def serialize_dates(obj):
         if isinstance(obj, dict):
             return {k: serialize_dates(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
+        if isinstance(obj, list):
             return [serialize_dates(i) for i in obj]
-        elif isinstance(obj, (date, datetime)):
+        if isinstance(obj, (date, datetime)):
             return obj.isoformat()
         return obj
 

@@ -1,14 +1,16 @@
-import pytest
-from src.utils.provider_factory import get_provider
 from garmin_training_toolkit_sdk.core.base import BaseBiometricProvider
-from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan, WorkoutTemplate
+from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
+
+from src.utils.provider_factory import get_provider
+
 
 def test_provider_instantiation():
     """Verify that the factory returns a valid BaseBiometricProvider."""
     provider = get_provider()
     assert isinstance(provider, BaseBiometricProvider)
-    assert hasattr(provider, 'get_activities')
-    assert hasattr(provider, 'upload_training_plan')
+    assert hasattr(provider, "get_activities")
+    assert hasattr(provider, "upload_training_plan")
+
 
 def test_workout_protocol_validation():
     """Verify that the SDK's new semantic protocol validates correctly."""
@@ -23,13 +25,9 @@ def test_workout_protocol_validation():
                 {
                     "type": "run",
                     "duration": 30.0,
-                    "target": {
-                        "target_type": "heart.rate.zone",
-                        "min_target": 140,
-                        "max_target": 150
-                    }
+                    "target": {"target_type": "heart.rate.zone", "min_target": 140, "max_target": 150},
                 }
-            ]
+            ],
         }
     ]
     # If this doesn't raise a Pydantic error, the SDK is compatible with our tool's logic
