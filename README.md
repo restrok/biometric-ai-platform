@@ -19,6 +19,25 @@ The `biometric-ai-platform` is a Product-Grade AI Ecosystem for athletic perform
 - **Actionable API**: Beyond chat, the API exposes endpoints for deterministic synchronization and profile management.
 - **Parallel Context Retrieval**: Highly optimized BigQuery client leveraging `ThreadPoolExecutor`.
 
+## Intelligence & Safety
+
+To ensure high-quality coaching and prevent overreaction to "noisy" data, the platform implements several advanced reasoning protocols:
+
+### 1. Noise Reduction (The "3-Run Rule")
+The agent does not react to single outliers or "hero runs." It is instructed to look for **reproducible physiological evidence** across a window of 3-5 activities. For example, a heart rate zone shift is only suggested if telemetry shows stability (no significant drift) across multiple 45+ minute efforts.
+
+### 2. Cold Start Protocol (New Users)
+For users with zero historical data, the system transitions from **Prescription** to **Discovery Mode**:
+- **Safety Valve**: Refuses to prescribe high-intensity (Zone 4/5) sessions until a baseline is established.
+- **Calibration Phase**: Recommends 1-2 weeks of easy Zone 2 runs to gather initial efficiency metrics (GCT, VO, HR drift).
+- **Smart Baselines**: Uses the **Karvonen Formula** (Age + Resting HR) to estimate zones until empirical data takes over.
+
+### 3. Scientific Guardrails
+The agent's reasoning loop is bounded by conservative exercise science:
+- **Volume Cap**: Weekly volume increases are capped at 10%.
+- **Polarized Balance**: Enforces the 80/20 rule (80% low intensity).
+- **Recovery Override**: Prioritizes rest if Sleep Score (<60) or HRV indicates high fatigue, regardless of performance goals.
+
 ## Repository Structure (Monorepo)
 
 - **`api/`**: The Agentic Backend. Contains the FastAPI app, LangGraph reasoning nodes, and BigQuery retrieval tools.

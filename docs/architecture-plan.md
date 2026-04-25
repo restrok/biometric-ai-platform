@@ -31,7 +31,21 @@ The platform has moved beyond static analysis to **Dynamic Profile Persistence**
 *   **Persistence:** The agent uses the `update_user_zones` tool to write these discoveries back to the BigQuery `user_profile` table.
 *   **Retrieval:** The `retriever` tool prioritizes these custom empirical zones over generic age-based formulas.
 
-## 4. Cost-Zero Development Strategy (FinOps)
+## 4. Control Systems & Feedback Loops
+
+To ensure the platform remains stable and safe, we treat biometric analysis as a **Closed-Loop Control System**:
+
+### Noise Reduction & Stability
+- **Smoothing Filter:** Instead of reacting to a single activity, the agent implements a "Low-Pass Filter" by analyzing a multi-activity window (last 3-5 runs).
+- **Trend Verification:** Changes to the `user_profile` (like zone updates) require reproducible evidence across multiple high-duration segments (>45 mins) to prevent overreacting to daily fluctuations or sensor errors.
+
+### Cold Start Protocol (Discovery Mode)
+The system handles the "First User" problem through a tiered onboarding process:
+1.  **Stage 1 (Baseline):** Collection of "Normal Life" metrics (Sleep, Resting HR, Weight).
+2.  **Stage 2 (Calibration):** A 2-week mandatory Zone 2 period to log initial telemetry.
+3.  **Stage 3 (Personalization):** Transition to full prescription once the agent detects a stable Aerobic Threshold.
+
+## 5. Cost-Zero Development Strategy (FinOps)
 
 To keep costs controlled during the development phase, the architecture will be designed under the premise **"Local First, Cloud for Production"**:
 
