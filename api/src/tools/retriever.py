@@ -47,11 +47,11 @@ class RetrieverInput(BaseModel):
 
 @tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(
-    project_id: str | None = None, 
+    project_id: str | None = None,
     dataset: str | None = None,
     limit: int = 20,
     offset: int = 0,
-    activity_type: str | None = None
+    activity_type: str | None = None,
 ) -> dict:
     """
     Retrieves the user's latest biometric context from BigQuery in parallel.
@@ -80,7 +80,7 @@ def retrieve_biometric_data(
             where_clause = ""
             if activity_type:
                 where_clause = f"WHERE type = '{activity_type}'"
-            
+
             query_act = f"""
                 SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max 
                 FROM `{project_id}.{dataset}.recent_activities` 

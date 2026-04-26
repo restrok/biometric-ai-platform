@@ -1,11 +1,12 @@
 import json
 import logging
 import os
-from typing import Any, cast
+import time
+from typing import Any, Literal, cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.utils.config import setup_environment
 
@@ -44,6 +45,35 @@ class ChatResponse(BaseModel):
     context_used: dict
 
 
+# --- OpenAI Compatibility Models ---
+
+
+class OpenAIChatMessage(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str
+
+
+class OpenAICompletionRequest(BaseModel):
+    model: str = "biometric-coach"
+    messages: list[OpenAIChatMessage]
+    stream: bool = False
+    temperature: float | None = 0.7
+
+
+class OpenAICompletionResponseChoice(BaseModel):
+    index: int
+    message: OpenAIChatMessage
+    finish_reason: str | None = "stop"
+
+
+class OpenAICompletionResponse(BaseModel):
+    id: str = Field(default_factory=lambda: f"chatcmpl-{int(time.time())}")
+    object: str = "chat.completion"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    model: str
+    choices: list[OpenAICompletionResponseChoice]
+
+
 @app.get("/health", response_model=HealthCheck, tags=["System"])
 async def health_check():
     """
@@ -78,80 +108,78 @@ async def update_zones(zones: ZoneUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/chat", response_model=ChatResponse, tags=["AI Agent"])
-async def chat_with_agent(req: ChatRequest):
+@app.post("/v1/chat/completions", tags=["AI Agent"])
+async def openai_chat_completion(req: OpenAICompletionRequest):
     """
-    Main entrypoint for the Agentic RAG.
+    OpenAI-compatible endpoint for the Biometric Coach.
+    Supports both streaming and non-streaming modes.
     """
     if not os.getenv("GOOGLE_API_KEY"):
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
 
+    # We take the last user message as the primary query
+    # In a multi-turn scenario, LangGraph handles the message history
+    user_messages = [m for m in req.messages if m.role == "user"]
+    if not user_messages:
+        raise HTTPException(status_code=400, detail="No user message provided.")
+
+    last_query = user_messages[-1].content
+    initial_state = {"messages": [HumanMessage(content=last_query)]}
+
+    # 1. Handle Streaming Mode
+    if req.stream:
+
+        async def event_generator():
+            completion_id = f"chatcmpl-{int(time.time())}"
+            created_time = int(time.time())
+
+            async for event in graph.astream_events(initial_state, version="v2"):
+                kind = event["event"]
+                tags = event.get("tags", [])
+
+                # Only stream tokens from the analyzer LLM
+                if kind == "on_chat_model_stream" and "analyzer_llm" in tags:
+                    content = event["data"]["chunk"].content
+                    if isinstance(content, str) and content:
+                        chunk = {
+                            "id": completion_id,
+                            "object": "chat.completion.chunk",
+                            "created": created_time,
+                            "model": req.model,
+                            "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+
+            # Final "stop" chunk
+            yield f"data: {json.dumps({'id': completion_id, 'object': 'chat.completion.chunk', 'created': created_time, 'model': req.model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    # 2. Handle Non-Streaming Mode
     try:
-        initial_state = {"messages": [HumanMessage(content=req.message)]}
-
-        # Invoke LangGraph
         result = await graph.ainvoke(cast(Any, initial_state))
+        ai_msg = result["messages"][-1]
+        ai_reply = ai_msg.content
 
-        # Extract the AI message from the end of the messages sequence
-        msg = result["messages"][-1]
-        ai_reply = msg.content
-
-        # Handle list-style content (Gemini rich responses) or non-string content
+        # Handle Gemini rich response formats (lists/dicts)
         if isinstance(ai_reply, list):
-            # Extract text from all text-bearing items in the list
-            text_parts = []
-            for item in ai_reply:
-                if isinstance(item, str):
-                    text_parts.append(item)
-                elif isinstance(item, dict):
-                    if "text" in item:
-                        text_parts.append(item["text"])
-            ai_reply = "\n".join(text_parts)
+            text_parts = [item if isinstance(item, str) else item.get("text", "") for item in ai_reply]
+            ai_reply = "\n".join(filter(None, text_parts))
         elif not isinstance(ai_reply, str):
-            # Fallback for any other weird type
             ai_reply = str(ai_reply)
 
-        context = result.get("biometric_context", {})
-
-        return ChatResponse(reply=ai_reply, context_used=context)
-
+        return OpenAICompletionResponse(
+            model=req.model,
+            choices=[
+                OpenAICompletionResponseChoice(
+                    index=0, message=OpenAIChatMessage(role="assistant", content=ai_reply), finish_reason="stop"
+                )
+            ],
+        )
     except Exception as e:
+        log.error(f"❌ LangGraph invocation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/chat/stream", tags=["AI Agent"])
-async def chat_with_agent_stream(req: ChatRequest):
-    """
-    SSE endpoint for streaming Agentic RAG responses.
-    """
-    if not os.getenv("GOOGLE_API_KEY"):
-        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
-
-    async def event_generator():
-        initial_state = {"messages": [HumanMessage(content=req.message)]}
-
-        # We use astream_events to catch token generation
-        async for event in graph.astream_events(initial_state, version="v2"):
-            kind = event["event"]
-            tags = event.get("tags", [])
-
-            # 1. Stream tokens from the analyzer LLM
-            if kind == "on_chat_model_stream" and "analyzer_llm" in tags:
-                content = event["data"]["chunk"].content
-                if isinstance(content, str) and content:
-                    yield f"data: {json.dumps({'type': 'token', 'text': content})}\n\n"
-
-            # 2. Stream tool calls (start)
-            elif kind == "on_tool_start":
-                yield f"data: {json.dumps({'type': 'tool_start', 'tool': event['name']})}\n\n"
-
-            # 3. Stream tool results (end)
-            elif kind == "on_tool_end":
-                yield f"data: {json.dumps({'type': 'tool_end', 'tool': event['name'], 'output': event['data'].get('output')})}\n\n"
-
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 if __name__ == "__main__":

@@ -3,16 +3,38 @@
 This guide provides instructions for external agentic frameworks (like OpenClaw, OpenDevin, or custom GPTs) to interact with the Biometric AI Platform via its REST API.
 
 ## 🚀 Overview
-The platform exposes its internal biometric analysis, synchronization, and coaching tools as standard REST endpoints. This allows any external system to retrieve biometric data and perform high-precision physiological analysis without needing to handle Garmin authentication or complex Python dependencies.
+The platform exposes its internal biometric analysis as a standard **OpenAI-compatible Chat Completion API**. This allows any external system (LM Studio, OpenClaw, OpenCode) to interact with the Biometric Coach as if it were a standard LLM, while the backend handles all tool execution and data retrieval.
 
 ## 🔐 Authentication & Base URL
-- **Base URL:** `http://localhost:8000` (Default)
-- **Authentication:** All requests must include your `GOOGLE_API_KEY` in the environment or as part of the configuration if the agent handles it. 
-- **Self-Healing Auth:** You do **not** need to handle Garmin passwords. The API manages tokens internally and performs automatic refreshes.
+- **Base URL:** `http://localhost:8000/v1`
+- **Authentication:** All requests must include your `GOOGLE_API_KEY` in the `Authorization: Bearer <KEY>` header (or just the key if the tool uses a custom field).
+- **Self-Healing Auth:** You do **not** need to handle Garmin passwords. The API manages tokens internally.
 
-## 🛠️ Available Tool Endpoints
+## 🧠 Universal Agent Interface (Recommended)
+**Endpoint:** `POST /v1/chat/completions`
 
-All tool endpoints are prefixed with `/api/v1/tools`.
+This is the primary way to talk to the Biometric Coach. It supports the standard OpenAI schema.
+
+**Request Example:**
+```json
+{
+  "model": "biometric-coach",
+  "messages": [
+    {"role": "user", "content": "Analyze my longest run in April"}
+  ],
+  "stream": true
+}
+```
+
+**Features:**
+- **Streaming:** Supports real-time token streaming.
+- **Autonomous:** The agent autonomously decides when to sync Garmin data or analyze BigQuery telemetry before responding.
+- **Self-Healing:** If a tool call fails internally, the agent attempts to fix the error and retry before returning the final answer.
+
+---
+
+## 🛠️ Developer Tool Endpoints
+If you need direct, non-agentic access to the data, use the specialized tool endpoints. All tool endpoints are prefixed with `/api/v1/tools`.
 
 ### 1. Retrieve Biometrics
 **Endpoint:** `POST /api/v1/tools/biometric/retrieve`

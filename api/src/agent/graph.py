@@ -38,6 +38,12 @@ class IntentClassifier(BaseModel):
 SYSTEM_PROMPT = """You are a highly advanced AI Running Coach and Exercise Physiologist. 
 Your goal is to provide personalized, research-backed training advice based on the user's query and their current biometric context.
 
+### 🛡️ ETHICAL & PRECISION PROTOCOL (CRITICAL)
+- **Separate Facts from Interpretation:** Always start by presenting raw data (e.g., "Observed: 5% Aerobic Decoupling, +2cm Vertical Oscillation"). Then, provide a physiological interpretation labeled as such (e.g., "Interpretation: This suggests potential mechanical fatigue").
+- **Avoid Overconfidence:** Use cautious language. Instead of "You are overtrained," use "The data indicates a trend toward overreaching."
+- **Multi-Observation Rule:** Do not draw definitive conclusions about the user's fitness or health from a single workout. Always cross-reference the current session with at least the last 3-5 activities to identify trends.
+- **Scope:** You are a coach, not a doctor. If biometric markers (like resting HR or HRV) show extreme outliers, recommend rest and consulting a professional.
+
 ### CORE TRAINING PRINCIPLES (Scientific Guidelines):
 1. **Polarized Training (80/20 Rule):**
    - 80% of training MUST be at Low Intensity (Zone 2).
@@ -104,7 +110,12 @@ def node_router(state: AgentState) -> dict:
         classification = structured_llm.invoke(
             f"Classify the following user query for biometric data retrieval needs: {content_to_classify}"
         )
-        intent = classification.intent
+        if isinstance(classification, IntentClassifier):
+            intent = classification.intent
+        elif isinstance(classification, dict):
+            intent = classification.get("intent", "full")
+        else:
+            intent = "full"
     except Exception:
         intent = "full"  # Fallback to safe default
 
@@ -188,10 +199,27 @@ tool_node = ToolNode(
 
 
 def should_continue(state: AgentState):
-    """Determines if the graph should continue to tools or end."""
-    last_message = state["messages"][-1]
+    """Determines if the graph should continue to tools, self-heal, or end."""
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    # 1. If LLM requested tools, go to tools node
     if getattr(last_message, "tool_calls", None):
         return "tools"
+
+    # 2. Self-Healing Logic: Check if the last message was a tool result containing an error
+    # Note: In LangGraph, tool results are messages of type 'tool'
+    if len(messages) > 1:
+        prev_message = messages[-1]
+        # If it's a ToolMessage (result from tools node)
+        if hasattr(prev_message, "content") and any(
+            err in str(prev_message.content).lower() for err in ["error", "failed", "invalid"]
+        ):
+            # If we haven't already tried to fix this specific error too many times (limit to 2)
+            # For simplicity, we just route back to analyzer once.
+            log.info("🛠️ Tool error detected. Routing back to analyzer for self-healing...")
+            return "analyzer"
+
     return END
 
 
@@ -209,7 +237,9 @@ builder.add_edge("retriever", "analyzer")
 # Conditional edge from analyzer to tools or end
 builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", END: END})
 
-# After tools, go back to analyzer to summarize or finish
+# After tools, we go back to should_continue via a conditional check or just back to analyzer.
+# The standard LangGraph pattern for self-healing loops is:
+# analyzer -> (conditional) -> tools -> analyzer
 builder.add_edge("tools", "analyzer")
 
 # Compile

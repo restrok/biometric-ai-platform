@@ -22,6 +22,7 @@ if api_key_raw:
     except Exception:
         pass
 
+import pytest
 import logging
 
 from langchain_core.messages import HumanMessage
@@ -31,6 +32,7 @@ from src.agent.graph import graph
 logging.basicConfig(level=logging.INFO)
 
 
+@pytest.mark.asyncio
 async def test_finops_integration():
     print("\n🚀 Testing FinOps & Observability Integration...")
     print("=" * 60)

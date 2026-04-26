@@ -10,6 +10,9 @@ logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 # Add src to path if needed
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
+from garmin_training_toolkit_sdk.utils import find_token_file
+from langchain_core.tools import tool
+
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
@@ -17,8 +20,7 @@ from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 from src.utils.garmin_auth import refresh_garmin_session
-from garmin_training_toolkit_sdk.utils import find_token_file
-from langchain_core.tools import tool
+
 
 @tool
 def refresh_biometric_session():
@@ -30,10 +32,11 @@ def refresh_biometric_session():
     token_file = find_token_file()
     if not token_file:
         return "Error: Token file not found. Manual authentication required."
-    
+
     if refresh_garmin_session(token_file):
         return "Successfully refreshed biometric session."
     return "Failed to refresh session. All client IDs exhausted. Manual login may be required."
+
 
 # Mapping of names to LangChain tools
 TOOLS = {
@@ -52,10 +55,10 @@ TOOLS = {
 def list_tools():
     # Convert LangChain tool metadata to Gemini CLI expected format
     definitions = []
-    for name, tool in TOOLS.items():
+    for name, tool_obj in TOOLS.items():
         parameters: dict[str, Any] = {}
-        if hasattr(tool, "args_schema") and tool.args_schema:
-            schema_obj = tool.args_schema
+        if hasattr(tool_obj, "args_schema") and tool_obj.args_schema:
+            schema_obj = tool_obj.args_schema
             if hasattr(schema_obj, "model_json_schema"):
                 parameters = schema_obj.model_json_schema()
             elif hasattr(schema_obj, "schema"):
@@ -63,7 +66,7 @@ def list_tools():
         else:
             parameters = {"type": "object", "properties": {}}
 
-        definitions.append({"name": name, "description": tool.description, "parameters": parameters})
+        definitions.append({"name": name, "description": tool_obj.description, "parameters": parameters})
     # Print only JSON to stdout
     print(json.dumps(definitions))
 
@@ -78,9 +81,9 @@ def call_tool(name):
         else:
             args = {}
 
-        tool = TOOLS.get(name)
-        if tool:
-            result = tool.invoke(args)
+        tool_obj = TOOLS.get(name)
+        if tool_obj:
+            result = tool_obj.invoke(args)
             if not isinstance(result, (str, dict, list, int, float, bool, type(None))):
                 result = str(result)
             print(json.dumps(result))

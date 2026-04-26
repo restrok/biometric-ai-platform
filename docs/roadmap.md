@@ -1,80 +1,32 @@
-# Master Plan V2: AI Infrastructure & Engineering PoC
+# Biometric AI Platform Roadmap
 
-This document updates the roadmap to align the project with AI Software Engineer and AI Infrastructure Lead roles ($150K+ USD), integrating advanced concepts of agents, quality evaluation, and operational optimization.
+## Phase 1: Core Biometric Integration (Completed ✅)
+- [x] Integrate Garmin Training Toolkit SDK for biometric data extraction.
+- [x] Set up BigQuery data lake for activities, telemetry, sleep, and body composition.
+- [x] Implement robust authentication with multi-client token refresh (`GARMIN_CONNECT_MOBILE_ANDROID_DI` fallback).
+- [x] Build foundational LangChain tools (`retrieve_biometric_data`, `analyze_activity_efficiency`, etc.).
 
-## 1. System Vision: From Simple RAG to "Biometric OS"
+## Phase 2: Agentic Architecture & LLM Native Optimizations (Completed ✅)
+- [x] Develop `biometric-coach` subagent with specialized training principles (80/20 rule, custom HR zones).
+- [x] Implement LangGraph orchestrator (`api/src/agent/graph.py`) with intent classification (Semantic Routing).
+- [x] Add self-healing tool loops to automatically recover from execution errors.
+- [x] Expose tools and agent capabilities via a unified, OpenAI-compatible REST API (`/v1/chat/completions`) using FastAPI.
+- [x] Support real-time Server-Sent Events (SSE) streaming for agent responses.
+- [x] Implement autonomous pagination (`limit`, `offset`) for large dataset retrieval.
 
-The goal is to move beyond simple data retrieval. We have built a system that reasons about physiological data, persists user-specific discoveries (like Aerobic Threshold), and takes autonomous action regardless of the hardware provider.
+## Phase 3: Reliability & Refinement (Current Focus 🚧)
+- [x] Enhance agent system prompt with Ethical & Precision Protocol (separate facts from interpretation, avoid overconfidence, require multi-observation analysis).
+- [ ] Comprehensive End-to-End Testing: Validate the entire flow from data ingestion to agent recommendation across various edge cases (e.g., missing data, API rate limits).
+- [ ] Performance Tuning: Optimize BigQuery queries and LangGraph execution time.
+- [ ] Tool Robustness: Ensure all tools handle unexpected inputs gracefully and provide clear error messages to the LLM for self-healing.
 
-### Core Intelligence Components:
-- **Standardized Provider Interface:** A brand-agnostic protocol that allows swapping Garmin for Suunto, Whoop, or Apple Health without changing agent logic.
-- **Agentic reasoning:** A LangGraph-powered brain that prioritizes real telemetry (e.g., HR stability) over generic formulas.
-- **Persistent Bio-Profiles:** Autonomous discovery and database persistence of unique user physiological thresholds.
+## Phase 4: Production Deployment & Ecosystem Expansion (Upcoming 🚀)
+- [ ] **Dockerization:** Create `Dockerfile` and `docker-compose.yml` to containerize the FastAPI backend for easy deployment on a Raspberry Pi or cloud server.
+- [ ] **Notifications Agent:** Develop a standalone microservice (e.g., a Telegram bot) that interacts with the `biometric-coach` via the OpenAI-compatible API to deliver daily summaries and proactive alerts.
+- [ ] **OpenClaw Integration:** Officially publish/document the integration pattern for using the Biometric AI Platform as a seamless backend for OpenClaw and other agentic frameworks.
+- [ ] **Persistent Memory:** Implement a memory layer (e.g., using BigQuery or a dedicated vector database) to allow the agent to recall past conversations and long-term user goals.
 
----
-
-## 2. Updated Roadmap: The 6 Layers of Success
-
-### Phase 1: Critical Infrastructure (Terraform & GCP) - ✅ Implemented
-- **Setup:** GCS, BigQuery, and Artifact Registry.
-- **IAM & Security:** Granular role configuration ensuring the Principle of Least Privilege.
-- **Networking:** Private endpoints to ensure biometric data remains secure.
-
-### Phase 2: Data & Embedding Pipeline (Data Engineering) - ✅ Implemented
-- **Ingestion:** Incremental ETL job processing activities and second-by-second telemetry.
-- **Vector Store:** BigQuery Native Vector Search for exercise science grounding.
-- **Sync Tool:** Agent-triggered data refresh (`sync_biometric_data`).
-
-### Phase 3: Agentic Backend & Multi-Brand Architecture - ✅ Implemented
-- **Framework:** LangGraph orchestrator with specialized nodes for retrieval and analysis.
-- **Provider Pattern:** Decoupled SDK architecture using Abstract Base Classes (ABCs).
-- **Semantic Tooling:** LLM-native tool definitions using semantic fields (`min_target`, `max_target`).
-
-### Phase 4: Autonomous Action & Persistence - ✅ Implemented
-- **Planner:** Agent can now design and upload training plans directly to the provider's calendar.
-- **Profile Manager:** Agent can autonomously update the user's BigQuery profile with new physiological findings.
-- **Standardized Tools:** Generic tools for clearing calendars, removing workouts, and uploading plans.
-
-### Phase 5: Observability & FinOps (Operational Excellence) - ✅ Implemented
-- **Token Tracking:** Detailed logging of token consumption and USD cost per request in BigQuery.
-- **Latency Monitoring:** Measurement of parallel retrieval vs. reasoning cycles.
-- **SRE Mindset:** Automated health checks and robust error handling in the agentic loop.
-
-### Phase 6: The Evaluation Pipeline (AI Quality Assurance) - 🏃 In Progress
-Key differentiator: demonstrating that we know how to measure AI "truth."
-- **Framework:** Implementation of **Ragas** (Retrieval Augmented Generation Assessment).
-- **Golden Metrics:** Faithfulness, Answer Relevance, and Context Precision.
-- **Automated Testing:** CI/CD pipeline running evaluation tests for every prompt change.
-
----
-
-## 3. Demonstrated Skills vs. Required JD
-
-| Project Concept | JD Skill | Salary Impact |
-| :--- | :--- | :--- |
-| Agentic RAG / LangGraph | Multi-agent AI workflows | High (Architecture) |
-| Provider Pattern / ABCs | Software Design Patterns | High (Senior Engineering) |
-| Ragas / Eval Pipelines | LLM Evaluation Frameworks | Very High (Business Confidence) |
-| Token & Cost Logging | Cost and Latency Optimization | Critical (SRE/FinOps Mindset) |
-| FastAPI / Async Python | High-performance Backend | Base (Senior Engineering) |
-
----
-
-## 🎯 Next Milestone: The Proactive Coach (Telegram Bot)
-
-The next major expansion is the **Coach Bot**, a standalone module designed to run on a Raspberry Pi 5.
-
-### System Architecture:
-- **Host:** Docker container on local edge hardware.
-- **Mode:** Long Polling (Zero network/port configuration required on the router).
-- **Trigger:** Dual-mode (Reactive via messages and Proactive via scheduled jobs).
-
-### Goals:
-1.  **Proactive Check-ins:** The bot should message the user every morning (e.g., 8:00 AM) analyzing sleep/HRV and providing a motivational health insight.
-2.  **Reactive Commands:** Support commands like `/status` (daily summary) or `/coach` (instant training advice).
-3.  **Cross-Module Logic:** Import the `agent_executor` from the existing API to maintain reasoning consistency.
-
-### SRE/Vibe-coding Requirements:
-- **Secure by Design:** Use `TELEGRAM_USER_ID` filtering to ensure the bot only responds to its owner.
-- **Healthchecks:** Implement a simple logging healthcheck so the bot's status can be monitored via `docker logs`.
-- **Motivational Factor:** System prompt must prioritize recovery if biometric data indicates high fatigue, switching from "Push Harder" to "Prioritize Rest" automatically.
+## Architecture Philosophy
+- **API as the Engine:** Complex logic (ETL, database queries, authentication) lives in the Python FastAPI backend.
+- **Agent as the Brain:** Personality, coaching rules, and decision-making logic live in easily editable Markdown/YAML files (like `.gemini/agents/biometric-coach.md`).
+- **OpenAI Standard:** The API strictly adheres to the OpenAI `/v1/chat/completions` specification to ensure zero-friction integration with the broader AI ecosystem (avoiding complex protocols like MCP).

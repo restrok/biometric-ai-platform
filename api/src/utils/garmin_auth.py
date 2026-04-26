@@ -1,10 +1,9 @@
-
 import json
 import logging
 from pathlib import Path
-from typing import Optional
-from garminconnect import Garmin
+
 from garmin_training_toolkit_sdk.utils import find_token_file, save_tokens
+from garminconnect import Garmin
 
 log = logging.getLogger(__name__)
 
@@ -14,6 +13,7 @@ DI_CLIENT_IDS = (
     "GARMIN_CONNECT_MOBILE_ANDROID_DI",
     "GARMIN_CONNECT_MOBILE_IOS_DI",
 )
+
 
 def refresh_garmin_session(token_file: Path) -> bool:
     """
@@ -34,27 +34,28 @@ def refresh_garmin_session(token_file: Path) -> bool:
             client.client.loads(json.dumps(tokens))
             client.client.di_client_id = client_id
             client.client._refresh_di_token()
-            
+
             new_tokens = json.loads(client.client.dumps())
             save_tokens(new_tokens)
             log.info(f"Successfully refreshed Garmin session using {client_id}")
             return True
         except Exception as e:
             log.debug(f"Refresh failed with {client_id}: {e}")
-    
+
     log.error("Failed to refresh Garmin session with all known client IDs.")
     return False
 
-def get_robust_client(token_file: Optional[Path] = None):
+
+def get_robust_client(token_file: Path | None = None):
     """
     Returns an authenticated Garmin client, automatically attempting a refresh
     if the initial authentication fails or if the token is expired.
     """
     from garmin_training_toolkit_sdk.utils import get_authenticated_client
-    
+
     if token_file is None:
         token_file = find_token_file()
-    
+
     if not token_file:
         raise Exception("Garmin tokens not found. Please authenticate first.")
 
