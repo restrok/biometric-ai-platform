@@ -63,6 +63,9 @@ class SearchQuery(BaseModel):
 class RetrieverInput(BaseModel):
     project_id: Optional[str] = Field(None, description="GCP Project ID. Defaults to environment config if not provided.")
     dataset: Optional[str] = Field(None, description="BigQuery Dataset ID. Defaults to environment config if not provided.")
+    limit: int = Field(20, description="Max number of activities to retrieve.", examples=[10])
+    offset: int = Field(0, description="Number of activities to skip (for paging).", examples=[20])
+    activity_type: Optional[str] = Field(None, description="Filter by type (e.g. 'running', 'walking').", examples=["running"])
 
 # --- Endpoints ---
 

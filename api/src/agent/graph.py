@@ -151,7 +151,7 @@ def node_analyze(state: AgentState) -> dict:
     context_str = f"\nUser Biometric Context:\n{state.get('biometric_context', {})}"
     messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
 
-    response = llm_with_tools.invoke(messages)
+    response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
 
     latency_ms = (time.time() - t0) * 1000
     token_usage = getattr(response, "usage_metadata", {})

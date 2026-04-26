@@ -16,7 +16,13 @@ def test_retrieve_biometric_endpoint(mock_tool):
     response = client.post("/api/v1/tools/biometric/retrieve", json={"project_id": "test-project"})
     assert response.status_code == 200
     assert response.json() == {"status": "success", "data": {"activities": []}}
-    mock_tool.invoke.assert_called_once_with({"project_id": "test-project", "dataset": None})
+    mock_tool.invoke.assert_called_once_with({
+        "project_id": "test-project", 
+        "dataset": None,
+        "limit": 20,
+        "offset": 0,
+        "activity_type": None
+    })
 
 @patch("src.routers.tools.analyze_activity_efficiency")
 def test_analyze_efficiency_endpoint(mock_tool):
