@@ -22,9 +22,9 @@ if api_key_raw:
     except Exception:
         pass
 
-import pytest
 import logging
 
+import pytest
 from langchain_core.messages import HumanMessage
 
 from src.agent.graph import graph
