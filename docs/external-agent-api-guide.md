@@ -20,10 +20,13 @@ All tool endpoints are prefixed with `/api/v1/tools`.
 ```json
 {
   "project_id": "optional-gcp-project",
-  "dataset": "optional-dataset-name"
+  "dataset": "optional-dataset-name",
+  "limit": 20,
+  "offset": 0,
+  "activity_type": "running"
 }
 ```
-**Description:** Fetches the latest activity history, sleep data, and telemetry summaries from BigQuery.
+**Description:** Fetches activity history, sleep data, and telemetry. Supports pagination via `limit`/`offset` and filtering by `activity_type`.
 
 ### 2. Analyze Activity Efficiency
 **Endpoint:** `POST /api/v1/tools/activity/analyze_efficiency`
@@ -75,6 +78,16 @@ All tool endpoints are prefixed with `/api/v1/tools`.
   "query": "polarized training 80/20 rule"
 }
 ```
+
+### 6. Streaming Chat (Real-time)
+**Endpoint:** `POST /chat/stream`
+**Payload:** `{"message": "Analyze my month"}`
+**Description:** Returns a Server-Sent Events (SSE) stream of tokens, tool calls, and tool results. Perfect for providing immediate feedback in UI applications.
+**Stream Events:**
+- `{"type": "token", "text": "..."}`: Real-time LLM response tokens.
+- `{"type": "tool_start", "tool": "..."}`: Indicates the agent is starting a tool execution.
+- `{"type": "tool_end", "tool": "...", "output": "..."}`: Returns the raw output of a tool.
+- `[DONE]`: Final event in the stream.
 
 ## 📖 OpenAPI Documentation
 The API provides an interactive Swagger UI for testing and full schema definitions:

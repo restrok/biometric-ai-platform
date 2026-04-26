@@ -40,13 +40,22 @@ from pydantic import BaseModel, Field
 class RetrieverInput(BaseModel):
     project_id: str | None = Field(None, description="GCP Project ID")
     dataset: str | None = Field(None, description="BigQuery Dataset ID")
+    limit: int = Field(20, description="Max number of activities to retrieve.")
+    offset: int = Field(0, description="Number of activities to skip (for paging).")
+    activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
 
 
 @tool(args_schema=RetrieverInput)
-def retrieve_biometric_data(project_id: str | None = None, dataset: str | None = None) -> dict:
+def retrieve_biometric_data(
+    project_id: str | None = None, 
+    dataset: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    activity_type: str | None = None
+) -> dict:
     """
     Retrieves the user's latest biometric context from BigQuery in parallel.
-    Includes recent activities, training status, sleep history, and telemetry summaries.
+    Supports pagination and filtering for activities.
     """
     if not project_id:
         project_id = config["project_id"]
@@ -55,10 +64,7 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
 
     if not project_id:
         log.warning("GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data.")
-    """
-    Retrieves the user's latest biometric context from BigQuery in parallel.
-    Handles missing tables or data gracefully.
-    """
+
     start_total = time.time()
     if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv("GOOGLE_CLOUD_PROJECT"):
         return _get_mock_data()
@@ -71,7 +77,17 @@ def retrieve_biometric_data(project_id: str | None = None, dataset: str | None =
         nonlocal top_3_ids
         try:
             t0 = time.time()
-            query_act = f"SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max FROM `{project_id}.{dataset}.recent_activities` ORDER BY date DESC LIMIT 20"
+            where_clause = ""
+            if activity_type:
+                where_clause = f"WHERE type = '{activity_type}'"
+            
+            query_act = f"""
+                SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max 
+                FROM `{project_id}.{dataset}.recent_activities` 
+                {where_clause}
+                ORDER BY date DESC 
+                LIMIT {limit} OFFSET {offset}
+            """
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
             log.info(f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")

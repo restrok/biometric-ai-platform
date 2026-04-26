@@ -1,8 +1,10 @@
+import json
 import logging
 import os
 from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.utils.config import setup_environment
@@ -115,6 +117,41 @@ async def chat_with_agent(req: ChatRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat/stream", tags=["AI Agent"])
+async def chat_with_agent_stream(req: ChatRequest):
+    """
+    SSE endpoint for streaming Agentic RAG responses.
+    """
+    if not os.getenv("GOOGLE_API_KEY"):
+        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
+
+    async def event_generator():
+        initial_state = {"messages": [HumanMessage(content=req.message)]}
+
+        # We use astream_events to catch token generation
+        async for event in graph.astream_events(initial_state, version="v2"):
+            kind = event["event"]
+            tags = event.get("tags", [])
+
+            # 1. Stream tokens from the analyzer LLM
+            if kind == "on_chat_model_stream" and "analyzer_llm" in tags:
+                content = event["data"]["chunk"].content
+                if isinstance(content, str) and content:
+                    yield f"data: {json.dumps({'type': 'token', 'text': content})}\n\n"
+
+            # 2. Stream tool calls (start)
+            elif kind == "on_tool_start":
+                yield f"data: {json.dumps({'type': 'tool_start', 'tool': event['name']})}\n\n"
+
+            # 3. Stream tool results (end)
+            elif kind == "on_tool_end":
+                yield f"data: {json.dumps({'type': 'tool_end', 'tool': event['name'], 'output': event['data'].get('output')})}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 if __name__ == "__main__":
