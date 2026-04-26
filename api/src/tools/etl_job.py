@@ -16,10 +16,9 @@ from garmin_training_toolkit_sdk.extractors import (
     get_training_status,
 )
 from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition, get_user_profile
-from garmin_training_toolkit_sdk.utils import find_token_file
+from garmin_training_toolkit_sdk.utils import find_token_file, get_authenticated_client
 
 from src.utils.config import setup_environment
-from src.utils.garmin_auth import get_robust_client
 
 # Initialize environment
 setup_environment()
@@ -160,7 +159,7 @@ def run_etl():
         log.error("Garmin authentication token not found.")
         return
 
-    client = get_robust_client(token_file)
+    client = get_authenticated_client(token_file)
     end_date = datetime.now()
 
     # --- 1. Incremental Activities ---

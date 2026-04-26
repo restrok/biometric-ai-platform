@@ -19,24 +19,6 @@ from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_tra
 from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
-from src.utils.garmin_auth import refresh_garmin_session
-
-
-@tool
-def refresh_biometric_session():
-    """
-    Manually triggers a session refresh for the biometric provider (e.g. Garmin).
-    Use this if you encounter 401 Unauthorized errors or if the user explicitly
-    asks to 'fix the connection' or 'refresh the token'.
-    """
-    token_file = find_token_file()
-    if not token_file:
-        return "Error: Token file not found. Manual authentication required."
-
-    if refresh_garmin_session(token_file):
-        return "Successfully refreshed biometric session."
-    return "Failed to refresh session. All client IDs exhausted. Manual login may be required."
-
 
 # Mapping of names to LangChain tools
 TOOLS = {
@@ -48,7 +30,6 @@ TOOLS = {
     "analyze_activity_efficiency": analyze_activity_efficiency,
     "search_exercise_science": search_exercise_science,
     "retrieve_biometric_data": retrieve_biometric_data,
-    "refresh_biometric_session": refresh_biometric_session,
 }
 
 

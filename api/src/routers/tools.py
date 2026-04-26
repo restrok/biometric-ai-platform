@@ -11,7 +11,6 @@ from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_tra
 from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
-from src.utils.garmin_auth import refresh_garmin_session
 
 log = logging.getLogger(__name__)
 
@@ -180,20 +179,5 @@ async def api_retrieve_biometric(req: RetrieverInput):
     try:
         result = retrieve_biometric_data.invoke(req.model_dump())
         return {"status": "success", "data": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/session/refresh")
-async def api_refresh_session():
-    """Manually triggers a session refresh for the biometric provider (e.g. Garmin)."""
-    try:
-        token_file = find_token_file()
-        if not token_file:
-            return {"status": "error", "message": "Token file not found."}
-
-        if refresh_garmin_session(token_file):
-            return {"status": "success", "message": "Successfully refreshed biometric session."}
-        return {"status": "error", "message": "Failed to refresh session."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -61,12 +61,3 @@ def test_upload_plan_endpoint(mock_tool):
     assert response.status_code == 200
     assert response.json()["status"] == "success"
 
-
-@patch("src.routers.tools.refresh_garmin_session")
-@patch("src.routers.tools.find_token_file")
-def test_refresh_session_endpoint(mock_find, mock_refresh):
-    mock_find.return_value = MagicMock()
-    mock_refresh.return_value = True
-    response = client.post("/api/v1/tools/session/refresh")
-    assert response.status_code == 200
-    assert response.json() == {"status": "success", "message": "Successfully refreshed biometric session."}

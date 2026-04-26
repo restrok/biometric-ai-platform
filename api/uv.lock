@@ -478,7 +478,7 @@ http = [
 [[package]]
 name = "garmin-training-toolkit-sdk"
 version = "0.4.0"
-source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&branch=main#5dafb25ef1a7f083807985d95098a9c66c5c7d85" }
+source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&branch=main#db74e52d9421ad947323cdeda737a52e6e9ded83" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },
