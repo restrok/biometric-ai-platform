@@ -54,10 +54,13 @@ def list_tools():
 
 def call_tool(name):
     try:
-        # Read from stdin if there is data available
-        if not sys.stdin.isatty():
+        # 1. Try to read from positional arguments (CLI)
+        if len(sys.argv) > 3:
+            args_str = sys.argv[3]
+            args = json.loads(args_str)
+        # 2. Fallback: Read from stdin if there is data available
+        elif not sys.stdin.isatty():
             args_str = sys.stdin.read().strip()
-            # logging.error(f"Read from stdin: {args_str}") # Debug
             args = json.loads(args_str) if args_str else {}
         else:
             args = {}

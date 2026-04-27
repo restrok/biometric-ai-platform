@@ -13,6 +13,7 @@ from garmin_training_toolkit_sdk.extractors import (
     get_activities,
     get_activity_telemetry,
     get_sleep_data,
+    get_hrv_data,
     get_training_status,
 )
 from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition, get_user_profile
@@ -238,6 +239,23 @@ def run_etl():
                 log.error(f"Sleep sync failed during upload: {e}")
         else:
             log.info("No sleep data returned from SDK for this range.")
+
+    # --- 3b. Incremental HRV ---
+    last_hrv_date = get_last_sync_date("hrv_history")
+    start_hrv = (last_hrv_date + timedelta(days=1)) if last_hrv_date else (datetime.now() - timedelta(days=30))
+
+    if start_hrv.date() <= end_date.date():
+        log.info(f"Syncing HRV from {start_hrv.date()} to {end_date.date()}...")
+        hrv_data = get_hrv_data(client, start_hrv.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+        log.info(f"Retrieved {len(hrv_data)} HRV records from SDK.")
+        if hrv_data:
+            df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
+            try:
+                upload_to_bq(df_hrv, "hrv_history", "biometrics", mode="WRITE_APPEND")
+            except Exception as e:
+                log.error(f"HRV sync failed during upload: {e}")
+        else:
+            log.info("No HRV data returned from SDK for this range.")
 
     # --- 4. Training Status (Always refresh latest) ---
     status = get_training_status(client, end_date.strftime("%Y-%m-%d"))

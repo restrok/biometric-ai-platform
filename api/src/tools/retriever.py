@@ -128,6 +128,20 @@ def retrieve_biometric_data(
         except Exception:
             return "sleep", None
 
+    def fetch_hrv_history():
+        try:
+            t0 = time.time()
+            query_hrv = f"""
+                SELECT date, avg_hrv, min_hrv, max_hrv
+                FROM `{project_id}.{dataset}.hrv_history` 
+                ORDER BY date DESC LIMIT 7
+            """
+            hrv_rows = [dict(row) for row in client.query(query_hrv).result()]
+            log.info(f"⏱️ BigQuery: HRV history retrieved in {time.time() - t0:.2f}s")
+            return "hrv", hrv_rows
+        except Exception:
+            return "hrv", []
+
     def fetch_user_profile():
         try:
             t0 = time.time()
@@ -201,12 +215,13 @@ def retrieve_biometric_data(
             return "last_3_runs_timeseries_summary", "Error retrieving telemetry."
 
     # Execute first 5 queries in parallel
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         # We need to run fetch_activities first or concurrently, but we need its result for telemetry
         # To maximize parallelism, we start 1-5.
         f_act = executor.submit(fetch_activities)
         f_status = executor.submit(fetch_training_status)
         f_sleep = executor.submit(fetch_sleep_history)
+        f_hrv = executor.submit(fetch_hrv_history)
         f_profile = executor.submit(fetch_user_profile)
         f_body = executor.submit(fetch_body_composition)
 
@@ -218,7 +233,7 @@ def retrieve_biometric_data(
         f_telemetry = executor.submit(fetch_telemetry, top_3_ids)
 
         # Collect results from others
-        for f in [f_status, f_sleep, f_profile, f_body, f_telemetry]:
+        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_telemetry]:
             key, val = f.result()
             context[key] = val
 
@@ -229,8 +244,8 @@ def retrieve_biometric_data(
         context["training_status"] = {"info": "No training status available."}
     if not context.get("sleep"):
         context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}
-
-    context["hrv"] = {"info": "HRV baseline not yet established."}
+    if not context.get("hrv"):
+         context["hrv"] = [{"info": "HRV baseline not yet established."}]
 
     log.info(f"✅ Total context retrieval time: {time.time() - start_total:.2f}s")
 

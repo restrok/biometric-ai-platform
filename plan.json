@@ -1,0 +1,68 @@
+{
+  "workouts": [
+    {
+      "name": "Z2 Base Recovery",
+      "description": "60 mins at Aerobic Base (Z2)",
+      "date": "2026-04-26",
+      "duration": 60,
+      "steps": [
+        {
+          "type": "run",
+          "duration": 60,
+          "target": {
+            "displayOrder": 1,
+            "target_type": "heart.rate.zone",
+            "min_target": 116,
+            "max_target": 135
+          }
+        }
+      ]
+    },
+    {
+      "name": "Z5 Peak Intervals",
+      "description": "40 mins VO2max intervals",
+      "date": "2026-04-27",
+      "duration": 40,
+      "steps": [
+        {
+          "type": "warmup",
+          "duration": 10,
+          "target": null
+        },
+        {
+          "type": "interval",
+          "duration": 20,
+          "target": {
+            "displayOrder": 1,
+            "target_type": "heart.rate.zone",
+            "min_target": 174,
+            "max_target": 193
+          }
+        },
+        {
+          "type": "cooldown",
+          "duration": 10,
+          "target": null
+        }
+      ]
+    },
+    {
+      "name": "Z2 Long Endurance",
+      "description": "90 mins at Aerobic Base (Z2)",
+      "date": "2026-04-28",
+      "duration": 90,
+      "steps": [
+        {
+          "type": "run",
+          "duration": 90,
+          "target": {
+            "displayOrder": 1,
+            "target_type": "heart.rate.zone",
+            "min_target": 116,
+            "max_target": 135
+          }
+        }
+      ]
+    }
+  ]
+}

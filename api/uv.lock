@@ -123,7 +123,7 @@ dev = [
 requires-dist = [
     { name = "db-dtypes", specifier = ">=1.5.1" },
     { name = "fastapi", specifier = ">=0.136.0" },
-    { name = "garmin-training-toolkit-sdk", directory = "../../garmin-training-toolkit-sdk/garmin_toolkit" },
+    { name = "garmin-training-toolkit-sdk", specifier = ">=0.5.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-storage", specifier = ">=2.19.0" },
     { name = "langchain", specifier = ">=1.2.15" },
@@ -477,8 +477,8 @@ http = [
 
 [[package]]
 name = "garmin-training-toolkit-sdk"
-version = "0.4.0"
-source = { directory = "../../garmin-training-toolkit-sdk/garmin_toolkit" }
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },
@@ -487,25 +487,9 @@ dependencies = [
     { name = "requests" },
     { name = "requests-oauthlib" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "garminconnect", specifier = ">=0.3.2" },
-    { name = "playwright", specifier = ">=1.40.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "requests", specifier = ">=2.31.0" },
-    { name = "requests-oauthlib", specifier = ">=1.3.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.20.2" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-mock", specifier = ">=3.15.1" },
-    { name = "ruff", specifier = ">=0.15.11" },
-    { name = "types-requests", specifier = ">=2.33.0.20260408" },
-    { name = "types-requests-oauthlib", specifier = ">=2.0.0.20260408" },
+sdist = { url = "https://files.pythonhosted.org/packages/e0/36/117eefb16ec4e494fd1f31964735f42cab76ebd19a52812538c8792e20c3/garmin_training_toolkit_sdk-0.5.0.tar.gz", hash = "sha256:be0f55509e4572e94429be6e2dc7e0f1fddf291d7c212577c59c2da733422c2f", size = 35251, upload-time = "2026-04-27T01:16:43.836Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/01/d24e5019aebed38d5bda95fc2df9260cbd4a7e686232c6b6cdd53ba6dfb9/garmin_training_toolkit_sdk-0.5.0-py3-none-any.whl", hash = "sha256:60c7ae804af0dd6a7148f2e3d343dd2d814cb5eb0fe55ecbb789cb57b18e0755", size = 46519, upload-time = "2026-04-27T01:16:42.335Z" },
 ]
 
 [[package]]

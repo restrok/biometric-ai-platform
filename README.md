@@ -8,15 +8,16 @@ The `biometric-ai-platform` is a Product-Grade AI Ecosystem for athletic perform
 
 ## Core Architecture
 
-1. **Provider Layer (`garmin-training-toolkit-sdk`)**: A standardized, LLM-native SDK that implements a **Provider Pattern**. It abstracts proprietary brand logic behind a "Common Language" (Semantic Pydantic models).
-2. **Data Pipeline**: An **Incremental ETL** job that maintains a high-performance BigQuery Lakehouse.
-3. **Reasoning Layer**: A LangGraph AI Agent (Gemini 2.5 Flash) that prioritizes real physiological data and persists user-specific discoveries (like custom HR zones) back to the Data Lake.
+1. **Provider Layer (`garmin-training-toolkit-sdk`)**: A standardized, **LLM-Native SDK** that implements a **Provider Pattern**. It abstracts proprietary brand logic behind a "Common Language" using Pydantic models. 
+    - *New in v0.4.0*: Support for `RepeatGroup` (automatic looping), distance-based durations, and strongly-typed targets (Heart Rate, Pace, Power).
+2. **Data Pipeline**: An **Incremental ETL** job that maintains a high-performance BigQuery Lakehouse, now including historical **HRV (Heart Rate Variability)** backfilling.
+3. **Reasoning Layer**: A specialized **Agent Skill** (`biometric-coach`) that provides a modular, portable set of instructions for physiological analysis and polarized training prescription.
 
 ## Performance & Intelligence
 
 - **Standardized Provider Interface**: Swappable hardware providers (Garmin, Suunto, etc.) without changing agent logic.
+- **RepeatGroup Efficiency**: The engine uses a single JSON block to represent complex interval sessions (e.g., 10x400m), drastically reducing token overhead and improving reliability.
 - **Persistent Bio-Profiles**: The agent autonomously discovers physiological thresholds (like AeT) and updates the user's profile in BigQuery.
-- **Actionable API**: Beyond chat, the API exposes endpoints for deterministic synchronization and profile management.
 - **Power & Efficiency Analytics**: The ETL pipeline calculates `avg_power` from telemetry, enabling historical **Watts per Kilogram (W/kg)** trend analysis.
 - **Parallel Context Retrieval**: Highly optimized BigQuery client leveraging `ThreadPoolExecutor`.
 

@@ -19,11 +19,8 @@ dependencies = [
     "uvicorn>=0.44.0",
     "langchain-community>=0.2.0",
     "ragas>=0.2.0",
-    "garmin-training-toolkit-sdk>=0.4.0",
+    "garmin-training-toolkit-sdk>=0.5.0",
 ]
-
-[tool.uv.sources]
-garmin-training-toolkit-sdk = { path = "../../garmin-training-toolkit-sdk/garmin_toolkit" }
 
 [dependency-groups]
 dev = [

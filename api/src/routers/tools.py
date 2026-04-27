@@ -1,4 +1,5 @@
 import logging
+from typing import Literal, Union, Optional
 
 from fastapi import APIRouter, HTTPException
 from garmin_training_toolkit_sdk.utils import find_token_file
@@ -16,56 +17,60 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/tools", tags=["Tools"])
 
-# --- Request Models ---
+# --- New Strongly Typed Targets ---
 
+class HeartRateTarget(BaseModel):
+    target_type: Literal["heart.rate"] = "heart.rate"
+    min_bpm: int = Field(..., examples=[145])
+    max_bpm: int = Field(..., examples=[155])
+
+class PaceTarget(BaseModel):
+    target_type: Literal["pace"] = "pace"
+    min_pace_seconds: int = Field(..., description="Min pace in seconds per km", examples=[240])
+    max_pace_seconds: int = Field(..., description="Max pace in seconds per km", examples=[250])
+
+class PowerTarget(BaseModel):
+    target_type: Literal["power"] = "power"
+    min_watts: int = Field(..., examples=[250])
+    max_watts: int = Field(..., examples=[300])
+
+class LegacyTarget(BaseModel):
+    target_type: Optional[str] = Field(None, description="Legacy key: 'heart.rate.zone', etc.")
+    min_target: Optional[float] = None
+    max_target: Optional[float] = None
+
+# --- Workout Models ---
+
+class WorkoutStep(BaseModel):
+    type: str = Field(..., description="Step type: 'run', 'warmup', 'cooldown', 'recovery', 'interval'")
+    duration_mins: Optional[float] = Field(None, examples=[10.0])
+    distance_m: Optional[int] = Field(None, examples=[800])
+    duration: Optional[float] = Field(None, description="Legacy duration in minutes.")
+    target: Optional[Union[HeartRateTarget, PaceTarget, PowerTarget, LegacyTarget, dict]] = None
+
+class RepeatGroup(BaseModel):
+    type: Literal["repeat"] = "repeat"
+    iterations: int = Field(..., gt=0, examples=[6])
+    steps: list[WorkoutStep]
+
+class Workout(BaseModel):
+    name: str = Field(..., examples=["VO2 Max Intervals"])
+    description: str = Field("", examples=["6x800m intervals"])
+    duration: float = Field(..., description="Total estimated duration in minutes.", examples=[56.0])
+    date: str = Field(..., description="YYYY-MM-DD", examples=["2026-04-27"])
+    steps: list[Union[WorkoutStep, RepeatGroup]]
+
+class TrainingPlan(BaseModel):
+    workouts: list[Workout]
+
+# --- Other Request Models ---
 
 class CalendarRange(BaseModel):
     start_date: str = Field(..., description="Start date in YYYY-MM-DD format", examples=["2026-04-26"])
     end_date: str = Field(..., description="End date in YYYY-MM-DD format", examples=["2026-04-27"])
 
-
-class WorkoutTarget(BaseModel):
-    displayOrder: int = Field(1, description="Order in which this target is displayed in the workout step.")
-    target_type: str | None = Field(
-        None,
-        description="Must be one of: 'heart.rate.zone', 'pace.zone', or 'power.zone'.",
-        examples=["heart.rate.zone"],
-    )
-    min_target: float | None = Field(
-        None, description="Minimum value for the target (e.g., min bpm or min watts).", examples=[145.0]
-    )
-    max_target: float | None = Field(
-        None, description="Maximum value for the target (e.g., max bpm or max watts).", examples=[165.0]
-    )
-
-
-class WorkoutStep(BaseModel):
-    type: str = Field(
-        ...,
-        description="Type of exercise step: 'run', 'warmup', 'cooldown', 'recovery', or 'interval'.",
-        examples=["run"],
-    )
-    duration: float = Field(..., description="Duration of the step in minutes.", examples=[60.0])
-    target: WorkoutTarget | None = Field(None, description="Optional intensity target for this step.")
-
-
-class Workout(BaseModel):
-    name: str = Field(..., description="Descriptive name of the workout.", examples=["Z2 Base Run"])
-    description: str = Field(
-        "", description="Detailed instructions for the athlete.", examples=["60 mins at Aerobic Threshold"]
-    )
-    duration: float = Field(..., description="Total estimated duration in minutes.", examples=[60.0])
-    date: str = Field(..., description="Scheduled date in YYYY-MM-DD format.", examples=["2026-04-26"])
-    steps: list[WorkoutStep] = Field(..., description="Ordered list of workout steps.")
-
-
-class TrainingPlan(BaseModel):
-    workouts: list[Workout] = Field(..., description="List of workouts to be uploaded and scheduled.")
-
-
 class WorkoutID(BaseModel):
     workout_id: str = Field(..., description="The unique internal ID of the workout to be removed.")
-
 
 class ZoneUpdate(BaseModel):
     z1_max: int = Field(..., description="Maximum heart rate for Zone 1 (Recovery).", examples=[144])
@@ -73,33 +78,20 @@ class ZoneUpdate(BaseModel):
     z3_max: int = Field(..., description="Maximum heart rate for Zone 3 (Gray Zone).", examples=[176])
     z4_max: int = Field(..., description="Maximum heart rate for Zone 4 (Threshold).", examples=[186])
 
-
 class ActivityID(BaseModel):
     activity_id: str = Field(..., description="The unique ID of the activity (e.g., Garmin Activity ID) to analyze.")
 
-
 class SearchQuery(BaseModel):
-    query: str = Field(
-        ...,
-        description="The natural language question about exercise science to search for.",
-        examples=["What are the benefits of polarized training?"],
-    )
-
+    query: str = Field(..., description="Natural language science question.", examples=["Polarized training 80/20 rule"])
 
 class RetrieverInput(BaseModel):
-    project_id: str | None = Field(None, description="GCP Project ID. Defaults to environment config if not provided.")
-    dataset: str | None = Field(
-        None, description="BigQuery Dataset ID. Defaults to environment config if not provided."
-    )
-    limit: int = Field(20, description="Max number of activities to retrieve.", examples=[10])
-    offset: int = Field(0, description="Number of activities to skip (for paging).", examples=[20])
-    activity_type: str | None = Field(
-        None, description="Filter by type (e.g. 'running', 'walking').", examples=["running"]
-    )
-
+    project_id: str | None = None
+    dataset: str | None = None
+    limit: int = 20
+    offset: int = 0
+    activity_type: str | None = None
 
 # --- Endpoints ---
-
 
 @router.post("/calendar/clear")
 async def api_clear_calendar(req: CalendarRange):
@@ -110,18 +102,17 @@ async def api_clear_calendar(req: CalendarRange):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/training_plan/upload")
 async def api_upload_training_plan(req: TrainingPlan):
-    """Uploads a training plan to the active biometric provider."""
+    """Uploads a training plan with support for repeats, distances, and typed targets."""
     try:
+        # Use model_dump to ensure nested structures are converted to dicts correctly for the tool
         result = upload_training_plan.invoke(req.model_dump())
-        if "Failed" in result or "Error" in result:
-            raise Exception(result)
+        if "Failed" in str(result) or "Error" in str(result):
+            raise Exception(str(result))
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/workout/remove")
 async def api_remove_workout(req: WorkoutID):
@@ -132,7 +123,6 @@ async def api_remove_workout(req: WorkoutID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/zones/update")
 async def api_update_zones(req: ZoneUpdate):
     """Updates the user's custom heart rate zones in BigQuery."""
@@ -141,7 +131,6 @@ async def api_update_zones(req: ZoneUpdate):
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/biometric/sync")
 async def api_sync_biometric():
@@ -152,7 +141,6 @@ async def api_sync_biometric():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/activity/analyze_efficiency")
 async def api_analyze_efficiency(req: ActivityID):
     """Performs high-precision physiological analysis on a specific activity."""
@@ -162,7 +150,6 @@ async def api_analyze_efficiency(req: ActivityID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/science/search")
 async def api_search_science(req: SearchQuery):
     """Searches the internal knowledge base for exercise science principles."""
@@ -171,7 +158,6 @@ async def api_search_science(req: SearchQuery):
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/biometric/retrieve")
 async def api_retrieve_biometric(req: RetrieverInput):

@@ -17,14 +17,19 @@ The platform is designed as an **Agentic RAG** system, decoupled into several sp
 
 ### 2. SDK Layer (`garmin-toolkit`)
 *   Acts as an **Anti-Corruption Layer**.
-*   Implements a **Standardized Provider Interface** (Provider Pattern) to support multiple hardware brands (Garmin, Suunto, etc.).
-*   All models (Activity, Telemetry, Workout) use **Semantic Naming** (e.g., `min_target`) for LLM compatibility.
+*   Implements a **Standardized Provider Interface** (Provider Pattern) to support multiple hardware brands.
+*   **LLM-Native Models**:
+    - **`RepeatGroup`**: Enables concise definition of interval sessions (e.g., 10x400m) in a single JSON block.
+    - **Strongly Typed Targets**: Uses `HeartRateTarget`, `PaceTarget`, and `PowerTarget` with explicit fields (e.g., `min_bpm`) to remove ambiguity.
+    - **Auto-Conversion**: The SDK handles the heavy lifting of converting high-level LLM intent (minutes, meters) into proprietary brand requirements (seconds, m/s).
 
-### 3. Reasoning Layer (LangGraph)
-*   The agent is defined in `api/src/agent/graph.py`.
-*   **State Graph Nodes:**
-    *   `retriever`: Fetches 6 context domains (Activities, Sleep, etc.) from BigQuery in parallel using `ThreadPoolExecutor`.
-    *   `analyzer`: Uses **Gemini 2.5 Flash** to reason over the user query and the retrieved context.
+### 3. Reasoning Layer (Agent Skills)
+The platform's intelligence is modularized into **Skills**.
+*   **`biometric-coach` Skill**: A portable set of instructions (`SKILL.md`) that transforms any agentic framework into an Exercise Physiologist.
+*   **Ethical & Precision Protocol**: Mandatory rules for separating data facts from physiological interpretation and avoiding overconfidence.
+*   **State Graph Nodes (`api/src/agent/graph.py`):**
+    - `retriever`: Fetches 6 context domains (Activities, Sleep, HRV, etc.) from BigQuery in parallel.
+    - `analyzer`: Uses **Gemini 2.5 Flash** with the coach skill to reason over the retrieved context.
     *   `tools`: Executes external actions. Standard tools include:
         *   `upload_training_plan`: Schedules tailored workouts on the user's device.
         *   `sync_biometric_data`: Triggers the ETL pipeline to refresh BigQuery.
