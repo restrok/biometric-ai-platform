@@ -1,10 +1,10 @@
 import logging
-from typing import Literal, Union, Optional, Any, cast
+from typing import Any, Literal, cast
 
 from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
 from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from src.utils.provider_factory import get_provider
 
@@ -12,40 +12,49 @@ log = logging.getLogger(__name__)
 
 # --- New Strongly Typed Targets ---
 
+
 class HeartRateTarget(BaseModel):
     target_type: Literal["heart.rate"] = "heart.rate"
     min_bpm: int
     max_bpm: int
+
 
 class PaceTarget(BaseModel):
     target_type: Literal["pace"] = "pace"
     min_pace_seconds: int  # e.g., 240 for 4:00/km
     max_pace_seconds: int
 
+
 class PowerTarget(BaseModel):
     target_type: Literal["power"] = "power"
     min_watts: int
     max_watts: int
 
+
 class LegacyTarget(BaseModel):
     """Backward compatibility for existing target format."""
+
     target_type: str | None = None
     min_target: float | None = None
     max_target: float | None = None
 
+
 # --- Workout Models ---
+
 
 class WorkoutStep(BaseModel):
     type: str  # e.g., 'run', 'recovery', 'interval', 'warmup', 'cooldown'
-    duration_mins: Optional[float] = None
-    distance_m: Optional[int] = None
-    duration: Optional[float] = None  # Legacy support (minutes)
-    target: Union[HeartRateTarget, PaceTarget, PowerTarget, LegacyTarget, None] = None
+    duration_mins: float | None = None
+    distance_m: int | None = None
+    duration: float | None = None  # Legacy support (minutes)
+    target: HeartRateTarget | PaceTarget | PowerTarget | LegacyTarget | None = None
+
 
 class RepeatGroup(BaseModel):
     type: Literal["repeat"] = "repeat"
     iterations: int
     steps: list[WorkoutStep]
+
 
 class Workout(BaseModel):
     name: str
@@ -53,10 +62,12 @@ class Workout(BaseModel):
     duration: float  # Total estimated duration in minutes
     date: str
     # A workout can consist of individual steps or repeated groups of steps
-    steps: list[Union[WorkoutStep, RepeatGroup]]
+    steps: list[WorkoutStep | RepeatGroup]
+
 
 class TrainingPlan(BaseModel):
     workouts: list[Workout]
+
 
 @tool(args_schema=TrainingPlan)
 def upload_training_plan(workouts: list[Workout]):
@@ -77,11 +88,14 @@ def upload_training_plan(workouts: list[Workout]):
         log.error(f"❌ Upload failed: {e}")
         return f"Error: {e}"
 
+
 # --- Other Tools ---
+
 
 class CalendarRange(BaseModel):
     start_date: str
     end_date: str
+
 
 @tool(args_schema=CalendarRange)
 def clear_calendar(start_date: str, end_date: str):
@@ -94,8 +108,10 @@ def clear_calendar(start_date: str, end_date: str):
     cleared_count = clear_calendar_range(client, start_date, end_date)
     return f"Successfully cleared {cleared_count} workouts."
 
+
 class WorkoutID(BaseModel):
     workout_id: str
+
 
 @tool(args_schema=WorkoutID)
 def remove_workout(workout_id: str):

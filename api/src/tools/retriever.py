@@ -245,7 +245,7 @@ def retrieve_biometric_data(
     if not context.get("sleep"):
         context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}
     if not context.get("hrv"):
-         context["hrv"] = [{"info": "HRV baseline not yet established."}]
+        context["hrv"] = [{"info": "HRV baseline not yet established."}]
 
     log.info(f"✅ Total context retrieval time: {time.time() - start_total:.2f}s")
 

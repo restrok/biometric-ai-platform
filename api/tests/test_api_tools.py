@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -60,4 +60,3 @@ def test_upload_plan_endpoint(mock_tool):
     response = client.post("/api/v1/tools/training_plan/upload", json=payload)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
-

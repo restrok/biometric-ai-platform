@@ -66,12 +66,8 @@ def analyze_activity_efficiency(activity_id: str):
         # Safety Check: Null checks for all calculated fields before rounding
         summary = {
             "avg_hr": round(row.avg_hr, 1) if row.avg_hr is not None else None,
-            "aerobic_decoupling_pct": (
-                f"{round(row.decoupling_pct, 2)}%" if row.decoupling_pct is not None else "N/A"
-            ),
-            "efficiency_score": (
-                round(row.eff_first_half, 3) if row.eff_first_half is not None else None
-            ),
+            "aerobic_decoupling_pct": (f"{round(row.decoupling_pct, 2)}%" if row.decoupling_pct is not None else "N/A"),
+            "efficiency_score": (round(row.eff_first_half, 3) if row.eff_first_half is not None else None),
             "oscillation_ratio": (
                 round(row.avg_oscillation_ratio, 2) if row.avg_oscillation_ratio is not None else None
             ),

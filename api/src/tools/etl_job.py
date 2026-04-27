@@ -12,8 +12,8 @@ import pandas as pd
 from garmin_training_toolkit_sdk.extractors import (
     get_activities,
     get_activity_telemetry,
-    get_sleep_data,
     get_hrv_data,
+    get_sleep_data,
     get_training_status,
 )
 from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition, get_user_profile

@@ -1,8 +1,7 @@
 import logging
-from typing import Literal, Union, Optional
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from garmin_training_toolkit_sdk.utils import find_token_file
 from pydantic import BaseModel, Field
 
 # Import tools
@@ -19,58 +18,71 @@ router = APIRouter(prefix="/api/v1/tools", tags=["Tools"])
 
 # --- New Strongly Typed Targets ---
 
+
 class HeartRateTarget(BaseModel):
     target_type: Literal["heart.rate"] = "heart.rate"
     min_bpm: int = Field(..., examples=[145])
     max_bpm: int = Field(..., examples=[155])
+
 
 class PaceTarget(BaseModel):
     target_type: Literal["pace"] = "pace"
     min_pace_seconds: int = Field(..., description="Min pace in seconds per km", examples=[240])
     max_pace_seconds: int = Field(..., description="Max pace in seconds per km", examples=[250])
 
+
 class PowerTarget(BaseModel):
     target_type: Literal["power"] = "power"
     min_watts: int = Field(..., examples=[250])
     max_watts: int = Field(..., examples=[300])
 
+
 class LegacyTarget(BaseModel):
-    target_type: Optional[str] = Field(None, description="Legacy key: 'heart.rate.zone', etc.")
-    min_target: Optional[float] = None
-    max_target: Optional[float] = None
+    target_type: str | None = Field(None, description="Legacy key: 'heart.rate.zone', etc.")
+    min_target: float | None = None
+    max_target: float | None = None
+
 
 # --- Workout Models ---
 
+
 class WorkoutStep(BaseModel):
     type: str = Field(..., description="Step type: 'run', 'warmup', 'cooldown', 'recovery', 'interval'")
-    duration_mins: Optional[float] = Field(None, examples=[10.0])
-    distance_m: Optional[int] = Field(None, examples=[800])
-    duration: Optional[float] = Field(None, description="Legacy duration in minutes.")
-    target: Optional[Union[HeartRateTarget, PaceTarget, PowerTarget, LegacyTarget, dict]] = None
+    duration_mins: float | None = Field(None, examples=[10.0])
+    distance_m: int | None = Field(None, examples=[800])
+    duration: float | None = Field(None, description="Legacy duration in minutes.")
+    target: HeartRateTarget | PaceTarget | PowerTarget | LegacyTarget | dict | None = None
+
 
 class RepeatGroup(BaseModel):
     type: Literal["repeat"] = "repeat"
     iterations: int = Field(..., gt=0, examples=[6])
     steps: list[WorkoutStep]
 
+
 class Workout(BaseModel):
     name: str = Field(..., examples=["VO2 Max Intervals"])
     description: str = Field("", examples=["6x800m intervals"])
     duration: float = Field(..., description="Total estimated duration in minutes.", examples=[56.0])
     date: str = Field(..., description="YYYY-MM-DD", examples=["2026-04-27"])
-    steps: list[Union[WorkoutStep, RepeatGroup]]
+    steps: list[WorkoutStep | RepeatGroup]
+
 
 class TrainingPlan(BaseModel):
     workouts: list[Workout]
 
+
 # --- Other Request Models ---
+
 
 class CalendarRange(BaseModel):
     start_date: str = Field(..., description="Start date in YYYY-MM-DD format", examples=["2026-04-26"])
     end_date: str = Field(..., description="End date in YYYY-MM-DD format", examples=["2026-04-27"])
 
+
 class WorkoutID(BaseModel):
     workout_id: str = Field(..., description="The unique internal ID of the workout to be removed.")
+
 
 class ZoneUpdate(BaseModel):
     z1_max: int = Field(..., description="Maximum heart rate for Zone 1 (Recovery).", examples=[144])
@@ -78,11 +90,16 @@ class ZoneUpdate(BaseModel):
     z3_max: int = Field(..., description="Maximum heart rate for Zone 3 (Gray Zone).", examples=[176])
     z4_max: int = Field(..., description="Maximum heart rate for Zone 4 (Threshold).", examples=[186])
 
+
 class ActivityID(BaseModel):
     activity_id: str = Field(..., description="The unique ID of the activity (e.g., Garmin Activity ID) to analyze.")
 
+
 class SearchQuery(BaseModel):
-    query: str = Field(..., description="Natural language science question.", examples=["Polarized training 80/20 rule"])
+    query: str = Field(
+        ..., description="Natural language science question.", examples=["Polarized training 80/20 rule"]
+    )
+
 
 class RetrieverInput(BaseModel):
     project_id: str | None = None
@@ -91,7 +108,9 @@ class RetrieverInput(BaseModel):
     offset: int = 0
     activity_type: str | None = None
 
+
 # --- Endpoints ---
+
 
 @router.post("/calendar/clear")
 async def api_clear_calendar(req: CalendarRange):
@@ -101,6 +120,7 @@ async def api_clear_calendar(req: CalendarRange):
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/training_plan/upload")
 async def api_upload_training_plan(req: TrainingPlan):
@@ -114,6 +134,7 @@ async def api_upload_training_plan(req: TrainingPlan):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/workout/remove")
 async def api_remove_workout(req: WorkoutID):
     """Deletes a specific workout using the active provider."""
@@ -122,6 +143,7 @@ async def api_remove_workout(req: WorkoutID):
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/zones/update")
 async def api_update_zones(req: ZoneUpdate):
@@ -132,6 +154,7 @@ async def api_update_zones(req: ZoneUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/biometric/sync")
 async def api_sync_biometric():
     """Triggers an incremental synchronization of biometric data from the provider to BigQuery."""
@@ -140,6 +163,7 @@ async def api_sync_biometric():
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/activity/analyze_efficiency")
 async def api_analyze_efficiency(req: ActivityID):
@@ -150,6 +174,7 @@ async def api_analyze_efficiency(req: ActivityID):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/science/search")
 async def api_search_science(req: SearchQuery):
     """Searches the internal knowledge base for exercise science principles."""
@@ -158,6 +183,7 @@ async def api_search_science(req: SearchQuery):
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/biometric/retrieve")
 async def api_retrieve_biometric(req: RetrieverInput):

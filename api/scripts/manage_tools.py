@@ -10,8 +10,6 @@ logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
 # Add src to path if needed
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from garmin_training_toolkit_sdk.utils import find_token_file
-from langchain_core.tools import tool
 
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.etl_tool import sync_biometric_data
