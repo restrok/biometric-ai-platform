@@ -1,51 +1,72 @@
 import logging
+from typing import Literal, Union, Optional, Any, cast
 
 from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
 from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range
 from langchain_core.tools import tool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.utils.provider_factory import get_provider
 
 log = logging.getLogger(__name__)
 
+# --- New Strongly Typed Targets ---
 
-class WorkoutTarget(BaseModel):
-    displayOrder: int = 1
-    target_type: str | None = None  # e.g., 'heart.rate.zone'
-    min_target: float | None = None  # e.g., 145
-    max_target: float | None = None  # e.g., 165
+class HeartRateTarget(BaseModel):
+    target_type: Literal["heart.rate"] = "heart.rate"
+    min_bpm: int
+    max_bpm: int
 
+class PaceTarget(BaseModel):
+    target_type: Literal["pace"] = "pace"
+    min_pace_seconds: int  # e.g., 240 for 4:00/km
+    max_pace_seconds: int
+
+class PowerTarget(BaseModel):
+    target_type: Literal["power"] = "power"
+    min_watts: int
+    max_watts: int
+
+class LegacyTarget(BaseModel):
+    """Backward compatibility for existing target format."""
+    target_type: str | None = None
+    min_target: float | None = None
+    max_target: float | None = None
+
+# --- Workout Models ---
 
 class WorkoutStep(BaseModel):
     type: str  # e.g., 'run', 'recovery', 'interval', 'warmup', 'cooldown'
-    duration: float  # Duration in minutes (e.g. 10.5)
-    target: WorkoutTarget | None = None
+    duration_mins: Optional[float] = None
+    distance_m: Optional[int] = None
+    duration: Optional[float] = None  # Legacy support (minutes)
+    target: Union[HeartRateTarget, PaceTarget, PowerTarget, LegacyTarget, None] = None
 
+class RepeatGroup(BaseModel):
+    type: Literal["repeat"] = "repeat"
+    iterations: int
+    steps: list[WorkoutStep]
 
 class Workout(BaseModel):
     name: str
     description: str = ""
-    duration: float  # Total duration in minutes
+    duration: float  # Total estimated duration in minutes
     date: str
-    steps: list[WorkoutStep]
-
+    # A workout can consist of individual steps or repeated groups of steps
+    steps: list[Union[WorkoutStep, RepeatGroup]]
 
 class TrainingPlan(BaseModel):
     workouts: list[Workout]
 
-
 @tool(args_schema=TrainingPlan)
 def upload_training_plan(workouts: list[Workout]):
-    """Uploads a training plan to the active biometric provider."""
+    """Uploads a training plan with support for repeats, distances, and typed targets."""
     log.info(f"📤 Uploading {len(workouts)} workouts via Provider...")
     provider = get_provider()
 
     try:
-        # Map our LangChain tool models to the SDK Protocol models
-        from typing import Any, cast
-
-        plan_data = [w.model_dump() for w in workouts]
+        # The SDK's WorkoutPlan will now handle the mapping of these new structures
+        plan_data = [w.model_dump(exclude_none=True) for w in workouts]
         workout_plan = WorkoutPlan(root=cast(Any, plan_data))
 
         report = provider.upload_training_plan(workout_plan)
@@ -56,28 +77,25 @@ def upload_training_plan(workouts: list[Workout]):
         log.error(f"❌ Upload failed: {e}")
         return f"Error: {e}"
 
+# --- Other Tools ---
 
 class CalendarRange(BaseModel):
     start_date: str
     end_date: str
-
 
 @tool(args_schema=CalendarRange)
 def clear_calendar(start_date: str, end_date: str):
     """Clears calendar range for the active provider."""
     log.info("🧹 Clearing Calendar...")
     provider = get_provider()
-    # Garmin-specific logic still relies on the underlying client for now
     client = getattr(provider, "client", None)
     if not client:
         return "Provider does not support direct calendar clearing."
     cleared_count = clear_calendar_range(client, start_date, end_date)
     return f"Successfully cleared {cleared_count} workouts."
 
-
 class WorkoutID(BaseModel):
     workout_id: str
-
 
 @tool(args_schema=WorkoutID)
 def remove_workout(workout_id: str):
@@ -85,7 +103,6 @@ def remove_workout(workout_id: str):
     log.info(f"🗑️ Deleting workout {workout_id}...")
     provider = get_provider()
     try:
-        # Garmin-specific logic
         client = getattr(provider, "client", None)
         if client:
             client.delete_workout(workout_id)
