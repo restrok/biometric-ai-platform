@@ -18,6 +18,7 @@
 - [ ] **Comprehensive E2E Testing** [SEVERITY: CRITICAL]: Validate full flows (ingestion -> plan) across edge cases to prevent regressions.
 - [ ] **Tool Robustness** [SEVERITY: HIGH]: Advanced error handling for all tools to prevent agent "loops" on bad data.
 - [ ] **Universal Goals Feature** [SEVERITY: HIGH]: Native BigQuery persistence for user objectives (e.g., July 15 Race).
+- [ ] **Injury & Health Tracking** [SEVERITY: HIGH]: Native BigQuery persistence for physical 'niggles', soreness, and injury history to improve risk assessment.
 - [ ] **Performance Tuning** [SEVERITY: MEDIUM]: Optimize BigQuery query patterns and LangGraph execution latency.
 
 ## Phase 4: Production Deployment & Ecosystem Expansion (Upcoming 🚀)
