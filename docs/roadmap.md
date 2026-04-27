@@ -16,6 +16,7 @@
 
 ## Phase 3: Reliability & Refinement (Current Focus 🚧)
 - [x] Enhance agent system prompt with Ethical & Precision Protocol (separate facts from interpretation, avoid overconfidence, require multi-observation analysis).
+- [ ] **Universal Goals Feature:** Implement native BigQuery persistence for user training objectives and time targets.
 - [ ] Comprehensive End-to-End Testing: Validate the entire flow from data ingestion to agent recommendation across various edge cases (e.g., missing data, API rate limits).
 - [ ] Performance Tuning: Optimize BigQuery queries and LangGraph execution time.
 - [ ] Tool Robustness: Ensure all tools handle unexpected inputs gracefully and provide clear error messages to the LLM for self-healing.
