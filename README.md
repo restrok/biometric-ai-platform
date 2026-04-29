@@ -27,12 +27,10 @@ Experience how the AI Coach reasons across multiple biometric domains. Run these
 ### 4. Mechanical vs. Metabolic Efficiency
 > "Compare the 'HR per Step' and 'Ground Contact Time' of my last run vs. last week. Am I becoming more efficient?"
 *Highlights: Long-term trend analysis and mechanical form metrics.*
-![Efficiency Trends](./docs/assets/screenshots/efficiency-trends.png)
 
 ### 5. Goal-Driven Planning & Action
 > "My goal is sub-50 mins on July 15. Build a 4-workout block for next week that prioritizes my lactate threshold and sync it to my calendar."
 *Highlights: Complex planning and automated device synchronization.*
-![Training Planning](./docs/assets/screenshots/training-planning.png)
 
 ---
 
