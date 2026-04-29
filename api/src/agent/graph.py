@@ -172,6 +172,7 @@ def node_analyze(state: AgentState) -> dict:
             try:
                 # Some tool results might be JSON strings
                 import json
+
                 data = json.loads(msg.content)
                 if isinstance(data, dict) and "updated_biometric_context" in data:
                     current_context = data["updated_biometric_context"]
@@ -231,7 +232,7 @@ def should_continue(state: AgentState):
     """Determines if the graph should continue to tools, self-heal, or end."""
     messages = state["messages"]
     last_message = messages[-1]
-    
+
     # Check if we've exceeded the safety loop limit to preserve quota
     loop_count = state.get("loop_count", 0)
     if loop_count > 4:

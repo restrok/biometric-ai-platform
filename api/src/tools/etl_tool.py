@@ -19,13 +19,13 @@ def sync_biometric_data():
     try:
         log.info("🔄 Agent-triggered ETL sync starting...")
         run_etl()
-        
+
         log.info("📡 ETL complete. Refreshing local context for the Agent...")
         updated_context = retrieve_biometric_data.invoke({})
-        
+
         return {
             "status": "Successfully synchronized biometric data from provider to BigQuery.",
-            "updated_biometric_context": updated_context
+            "updated_biometric_context": updated_context,
         }
     except Exception as e:
         log.error(f"❌ ETL sync failed: {e}")

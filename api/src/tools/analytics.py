@@ -69,21 +69,25 @@ def analyze_activity_efficiency(activity_id: str):
             "avg_power": round(row.avg_power, 1) if row.avg_power is not None else None,
             "avg_cadence": round(row.avg_cadence, 1) if row.avg_cadence is not None else None,
             "hr_per_step": round(row.hr_per_step, 3) if row.hr_per_step is not None else None,
-            "aerobic_decoupling_pct": (f"{round(row.decoupling_pct, 2)}%" if hasattr(row, 'decoupling_pct') and row.decoupling_pct is not None else "N/A"),
+            "aerobic_decoupling_pct": (
+                f"{round(row.decoupling_pct, 2)}%"
+                if hasattr(row, "decoupling_pct") and row.decoupling_pct is not None
+                else "N/A"
+            ),
             "efficiency_score": (round(row.eff_first_half, 3) if row.eff_first_half is not None else None),
-            "oscillation_ratio": (round(row.avg_oscillation_ratio, 2) if row.avg_oscillation_ratio is not None else None),
+            "oscillation_ratio": (
+                round(row.avg_oscillation_ratio, 2) if row.avg_oscillation_ratio is not None else None
+            ),
             "avg_gct_ms": round(row.avg_gct, 1) if row.avg_gct is not None else None,
             "avg_stride_length_mm": round(row.avg_sl, 0) if row.avg_sl is not None else None,
         }
-        
+
         # Manual decoupling calc if BQ output name differs or using SELECT *
         if row.eff_first_half and row.eff_second_half:
             dec = ((row.eff_first_half - row.eff_second_half) / row.eff_first_half) * 100
             summary["aerobic_decoupling_pct"] = f"{round(dec, 2)}%"
             summary["interpretation"] = (
-                "Stable" if dec < 5 else 
-                "Cardiac Drift Detected" if dec < 10 else 
-                "Significant Decoupling"
+                "Stable" if dec < 5 else "Cardiac Drift Detected" if dec < 10 else "Significant Decoupling"
             )
         else:
             summary["interpretation"] = "Insufficient data for drift analysis"
@@ -119,7 +123,7 @@ def analyze_activity_stages(activity_id: str):
         WHERE activity_id = '{activity_id}' 
         ORDER BY timestamp_ms ASC
     """
-    
+
     try:
         df = client.query(query).to_dataframe()
         if df.empty:
@@ -127,50 +131,52 @@ def analyze_activity_stages(activity_id: str):
 
         # Dynamic Thresholding: Use 90% of the session's mean power as the 'work' baseline
         # This adapts to recovery runs vs. interval sessions.
-        session_avg_power = df[df['power_w'] > 0]['power_w'].mean()
+        session_avg_power = df[df["power_w"] > 0]["power_w"].mean()
         threshold = session_avg_power * 0.9 if not np.isnan(session_avg_power) else 220
-        
-        log.info(f"📊 Activity {activity_id} analysis: Session Avg Power={session_avg_power:.1f}W, Dynamic Threshold={threshold:.1f}W")
+
+        log.info(
+            f"📊 Activity {activity_id} analysis: Session Avg Power={session_avg_power:.1f}W, Dynamic Threshold={threshold:.1f}W"
+        )
 
         # Smoothing & Thresholding
-        df['power_smooth'] = df['power_w'].rolling(window=10, center=True).mean().fillna(df['power_w'])
-        df['is_work'] = df['power_smooth'] > threshold
-        df['state_change'] = df['is_work'] != df['is_work'].shift(1)
-        df['stage_id'] = df['state_change'].cumsum()
-        
+        df["power_smooth"] = df["power_w"].rolling(window=10, center=True).mean().fillna(df["power_w"])
+        df["is_work"] = df["power_smooth"] > threshold
+        df["state_change"] = df["is_work"] != df["is_work"].shift(1)
+        df["stage_id"] = df["state_change"].cumsum()
+
         stages = []
-        for _, group in df.groupby('stage_id'):
-            is_work = group['is_work'].iloc[0]
-            duration_sec = (group['timestamp_ms'].max() - group['timestamp_ms'].min()) / 1000
-            
+        for _, group in df.groupby("stage_id"):
+            is_work = group["is_work"].iloc[0]
+            duration_sec = (group["timestamp_ms"].max() - group["timestamp_ms"].min()) / 1000
+
             if duration_sec < 15:
                 continue
-                
-            hr_step = (group['hr_bpm'] / group['cadence_spm'].replace(0, np.nan)).mean()
-                
+
+            hr_step = (group["hr_bpm"] / group["cadence_spm"].replace(0, np.nan)).mean()
+
             stage_summary = {
                 "type": "Work" if is_work else "Rest/Warmup/Cooldown",
                 "duration_sec": round(duration_sec, 1),
-                "avg_hr": round(group['hr_bpm'].mean(), 1) if not group['hr_bpm'].empty else None,
-                "avg_power": round(group['power_w'].mean(), 1) if not group['power_w'].empty else None,
-                "avg_cadence": round(group['cadence_spm'].mean(), 1) if not group['cadence_spm'].empty else None,
+                "avg_hr": round(group["hr_bpm"].mean(), 1) if not group["hr_bpm"].empty else None,
+                "avg_power": round(group["power_w"].mean(), 1) if not group["power_w"].empty else None,
+                "avg_cadence": round(group["cadence_spm"].mean(), 1) if not group["cadence_spm"].empty else None,
                 "hr_per_step": round(hr_step, 3) if not np.isnan(hr_step) else None,
             }
-            
+
             # Optional metrics - only include if they have data
             metrics_map = {
                 "ground_contact_time_ms": "avg_gct_ms",
                 "stride_length_mm": "avg_stride_mm",
                 "vertical_oscillation_cm": "avg_oscillation_cm",
-                "temperature_c": "avg_temp_c"
+                "temperature_c": "avg_temp_c",
             }
-            
+
             for col, key in metrics_map.items():
                 if col in group and not group[col].isnull().all():
                     stage_summary[key] = round(group[col].mean(), 1)
 
             stages.append(stage_summary)
-        
+
         log.info(f"✅ Full Stage analysis complete for {activity_id}")
         return stages
     except Exception as e:
