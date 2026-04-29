@@ -70,6 +70,25 @@ result = await graph.ainvoke(initial_state)
 
 ---
 
+## 🚀 Project Operational Rules
+
+### Environment & Tools
+- **Python:** Use `.venv/bin/python3` for all tool executions within the `api/` directory.
+- **BigQuery:** This is the primary source of truth for all historical biometric context.
+- **Garmin Tokens:** Persisted at `~/.garminconnect/garmin_tokens.json`.
+- **Model Discovery:** To check available models and their exact API identifiers (especially when using free-tier keys), use the following command:
+  ```bash
+  curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY"
+  ```
+
+### Authentication Setup (Linux/Raspberry Pi)
+On headless Linux systems, the browser-based authentication requires manual system setup:
+1.  **Install Browser:** `uv run playwright install chromium`
+2.  **Install Libraries:** `sudo .venv/bin/python3 -m playwright install-deps`
+3.  **Run Auth:** `uv run python -m garmin_training_toolkit_sdk.auth`
+
+---
+
 ## 📊 Observability & FinOps
 *   **FinOps Logging:** Every LLM call is logged to `biometric_data_dev.finops_logs` in BigQuery.
 *   **Tracing:** Tracing can be enabled using LangSmith (optional).

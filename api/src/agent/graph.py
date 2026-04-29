@@ -7,7 +7,7 @@ from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
 
-from src.tools.analytics import analyze_activity_efficiency
+from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
 from src.tools.profile_manager import update_user_zones
@@ -21,6 +21,7 @@ class AgentState(TypedDict):
     biometric_context: dict
     usage_stats: dict  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
+    loop_count: int  # Prevent infinite self-healing
 
 
 class IntentClassifier(BaseModel):
@@ -98,7 +99,8 @@ Analyze these to provide a holistic view of the runner's economy.
 
 def node_router(state: AgentState) -> dict:
     """Classifies user intent to decide which data to fetch."""
-    model = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    # Use Gemma 4 26B for the router to save primary model quota (Higher RPD/RPM)
+    model = ChatGoogleGenerativeAI(model="gemma-4-26b-a4b-it", temperature=0)
     # We only look at the last message for intent
     last_msg = state["messages"][-1].content
 
@@ -119,7 +121,7 @@ def node_router(state: AgentState) -> dict:
     except Exception:
         intent = "full"  # Fallback to safe default
 
-    return {"intent": intent}
+    return {"intent": intent, "loop_count": 0}
 
 
 def node_retrieve_context(state: AgentState) -> dict:
@@ -145,7 +147,7 @@ log = logging.getLogger(__name__)
 def node_analyze(state: AgentState) -> dict:
     """Calls the LLM to generate the training plan/response."""
     t0 = time.time()
-    model_name = "gemini-2.5-flash"
+    model_name = "gemma-4-31b-it"
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
 
     # Bind tools to the LLM
@@ -155,11 +157,37 @@ def node_analyze(state: AgentState) -> dict:
         update_user_zones,
         sync_biometric_data,
         analyze_activity_efficiency,
+        analyze_activity_stages,
+        retrieve_biometric_data,
     ]
     llm_with_tools = llm.bind_tools(tools)
 
+    # 1. Start with the initial biometric context from state
+    current_context = state.get("biometric_context", {})
+
+    # 2. Check if a recent tool call (like sync_biometric_data) provided an updated context
+    # We look at the last few messages to see if there's a ToolMessage with updated_biometric_context
+    for msg in reversed(state["messages"]):
+        if msg.type == "tool" and isinstance(msg.content, str):
+            try:
+                # Some tool results might be JSON strings
+                import json
+
+                data = json.loads(msg.content)
+                if isinstance(data, dict) and "updated_biometric_context" in data:
+                    current_context = data["updated_biometric_context"]
+                    log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
+                    break
+            except Exception:
+                pass
+        elif msg.type == "tool" and isinstance(msg.content, dict):
+            if "updated_biometric_context" in msg.content:
+                current_context = msg.content["updated_biometric_context"]
+                log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
+                break
+
     # Format the prompt
-    context_str = f"\nUser Biometric Context:\n{state.get('biometric_context', {})}"
+    context_str = f"\nUser Biometric Context:\n{current_context}"
     messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
 
     response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
@@ -181,7 +209,7 @@ def node_analyze(state: AgentState) -> dict:
 
     usage["calls"] += 1
 
-    return {"messages": [response], "usage_stats": usage}
+    return {"messages": [response], "usage_stats": usage, "loop_count": state.get("loop_count", 0) + 1}
 
 
 # Define Tool Node
@@ -194,6 +222,8 @@ tool_node = ToolNode(
         update_user_zones,
         sync_biometric_data,
         analyze_activity_efficiency,
+        analyze_activity_stages,
+        retrieve_biometric_data,
     ]
 )
 
@@ -203,21 +233,24 @@ def should_continue(state: AgentState):
     messages = state["messages"]
     last_message = messages[-1]
 
+    # Check if we've exceeded the safety loop limit to preserve quota
+    loop_count = state.get("loop_count", 0)
+    if loop_count > 4:
+        log.warning(f"⚠️ Loop count ({loop_count}) exceeded. Stopping to preserve API quota.")
+        return END
+
     # 1. If LLM requested tools, go to tools node
     if getattr(last_message, "tool_calls", None):
         return "tools"
 
     # 2. Self-Healing Logic: Check if the last message was a tool result containing an error
-    # Note: In LangGraph, tool results are messages of type 'tool'
     if len(messages) > 1:
         prev_message = messages[-1]
         # If it's a ToolMessage (result from tools node)
         if hasattr(prev_message, "content") and any(
             err in str(prev_message.content).lower() for err in ["error", "failed", "invalid"]
         ):
-            # If we haven't already tried to fix this specific error too many times (limit to 2)
-            # For simplicity, we just route back to analyzer once.
-            log.info("🛠️ Tool error detected. Routing back to analyzer for self-healing...")
+            log.info(f"🛠️ Tool error detected (Loop {loop_count}). Routing back to analyzer for self-healing...")
             return "analyzer"
 
     return END
@@ -235,11 +268,9 @@ builder.add_edge("router", "retriever")
 builder.add_edge("retriever", "analyzer")
 
 # Conditional edge from analyzer to tools or end
-builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", END: END})
+builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", "analyzer": "analyzer", END: END})
 
-# After tools, we go back to should_continue via a conditional check or just back to analyzer.
-# The standard LangGraph pattern for self-healing loops is:
-# analyzer -> (conditional) -> tools -> analyzer
+# After tools, we go back to analyzer.
 builder.add_edge("tools", "analyzer")
 
 # Compile

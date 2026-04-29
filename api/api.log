@@ -1,0 +1,38 @@
+23:38:43 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+23:38:52 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+23:38:52 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+23:38:54 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+23:38:54 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.62s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.62s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.68s (20 rows)
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.68s (20 rows)
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.70s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.70s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.71s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.71s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.78s
+23:38:56 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.78s
+23:38:57 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.21s (149 samples)
+23:38:57 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.21s (149 samples)
+23:38:57 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.91s
+23:38:57 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.91s
+23:38:59 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+23:38:59 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+23:39:27 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 30402ms
+23:39:27 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 30402ms
+23:39:30 [INFO] src.tools.analytics: ✅ Full Efficiency analysis complete for 22696102429
+23:39:30 [INFO] src.tools.analytics: ✅ Full Efficiency analysis complete for 22696102429
+23:39:30 [INFO] src.tools.analytics: ✅ Full Stage analysis complete for 22696102429
+23:39:30 [INFO] src.tools.analytics: ✅ Full Stage analysis complete for 22696102429
+23:39:32 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+23:39:32 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+23:40:10 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40529ms
+23:40:10 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40529ms
+12:22:35 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+12:22:37 [INFO] httpx: HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/biometric/retrieve "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/activity/analyze_efficiency "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/biometric/sync "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/zones/update "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/training_plan/upload "HTTP/1.1 200 OK"

@@ -11,7 +11,22 @@ from pydantic import BaseModel, Field
 from src.utils.config import setup_environment
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
+log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
+
+# Console Handler
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(log_formatter)
+
+# File Handler
+file_handler = logging.FileHandler("api.log")
+file_handler.setFormatter(log_formatter)
+
+# Root configuration
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(stream_handler)
+root_logger.addHandler(file_handler)
+
 log = logging.getLogger("api")
 
 # Load environment and handle API keys

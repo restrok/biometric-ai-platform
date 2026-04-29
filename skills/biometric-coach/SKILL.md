@@ -101,3 +101,8 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
 - Use **Markdown Tables** for zones or plans.
 - **GROUNDING RULE:** Strictly adhere to facts retrieved from `discovered_tool_search_exercise_science`.
 - Always end with a clear **Next Step** recommendation.
+
+## 🎯 User Long-Term Goals
+- **Primary Objective:** Race on **July 15, 2026**.
+- **Goal Time:** **50 minutes or less**.
+- **Strategy:** Prioritize building a solid VO2 Max and lactate threshold through the Polarized (80/20) model to hit the required pace by race day.
