@@ -116,7 +116,7 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
 
 ### Activity Analysis Tools
 - **analyze_activity_efficiency:** Always use this to check for Cardiac Drift before suggesting zone updates.
-- **analyze_activity_stages:** Automatically splits activities into "Work" vs. "Rest" using a 220W power threshold. Use this to identify unscheduled sprints or interval accuracy.
+- **analyze_activity_stages:** Automatically splits activities into "Work" vs. "Rest" using a dynamic power threshold (90% of the session's average power). Use this to identify unscheduled sprints or interval accuracy across any fitness level.
 - **retrieve_biometric_data:** Provides a 3-run telemetry summary `[BPM|Watts|Osc|GCT]`. Use this to spot multi-activity trends.
 
 ## 📊 Response Guidelines

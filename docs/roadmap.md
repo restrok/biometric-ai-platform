@@ -13,15 +13,16 @@
 - [x] OpenAI-compatible REST API with SSE streaming.
 - [x] Implement autonomous pagination for retrieval.
 
-## Phase 3: Reliability & Refinement (Current Focus 🚧)
+## Phase 3: Reliability & Refinement (Completed ✅)
 - [x] **Ethical & Precision Protocol:** Separate facts from interpretation.
+- [x] **Universal Goals Feature:** Native BigQuery persistence for user objectives (e.g., July 15 Race).
+- [x] **Dynamic Physiological Analysis:** Implemented session-adaptive power thresholds (90% rule) for high-precision stage detection.
 - [ ] **Comprehensive E2E Testing** [SEVERITY: CRITICAL]: Validate full flows (ingestion -> plan) across edge cases to prevent regressions.
 - [ ] **Tool Robustness** [SEVERITY: HIGH]: Advanced error handling for all tools to prevent agent "loops" on bad data.
-- [ ] **Universal Goals Feature** [SEVERITY: HIGH]: Native BigQuery persistence for user objectives (e.g., July 15 Race).
 - [ ] **Injury & Health Tracking** [SEVERITY: HIGH]: Native BigQuery persistence for physical 'niggles', soreness, and injury history to improve risk assessment.
 - [ ] **Performance Tuning** [SEVERITY: MEDIUM]: Optimize BigQuery query patterns and LangGraph execution latency.
 
-## Phase 4: Production Deployment & Ecosystem Expansion (Upcoming 🚀)
+## Phase 4: Production Deployment & Ecosystem Expansion (Current Focus 🚧)
 - [ ] **Persistent Conversation Memory** [SEVERITY: HIGH]: Use BigQuery/Vector store to allow the agent to recall past coaching sessions over months.
 - [ ] **Dockerization** [SEVERITY: MEDIUM]: Containerize the backend for easy deployment on Raspberry Pi / Cloud.
 - [ ] **Notifications Agent** [SEVERITY: MEDIUM]: Standalone microservice for proactive daily summaries (e.g., Telegram).
@@ -30,4 +31,5 @@
 ## Architecture Philosophy
 - **API as the Engine:** Complex logic (ETL, BQ, Auth) lives in Python.
 - **Agent as the Brain:** Modular Skills (`SKILL.md`) provide the expert persona.
+- **Dynamic Precision:** Physiological thresholds are calculated dynamically from raw telemetry (e.g., 90% power rule) to ensure analysis adapts to any fitness level.
 - **OpenAI Standard:** Zero-friction integration with the broader AI ecosystem.
