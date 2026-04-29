@@ -53,7 +53,18 @@ def analyze_activity_efficiency(activity_id: str):
             AVG(gct) as avg_gct
         FROM telemetry_stats
     )
-    SELECT * FROM halves
+    SELECT 
+        eff_first_half, 
+        eff_second_half, 
+        avg_oscillation_ratio, 
+        hr_per_step, 
+        avg_hr, 
+        avg_power, 
+        avg_cadence, 
+        avg_vo, 
+        avg_sl, 
+        avg_gct 
+    FROM halves
     """
 
     try:
