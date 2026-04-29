@@ -104,16 +104,29 @@ Want to look under the hood or set this up for yourself? We have you covered:
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Get Started
 
-Get your AI coach running in minutes:
+Ready to train? The full installation takes about 5 minutes. See the [🚀 Full Setup Guide](docs/getting-started.md) for detailed instructions.
 
+### 1. Install & Environment
 ```bash
-# 1. Ingest your historical data (ETL)
-cd api
-PYTHONPATH=src uv run python src/tools/etl_job.py
-
-# 2. Start the AI API
-PYTHONPATH=src uv run python main.py
+git clone https://github.com/restrok/biometric-ai-platform.git
+cd biometric-ai-platform/api
+uv sync
 ```
-*Access the interactive AI console at: `http://localhost:8000/docs`*
+*Note: Create a `.env` in `api/` with your `GOOGLE_CLOUD_PROJECT` and `GOOGLE_API_KEY`.*
+
+### 2. Authenticate & Ingest
+```bash
+# Generate your Garmin session tokens
+uv run python -m garmin_training_toolkit_sdk.auth
+
+# Sync your historical data to BigQuery
+PYTHONPATH=src uv run python src/tools/etl_job.py
+```
+
+### 3. Start the AI Coach
+```bash
+uv run python main.py
+```
+*Access the interactive API console at: `http://localhost:8000/docs`*
