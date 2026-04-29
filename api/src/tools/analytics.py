@@ -126,9 +126,15 @@ def analyze_activity_stages(activity_id: str):
         if df.empty:
             return "No telemetry found for stage analysis."
 
+        # Dynamic Thresholding: Use 90% of the session's mean power as the 'work' baseline
+        # This adapts to recovery runs vs. interval sessions.
+        session_avg_power = df[df['power_w'] > 0]['power_w'].mean()
+        threshold = session_avg_power * 0.9 if not np.isnan(session_avg_power) else 220
+        
+        log.info(f"📊 Activity {activity_id} analysis: Session Avg Power={session_avg_power:.1f}W, Dynamic Threshold={threshold:.1f}W")
+
         # Smoothing & Thresholding
         df['power_smooth'] = df['power_w'].rolling(window=10, center=True).mean().fillna(df['power_w'])
-        threshold = 220 
         df['is_work'] = df['power_smooth'] > threshold
         df['state_change'] = df['is_work'] != df['is_work'].shift(1)
         df['stage_id'] = df['state_change'].cumsum()
