@@ -19,7 +19,7 @@ Experience how the AI Coach reasons across multiple biometric domains. Run these
 *Highlights: Stage analysis, mechanical cost vs. power output.*
 ![Sprint Efficiency](./docs/assets/screenshots/gemma-sprint-analysis.png)
 
-### 3. Scientific Grounding (RAG)
+### 3. Scientific Grounding (RAG) (Gemini 3)
 > "Explain the 'Polarized 80/20' model and why you keep warning me about the 'Gray Zone.' Use my recent data to show my Z3 time."
 *Highlights: BigQuery Vector Search and exercise science principles.*
 ![Scientific RAG](./docs/assets/screenshots/scientific-rag.png)
