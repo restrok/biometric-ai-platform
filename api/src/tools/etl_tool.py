@@ -3,7 +3,6 @@ import logging
 from langchain_core.tools import tool
 
 from src.tools.etl_job import run_etl
-
 from src.tools.retriever import retrieve_biometric_data
 
 log = logging.getLogger(__name__)

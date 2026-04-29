@@ -29,3 +29,10 @@
 23:39:32 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
 23:40:10 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40529ms
 23:40:10 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40529ms
+12:22:35 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+12:22:37 [INFO] httpx: HTTP Request: GET http://testserver/health "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/biometric/retrieve "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/activity/analyze_efficiency "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/biometric/sync "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/zones/update "HTTP/1.1 200 OK"
+12:22:37 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/training_plan/upload "HTTP/1.1 200 OK"
