@@ -36,6 +36,40 @@ Experience how the AI Coach reasons across multiple biometric domains. Run these
 
 ---
 
+## 🛠️ Developer Visibility & Integration
+
+The platform is built for transparency and ease of integration, providing sub-second feedback for both the athlete and the engineer.
+
+### Real-time Telemetry Logs
+Every request triggers a high-precision reasoning loop. Our backend logs detailed telemetry stages and FinOps costs (tokens, latency, USD) in real-time.
+![Technical Observability](./docs/assets/screenshots/api-logs.png)
+
+### Client Integration: OpenCode (Harness)
+Because the API is fully OpenAI-Compatible, you can plug your AI Coach into professional development tools like **OpenCode** in seconds.
+
+**Example `.opencode/opencode.json`:**
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Biometric Coach (Local)",
+      "options": {
+        "baseURL": "http://<YOUR_PI_IP>:8000/v1"
+      },
+      "models": {
+        "biometric-coach": {
+          "name": "biometric-coach"
+        }
+       }
+    }
+  }
+}
+```
+
+---
+
 ## ✨ Why Choose Biometric AI?
 
 ### 🔬 Science-Backed, Not Generic
