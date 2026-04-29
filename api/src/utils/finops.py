@@ -16,6 +16,8 @@ PRICING = {
     "gemini-flash-latest": {"input": 0.075 / 1_000_000, "output": 0.30 / 1_000_000},
     "gemini-1.5-flash": {"input": 0.075 / 1_000_000, "output": 0.30 / 1_000_000},
     "gemini-2.5-pro": {"input": 3.50 / 1_000_000, "output": 10.50 / 1_000_000},
+    "gemma-4-26b-a4b-it": {"input": 0.0 / 1_000_000, "output": 0.0 / 1_000_000},
+    "gemma-4-31b-it": {"input": 0.0 / 1_000_000, "output": 0.0 / 1_000_000},
 }
 
 PROJECT_ID = config["project_id"]

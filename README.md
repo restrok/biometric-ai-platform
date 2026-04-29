@@ -9,15 +9,15 @@ Stop guessing with generic training plans. The **Biometric AI Platform** transfo
 
 Experience how the AI Coach reasons across multiple biometric domains. Run these in your preferred OpenAI-compatible client (like OpenCode or Chatbox).
 
-### 1. Holistic Recovery & Readiness
+### 1. Holistic Recovery & Readiness (Gemini 2.5 Flash)
 > "Look at my sleep quality from last night and my HRV trend. Given today's workout, am I ready for a high-intensity session tomorrow?"
 *Highlights: Multi-domain context retrieval (Sleep + HRV + Activity).*
 ![Recovery Readiness Analysis](./docs/assets/screenshots/telemetry-analysis.png)
 
-### 2. Deep Telemetry & Sprint Analysis
+### 2. Deep Telemetry & Sprint Analysis (Gemma 4 31B)
 > "Analyze my last run activity. How was my efficiency during that final sprint?"
 *Highlights: Stage analysis, mechanical cost vs. power output.*
-![Sprint Efficiency](./docs/assets/screenshots/recovery-readiness.png)
+![Sprint Efficiency](./docs/assets/screenshots/gemma-sprint-analysis.png)
 
 ### 3. Scientific Grounding (RAG)
 > "Explain the 'Polarized 80/20' model and why you keep warning me about the 'Gray Zone.' Use my recent data to show my Z3 time."
