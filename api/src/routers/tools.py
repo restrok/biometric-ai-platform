@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 # Import tools
-from src.tools.analytics import analyze_activity_efficiency
+from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
 from src.tools.profile_manager import update_user_zones
@@ -170,6 +170,16 @@ async def api_analyze_efficiency(req: ActivityID):
     """Performs high-precision physiological analysis on a specific activity."""
     try:
         result = analyze_activity_efficiency.invoke(req.model_dump())
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/activity/analyze_stages")
+async def api_analyze_stages(req: ActivityID):
+    """Analyzes telemetry to split an activity into physiological stages."""
+    try:
+        result = analyze_activity_stages.invoke(req.model_dump())
         return {"status": "success", "data": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
