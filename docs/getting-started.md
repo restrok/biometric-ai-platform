@@ -71,9 +71,19 @@ uv run scripts/upload_knowledge.py --reset
 ## 🔄 Synchronizing Data (Provider to BigQuery)
 
 ### 1. Authenticate with your Provider
-For Garmin, run the browser-based authentication to generate session tokens:
+For Garmin, run the browser-based authentication to generate session tokens. 
+
+**Note for Linux/Raspberry Pi users:** You must first install the browser and its system dependencies:
 ```bash
 cd api
+# Install the browser
+uv run playwright install chromium
+# Install system libraries (requires sudo)
+sudo .venv/bin/python3 -m playwright install-deps
+```
+
+Then run the authentication script:
+```bash
 uv run python -m garmin_training_toolkit_sdk.auth
 ```
 *Note: This will save tokens to `~/.garminconnect/garmin_tokens.json`.*

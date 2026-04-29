@@ -8,6 +8,16 @@ This directory contains the core Agentic reasoning and backend services for the 
 *   **LangGraph:** Orchestrates the reasoning loop of the AI Agent (powered by `gemini-2.5-flash`).
 *   **LangChain:** Used for embedding and Vector Store retrieval.
 
+## Authentication (Garmin)
+
+The platform uses browser-based authentication to bypass Cloudflare. On Linux/Raspberry Pi, you must install the following dependencies before syncing for the first time:
+
+```bash
+uv run playwright install chromium
+sudo .venv/bin/python3 -m playwright install-deps
+uv run python -m garmin_training_toolkit_sdk.auth
+```
+
 ## Key Features & Optimizations
 
 *   **Parallel Context Retrieval (`src/tools/retriever.py`):** Uses `ThreadPoolExecutor` to fetch 6 different biometric domains (Activities, Sleep, Status, Profile, Body Composition, Telemetry) concurrently from BigQuery in **~3.0 seconds**.
