@@ -351,6 +351,51 @@ def run_etl():
     except Exception as e:
         log.warning(f"Body Composition sync failed: {e}")
 
+    # --- 7. Scheduled Workouts (Calendar - next 14 days) ---
+    try:
+        log.info("Syncing Scheduled Workouts (Calendar)...")
+        # Fetch current month and next month to ensure we cover the 14-day window
+        now = datetime.now()
+        months_to_fetch = [now]
+        if (now + timedelta(days=14)).month != now.month:
+            months_to_fetch.append(now + timedelta(days=14))
+
+        all_calendar_items = []
+        for m in months_to_fetch:
+            calendar_data = client.get_scheduled_workouts(m.year, m.month)
+            if calendar_data and "calendarItems" in calendar_data:
+                all_calendar_items.extend(calendar_data["calendarItems"])
+
+        if all_calendar_items:
+            df_cal = pd.DataFrame(all_calendar_items)
+            # Filter for future/recent items (e.g., today onwards)
+            df_cal["date"] = pd.to_datetime(df_cal["date"])
+            df_cal = df_cal[df_cal["date"].dt.date >= now.date()]
+            # Limit to next 14 days
+            df_cal = df_cal[df_cal["date"].dt.date <= (now + timedelta(days=14)).date()]
+
+            # Keep only workouts (ignore weights/activities that are also in calendar)
+            if "itemType" in df_cal.columns:
+                df_cal = df_cal[df_cal["itemType"] == "workout"]
+
+            if not df_cal.empty:
+                # Map to our schema
+                # BQ Columns: id, workout_id, title, date, sport_type, description, duration_sec, distance_m, updated_at
+                final_cal = pd.DataFrame()
+                final_cal["id"] = df_cal["id"]
+                final_cal["workout_id"] = df_cal["workoutId"]
+                final_cal["title"] = df_cal["title"]
+                final_cal["date"] = df_cal["date"].dt.date
+                final_cal["sport_type"] = df_cal["sportTypeKey"]
+                final_cal["description"] = ""  # Calendar doesn't have descriptions, would need detail fetch
+                final_cal["duration_sec"] = df_cal["duration"]
+                final_cal["distance"] = df_cal["distance"]
+                final_cal["updated_at"] = datetime.utcnow()
+
+                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_TRUNCATE")
+    except Exception as e:
+        log.warning(f"Scheduled Workouts sync failed: {e}")
+
     log.info("Incremental Sync Complete!")
 
 
