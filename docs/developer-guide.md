@@ -28,8 +28,8 @@ The platform's intelligence is modularized into **Skills**.
 *   **`biometric-coach` Skill**: A portable set of instructions (`SKILL.md`) that transforms any agentic framework into an Exercise Physiologist.
 *   **Ethical & Precision Protocol**: Mandatory rules for separating data facts from physiological interpretation and avoiding overconfidence.
 *   **State Graph Nodes (`api/src/agent/graph.py`):**
-    - `retriever`: Fetches 6 context domains (Activities, Sleep, HRV, etc.) from BigQuery in parallel.
-    - `analyzer`: Uses **Gemini 2.5 Flash** with the coach skill to reason over the retrieved context.
+    - `retriever`: Fetches 7 context domains (Activities, Sleep, HRV, Scheduled Workouts, etc.) from BigQuery in parallel.
+    - `analyzer`: Uses **Gemini 2.0 Flash** with the coach skill to reason over the retrieved context.
     *   `tools`: Executes external actions. Standard tools include:
         *   `upload_training_plan`: Schedules tailored workouts on the user's device.
         *   `sync_biometric_data`: Triggers the ETL pipeline to refresh BigQuery.
@@ -73,7 +73,8 @@ result = await graph.ainvoke(initial_state)
 ## 🚀 Project Operational Rules
 
 ### Environment & Tools
-- **Python:** Use `.venv/bin/python3` for all tool executions within the `api/` directory.
+- **Python (Runtime):** ALWAYS use `uv run` for script execution or troubleshooting within the `api/` directory. This ensures all dependencies (pandas, pydantic, etc.) are correctly loaded from the virtual environment.
+- **Tool Execution:** Internal tools should be invoked via `uv run scripts/manage_tools.py call <tool_name> '<args>'`.
 - **BigQuery:** This is the primary source of truth for all historical biometric context.
 - **Garmin Tokens:** Persisted at `~/.garminconnect/garmin_tokens.json`.
 - **Model Discovery:** To check available models and their exact API identifiers (especially when using free-tier keys), use the following command:
