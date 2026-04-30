@@ -379,6 +379,9 @@ def run_etl():
                 df_cal = df_cal[df_cal["itemType"] == "workout"]
 
             if not df_cal.empty:
+                # Deduplicate by Workout ID to handle month overlaps
+                df_cal = df_cal.drop_duplicates(subset=["id"])
+
                 # Map to our schema
                 # BQ Columns: id, workout_id, title, date, sport_type, description, duration_sec, distance_m, updated_at
                 final_cal = pd.DataFrame()
