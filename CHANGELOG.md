@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-05-02
+### 🚀 Features
+- **Self-Healing Authentication (SDK v0.6.0):** Migrated to the stable PyPI release of the `garmin-training-toolkit-sdk`. This introduces native handling for session refreshes and client ID rotation, eliminating "403 Forbidden" errors.
+- **Robust Calendar Synchronization:** Implemented a new granular calendar management system that correctly handles month boundaries and standardized unscheduling, preventing workout duplicates.
+- **Provider-Centric ETL:** Refactored core ETL pipelines (Activities, Sleep, HRV) to utilize the high-level `Provider` interface, ensuring all data synchronization inherits the new self-healing capabilities.
+- **Scheduled Workouts Tracking:** Added a 14-day forward-looking sync for the Garmin calendar, providing the coaching engine with full awareness of upcoming sessions.
+
+### 🩹 Fixes & Compliance
+- **Redundant SDK Decoupling:** Removed legacy git-based SDK dependencies in favor of standard package management.
+- **Standardized Tool Interface:** Updated `clear_calendar` and `remove_workout` to align with the latest `BaseProvider` protocols.
+- **Linting & Style:** Cleaned up unused imports and standardized the internal tool interfaces.
+
 ## [1.3.0] - 2026-04-26
 ### 🚀 Features
 - **Skill-Based Architecture:** Converted the `biometric-coach` subagent into a specialized **Skill**. This modular approach improves portability and provides more rigid execution protocols.
