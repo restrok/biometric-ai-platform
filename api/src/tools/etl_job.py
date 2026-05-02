@@ -165,11 +165,12 @@ def run_etl():
     start_date = (last_act_date - timedelta(days=1)) if last_act_date else (datetime.now() - timedelta(days=30))
 
     log.info(f"Checking for Activities since {start_date.date()}...")
-    
+
     # Use the Provider for self-healing auth on activities
     from src.utils.provider_factory import get_provider
+
     provider = get_provider()
-    
+
     activities = provider.get_activities(start_date.date(), end_date.date())
 
     if activities:
@@ -360,9 +361,10 @@ def run_etl():
         log.info("Syncing Scheduled Workouts (Calendar)...")
         now = datetime.now()
         end_window = now + timedelta(days=14)
-        
+
         # Use the high-level Provider for robust range fetching and self-healing auth
         from src.utils.provider_factory import get_provider
+
         provider = get_provider()
         all_calendar_items = provider.get_calendar_range(now.date(), end_window.date())
 
@@ -371,7 +373,7 @@ def run_etl():
             # Filter for future items
             df_cal["date"] = pd.to_datetime(df_cal["date"])
             df_cal = df_cal[df_cal["date"].dt.date >= now.date()]
-            
+
             # Keep only workouts
             if "itemType" in df_cal.columns:
                 df_cal = df_cal[df_cal["itemType"] == "workout"]
@@ -388,7 +390,7 @@ def run_etl():
                 final_cal["title"] = df_cal["title"]
                 final_cal["date"] = df_cal["date"].dt.date
                 final_cal["sport_type"] = df_cal["sportTypeKey"]
-                final_cal["description"] = "" 
+                final_cal["description"] = ""
                 final_cal["duration_sec"] = df_cal["duration"]
                 final_cal["distance"] = df_cal["distance"]
                 final_cal["updated_at"] = datetime.utcnow()

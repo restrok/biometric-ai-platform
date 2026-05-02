@@ -101,26 +101,27 @@ def clear_calendar(start_date: str, end_date: str):
     """Clears calendar range for the active provider."""
     log.info(f"🧹 Clearing Calendar from {start_date} to {end_date}...")
     provider = get_provider()
-    
+
     try:
         from datetime import datetime
+
         s_date = datetime.strptime(start_date, "%Y-%m-%d").date()
         e_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-        
+
         # Use the new robust SDK method that handles month boundaries
         items = provider.get_calendar_range(s_date, e_date)
-        
+
         cleared_count = 0
         for item in items:
             if item.get("itemType") == "workout":
                 item_id = item.get("calendarItemId") or item.get("id")
                 if not item_id:
                     continue
-                
+
                 # Use the standardized unschedule_workout method
                 provider.unschedule_workout(str(item_id))
                 cleared_count += 1
-        
+
         return f"Successfully cleared {cleared_count} workouts."
     except Exception as e:
         log.error(f"❌ Failed to clear calendar: {e}")
