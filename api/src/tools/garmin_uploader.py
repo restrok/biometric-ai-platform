@@ -2,7 +2,6 @@ import logging
 from typing import Any, Literal, cast
 
 from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
-from garmin_training_toolkit_sdk.uploaders.calendar import clear_calendar_range
 from langchain_core.tools import tool
 from pydantic import BaseModel
 
@@ -100,13 +99,32 @@ class CalendarRange(BaseModel):
 @tool(args_schema=CalendarRange)
 def clear_calendar(start_date: str, end_date: str):
     """Clears calendar range for the active provider."""
-    log.info("🧹 Clearing Calendar...")
+    log.info(f"🧹 Clearing Calendar from {start_date} to {end_date}...")
     provider = get_provider()
-    client = getattr(provider, "client", None)
-    if not client:
-        return "Provider does not support direct calendar clearing."
-    cleared_count = clear_calendar_range(client, start_date, end_date)
-    return f"Successfully cleared {cleared_count} workouts."
+    
+    try:
+        from datetime import datetime
+        s_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        e_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        
+        # Use the new robust SDK method that handles month boundaries
+        items = provider.get_calendar_range(s_date, e_date)
+        
+        cleared_count = 0
+        for item in items:
+            if item.get("itemType") == "workout":
+                item_id = item.get("calendarItemId") or item.get("id")
+                if not item_id:
+                    continue
+                
+                # Use the standardized unschedule_workout method
+                provider.unschedule_workout(str(item_id))
+                cleared_count += 1
+        
+        return f"Successfully cleared {cleared_count} workouts."
+    except Exception as e:
+        log.error(f"❌ Failed to clear calendar: {e}")
+        return f"Error: {e}"
 
 
 class WorkoutID(BaseModel):
@@ -115,15 +133,13 @@ class WorkoutID(BaseModel):
 
 @tool(args_schema=WorkoutID)
 def remove_workout(workout_id: str):
-    """Deletes a specific workout using the active provider."""
-    log.info(f"🗑️ Deleting workout {workout_id}...")
+    """Deletes a specific workout template using the active provider."""
+    log.info(f"🗑️ Deleting workout template {workout_id}...")
     provider = get_provider()
     try:
-        client = getattr(provider, "client", None)
-        if client:
-            client.delete_workout(workout_id)
-            return f"Successfully deleted workout {workout_id}."
-        return "Provider does not support direct workout deletion."
+        # Use the standardized delete_workout_template method
+        provider.delete_workout_template(workout_id)
+        return f"Successfully deleted workout template {workout_id}."
     except Exception as e:
         log.error(f"❌ Failed to delete workout {workout_id}: {e}")
         return f"Error deleting workout {workout_id}: {e}"

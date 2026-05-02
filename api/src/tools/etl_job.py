@@ -169,7 +169,12 @@ def run_etl():
     start_date = (last_act_date - timedelta(days=1)) if last_act_date else (datetime.now() - timedelta(days=30))
 
     log.info(f"Checking for Activities since {start_date.date()}...")
-    activities = get_activities(client, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+    
+    # Use the Provider for self-healing auth on activities
+    from src.utils.provider_factory import get_provider
+    provider = get_provider()
+    
+    activities = provider.get_activities(start_date.date(), end_date.date())
 
     if activities:
         # Deduplication logic: only keep activities we don't have
@@ -186,7 +191,7 @@ def run_etl():
 
             for act in new_activities:
                 log.info(f"Fetching telemetry for new activity: {act.name} ({act.id})")
-                telemetry = get_activity_telemetry(client, act.id)
+                telemetry = provider.get_telemetry(str(act.id))
 
                 avg_pwr = None
                 if telemetry and telemetry.ticks:
@@ -229,8 +234,8 @@ def run_etl():
 
     if start_sleep.date() <= end_date.date():
         log.info(f"Syncing Sleep from {start_sleep.date()} to {end_date.date()}...")
-        sleep_data = get_sleep_data(client, start_sleep.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-        log.info(f"Retrieved {len(sleep_data)} sleep records from SDK.")
+        sleep_data = provider.get_sleep_history(start_sleep.date(), end_date.date())
+        log.info(f"Retrieved {len(sleep_data)} sleep records from Provider.")
         if sleep_data:
             df_sleep = pd.DataFrame([s.model_dump() for s in sleep_data])
             try:
@@ -238,7 +243,7 @@ def run_etl():
             except Exception as e:
                 log.error(f"Sleep sync failed during upload: {e}")
         else:
-            log.info("No sleep data returned from SDK for this range.")
+            log.info("No sleep data returned from Provider for this range.")
 
     # --- 3b. Incremental HRV ---
     last_hrv_date = get_last_sync_date("hrv_history")
@@ -246,8 +251,8 @@ def run_etl():
 
     if start_hrv.date() <= end_date.date():
         log.info(f"Syncing HRV from {start_hrv.date()} to {end_date.date()}...")
-        hrv_data = get_hrv_data(client, start_hrv.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-        log.info(f"Retrieved {len(hrv_data)} HRV records from SDK.")
+        hrv_data = provider.get_hrv_history(start_hrv.date(), end_date.date())
+        log.info(f"Retrieved {len(hrv_data)} HRV records from Provider.")
         if hrv_data:
             df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
             try:
@@ -255,9 +260,11 @@ def run_etl():
             except Exception as e:
                 log.error(f"HRV sync failed during upload: {e}")
         else:
-            log.info("No HRV data returned from SDK for this range.")
+            log.info("No HRV data returned from Provider for this range.")
 
     # --- 4. Training Status (Always refresh latest) ---
+    # Note: Training status is still using the extractor for now as it's not in the Base interface yet
+    # but we can wrap it if needed. For now, let's keep it simple.
     status = get_training_status(client, end_date.strftime("%Y-%m-%d"))
     if status:
         # Fallback for VO2 Max: if not in training status, check latest activity
@@ -278,10 +285,11 @@ def run_etl():
     # --- 5. User Profile (Always refresh latest, but preserve/patch custom HRs) ---
     try:
         log.info("Syncing User Profile & Wellness Metrics...")
-        profile = get_user_profile(client)
+        profile = provider.get_user_profile()
         if profile:
             curr_max, curr_rest = get_current_user_metrics()
             # Fetch wellness fallbacks (7-day stats)
+            # Use raw client for wellness stats as they are quite specific
             avg_rhr, peak_mhr = get_wellness_stats(client)
 
             df_profile = pd.DataFrame([profile.model_dump()])
@@ -354,43 +362,37 @@ def run_etl():
     # --- 7. Scheduled Workouts (Calendar - next 14 days) ---
     try:
         log.info("Syncing Scheduled Workouts (Calendar)...")
-        # Fetch current month and next month to ensure we cover the 14-day window
         now = datetime.now()
-        months_to_fetch = [now]
-        if (now + timedelta(days=14)).month != now.month:
-            months_to_fetch.append(now + timedelta(days=14))
-
-        all_calendar_items = []
-        for m in months_to_fetch:
-            calendar_data = client.get_scheduled_workouts(m.year, m.month)
-            if calendar_data and "calendarItems" in calendar_data:
-                all_calendar_items.extend(calendar_data["calendarItems"])
+        end_window = now + timedelta(days=14)
+        
+        # Use the high-level Provider for robust range fetching and self-healing auth
+        from src.utils.provider_factory import get_provider
+        provider = get_provider()
+        all_calendar_items = provider.get_calendar_range(now.date(), end_window.date())
 
         if all_calendar_items:
             df_cal = pd.DataFrame(all_calendar_items)
-            # Filter for future/recent items (e.g., today onwards)
+            # Filter for future items
             df_cal["date"] = pd.to_datetime(df_cal["date"])
             df_cal = df_cal[df_cal["date"].dt.date >= now.date()]
-            # Limit to next 14 days
-            df_cal = df_cal[df_cal["date"].dt.date <= (now + timedelta(days=14)).date()]
-
-            # Keep only workouts (ignore weights/activities that are also in calendar)
+            
+            # Keep only workouts
             if "itemType" in df_cal.columns:
                 df_cal = df_cal[df_cal["itemType"] == "workout"]
 
             if not df_cal.empty:
-                # Deduplicate by Workout ID to handle month overlaps
+                # Deduplicate by Workout ID
+                df_cal["id"] = df_cal["calendarItemId"].fillna(df_cal["id"])
                 df_cal = df_cal.drop_duplicates(subset=["id"])
 
                 # Map to our schema
-                # BQ Columns: id, workout_id, title, date, sport_type, description, duration_sec, distance_m, updated_at
                 final_cal = pd.DataFrame()
                 final_cal["id"] = df_cal["id"]
                 final_cal["workout_id"] = df_cal["workoutId"]
                 final_cal["title"] = df_cal["title"]
                 final_cal["date"] = df_cal["date"].dt.date
                 final_cal["sport_type"] = df_cal["sportTypeKey"]
-                final_cal["description"] = ""  # Calendar doesn't have descriptions, would need detail fetch
+                final_cal["description"] = "" 
                 final_cal["duration_sec"] = df_cal["duration"]
                 final_cal["distance"] = df_cal["distance"]
                 final_cal["updated_at"] = datetime.utcnow()
