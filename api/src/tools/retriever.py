@@ -162,6 +162,25 @@ def retrieve_biometric_data(
         except Exception:
             return "latest_body_composition", None
 
+    def fetch_scheduled_workouts():
+        try:
+            t0 = time.time()
+            # Fetch workouts from today onwards
+            today = date.today().isoformat()
+            query_sched = f"""
+                SELECT title, date, sport_type, duration_sec, distance 
+                FROM `{project_id}.{dataset}.scheduled_workouts` 
+                WHERE date >= '{today}'
+                ORDER BY date ASC 
+                LIMIT 5
+            """
+            sched_rows = [dict(row) for row in client.query(query_sched).result()]
+            log.info(f"⏱️ BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s")
+            return "scheduled_workouts", sched_rows
+        except Exception as e:
+            log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
+            return "scheduled_workouts", []
+
     def fetch_telemetry(activity_ids):
         if not activity_ids:
             return "last_3_runs_timeseries_summary", "No detailed telemetry found."
@@ -214,16 +233,17 @@ def retrieve_biometric_data(
             log.error(f"❌ Telemetry retrieval failed: {e}")
             return "last_3_runs_timeseries_summary", "Error retrieving telemetry."
 
-    # Execute first 5 queries in parallel
-    with ThreadPoolExecutor(max_workers=6) as executor:
+    # Execute first queries in parallel
+    with ThreadPoolExecutor(max_workers=7) as executor:
         # We need to run fetch_activities first or concurrently, but we need its result for telemetry
-        # To maximize parallelism, we start 1-5.
+        # To maximize parallelism, we start 1-6.
         f_act = executor.submit(fetch_activities)
         f_status = executor.submit(fetch_training_status)
         f_sleep = executor.submit(fetch_sleep_history)
         f_hrv = executor.submit(fetch_hrv_history)
         f_profile = executor.submit(fetch_user_profile)
         f_body = executor.submit(fetch_body_composition)
+        f_sched = executor.submit(fetch_scheduled_workouts)
 
         # Wait for activities to finish to start telemetry
         act_key, act_val = f_act.result()
@@ -233,7 +253,7 @@ def retrieve_biometric_data(
         f_telemetry = executor.submit(fetch_telemetry, top_3_ids)
 
         # Collect results from others
-        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_telemetry]:
+        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_sched, f_telemetry]:
             key, val = f.result()
             context[key] = val
 

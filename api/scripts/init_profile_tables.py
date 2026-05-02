@@ -53,6 +53,26 @@ def create_profile_tables():
     client.create_table(body_table, exists_ok=True)
     print(f"✅ Table {body_table_id} ready.")
 
+    # 3. Scheduled Workouts Table
+    scheduled_table_id = f"{PROJECT_ID}.{DATASET_ID}.scheduled_workouts"
+    scheduled_schema = [
+        bigquery.SchemaField("id", "INTEGER", mode="REQUIRED"),
+        bigquery.SchemaField("workout_id", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("title", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("date", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("sport_type", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("description", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("duration_sec", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("distance_m", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
+    ]
+
+    scheduled_table = bigquery.Table(scheduled_table_id, schema=scheduled_schema)
+    scheduled_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+
+    client.create_table(scheduled_table, exists_ok=True)
+    print(f"✅ Table {scheduled_table_id} ready.")
+
 
 if __name__ == "__main__":
     create_profile_tables()
