@@ -43,3 +43,443 @@
 17:52:46 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/biometric/sync "HTTP/1.1 200 OK"
 17:52:46 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/zones/update "HTTP/1.1 200 OK"
 17:52:46 [INFO] httpx: HTTP Request: POST http://testserver/api/v1/tools/training_plan/upload "HTTP/1.1 200 OK"
+18:00:33 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+18:06:56 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:06:56 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:06:56 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:06:56 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:06:57 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:57 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:57 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:57 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:59 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:59 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:59 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:06:59 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:07:14 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 16410ms
+18:07:14 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 16410ms
+18:07:16 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 18725ms
+18:07:16 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 18725ms
+18:07:41 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:07:41 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:07:41 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:07:41 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:07:43 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.87s
+18:07:43 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.87s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.94s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.94s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 2.02s (20 rows)
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 2.02s (20 rows)
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 2.03s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 2.03s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 2.17s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 2.17s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 2.33s
+18:07:44 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 2.33s
+18:07:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.31s (140 samples)
+18:07:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.31s (140 samples)
+18:07:45 [INFO] src.tools.retriever: ✅ Total context retrieval time: 3.32s
+18:07:45 [INFO] src.tools.retriever: ✅ Total context retrieval time: 3.32s
+18:07:46 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:07:46 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:08:20 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 35109ms
+18:08:20 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 35109ms
+18:09:14 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:09:14 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:09:14 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:09:14 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:09:17 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:09:17 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:09:31 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 16690ms
+18:09:31 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 16690ms
+18:09:32 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:09:32 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:09:32 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:09:32 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:09:33 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:09:33 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:09:34 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:09:34 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:09:35 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:09:35 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:09:35 [INFO] src.tools.etl_job: No new activities to sync.
+18:09:35 [INFO] src.tools.etl_job: No new activities to sync.
+18:09:37 [INFO] src.tools.etl_job: Syncing Sleep from 2026-05-01 to 2026-05-02...
+18:09:37 [INFO] src.tools.etl_job: Syncing Sleep from 2026-05-01 to 2026-05-02...
+18:09:38 [INFO] garmin_training_toolkit_sdk.extractors.biometrics: Found sleep record for 2026-05-01
+18:09:38 [INFO] garmin_training_toolkit_sdk.extractors.biometrics: Found sleep record for 2026-05-01
+18:09:38 [INFO] garmin_training_toolkit_sdk.extractors.biometrics: Found sleep record for 2026-05-02
+18:09:38 [INFO] garmin_training_toolkit_sdk.extractors.biometrics: Found sleep record for 2026-05-02
+18:09:38 [INFO] src.tools.etl_job: Retrieved 2 sleep records from Provider.
+18:09:38 [INFO] src.tools.etl_job: Retrieved 2 sleep records from Provider.
+18:09:45 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.sleep_history (WRITE_APPEND).
+18:09:45 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.sleep_history (WRITE_APPEND).
+18:09:46 [INFO] src.tools.etl_job: Syncing HRV from 2026-05-01 to 2026-05-02...
+18:09:46 [INFO] src.tools.etl_job: Syncing HRV from 2026-05-01 to 2026-05-02...
+18:09:47 [INFO] src.tools.etl_job: Retrieved 2 HRV records from Provider.
+18:09:47 [INFO] src.tools.etl_job: Retrieved 2 HRV records from Provider.
+18:09:55 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.hrv_history (WRITE_APPEND).
+18:09:55 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.hrv_history (WRITE_APPEND).
+18:09:57 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:09:57 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:10:17 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:10:17 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:10:17 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:10:17 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:10:22 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:10:22 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:10:22 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:10:22 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:10:28 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:10:28 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:10:29 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:10:29 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:10:30 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:10:30 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:10:30 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:10:30 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:10:31 [WARNING] src.tools.etl_job: Scheduled Workouts sync failed: 'calendarItemId'
+18:10:31 [WARNING] src.tools.etl_job: Scheduled Workouts sync failed: 'calendarItemId'
+18:10:31 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:10:31 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:10:31 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:10:31 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.08s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.08s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.12s (20 rows)
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.12s (20 rows)
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.18s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.18s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.17s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.17s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.24s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.24s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.25s
+18:10:32 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.25s
+18:10:33 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.12s (140 samples)
+18:10:33 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.12s (140 samples)
+18:10:33 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.25s
+18:10:33 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.25s
+18:10:33 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:10:33 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:10:35 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:10:35 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:11:13 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40252ms
+18:11:13 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40252ms
+18:11:43 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:11:43 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:11:44 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:11:44 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.06s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.06s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.07s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.07s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.15s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.15s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.15s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.15s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.17s (20 rows)
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.17s (20 rows)
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.21s
+18:11:45 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.21s
+18:11:46 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.06s (140 samples)
+18:11:46 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.06s (140 samples)
+18:11:46 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.23s
+18:11:46 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.23s
+18:11:48 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:11:48 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:12:11 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 24818ms
+18:12:11 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 24818ms
+18:12:12 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:12:12 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:12:12 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:12:12 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:12:12 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:12:12 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:12:14 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:12:14 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:12:15 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:12:15 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:12:15 [INFO] src.tools.etl_job: No new activities to sync.
+18:12:15 [INFO] src.tools.etl_job: No new activities to sync.
+18:12:20 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:12:20 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:12:24 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:12:24 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:12:24 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:12:24 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:12:29 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:12:29 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:12:29 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:12:29 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:12:34 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:12:34 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:12:35 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:12:35 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:12:37 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:12:37 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:12:39 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:12:39 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:12:39 [WARNING] src.tools.etl_job: Scheduled Workouts sync failed: 'calendarItemId'
+18:12:39 [WARNING] src.tools.etl_job: Scheduled Workouts sync failed: 'calendarItemId'
+18:12:39 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:12:39 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:12:39 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:12:39 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.02s (20 rows)
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.02s (20 rows)
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.03s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.03s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.07s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.07s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.07s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.08s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.07s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.08s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.12s
+18:12:40 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.12s
+18:12:41 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.08s (140 samples)
+18:12:41 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.08s (140 samples)
+18:12:41 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.10s
+18:12:41 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.10s
+18:12:41 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:12:41 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:12:43 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:12:43 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:13:11 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 29726ms
+18:13:11 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 29726ms
+18:13:12 [INFO] src.agent.graph: 🛠️ Tool error detected (Loop 2). Routing back to analyzer for self-healing...
+18:13:12 [INFO] src.agent.graph: 🛠️ Tool error detected (Loop 2). Routing back to analyzer for self-healing...
+18:13:12 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:13:12 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:13:13 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:13:13 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:13:13 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 1985ms
+18:13:13 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 1985ms
+18:19:17 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+18:19:33 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:19:33 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:19:33 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:19:33 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:19:35 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:19:35 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:19:49 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 15693ms
+18:19:49 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 15693ms
+18:19:50 [INFO] src.agent.graph: 🛠️ Tool error detected (Loop 1). Routing back to analyzer for self-healing...
+18:19:50 [INFO] src.agent.graph: 🛠️ Tool error detected (Loop 1). Routing back to analyzer for self-healing...
+18:19:50 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:19:50 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:19:50 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 870ms
+18:19:50 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 870ms
+18:20:00 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:20:00 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:20:00 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:20:00 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: User profile retrieved in 1.57s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: User profile retrieved in 1.57s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.58s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.58s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.62s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.62s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.65s (20 rows)
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.65s (20 rows)
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.69s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.69s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.70s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.70s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.72s
+18:20:02 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.72s
+18:20:03 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.16s (140 samples)
+18:20:03 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.16s (140 samples)
+18:20:03 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.81s
+18:20:03 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.81s
+18:20:06 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:20:06 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:20:59 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 55395ms
+18:20:59 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 55395ms
+18:24:01 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:24:01 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:24:02 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:24:02 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:24:03 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:24:03 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:24:18 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 16106ms
+18:24:18 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 16106ms
+18:24:18 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:24:18 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:24:18 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:24:18 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:24:19 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:24:19 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:24:21 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:24:21 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:24:21 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:24:21 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:24:22 [INFO] src.tools.etl_job: No new activities to sync.
+18:24:22 [INFO] src.tools.etl_job: No new activities to sync.
+18:24:27 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:24:27 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:24:31 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:24:31 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:24:31 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:24:31 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:24:35 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:24:35 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:24:35 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:24:35 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:24:40 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:24:40 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:24:41 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:24:41 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:24:42 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:24:42 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:24:42 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:24:42 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:24:47 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.scheduled_workouts (WRITE_TRUNCATE).
+18:24:47 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.scheduled_workouts (WRITE_TRUNCATE).
+18:24:47 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:24:47 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:24:47 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:24:47 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:24:48 [WARNING] src.tools.retriever: ❌ Scheduled workouts retrieval failed: 400 Unrecognized name: distance; Did you mean distance_m? at [2:63]; reason: invalidQuery, location: query, message: Unrecognized name: distance; Did you mean distance_m? at [2:63]
+
+Location: us-central1
+Job ID: 23dd4213-b90d-4e7f-a0e1-623b4ff42af6
+
+18:24:48 [WARNING] src.tools.retriever: ❌ Scheduled workouts retrieval failed: 400 Unrecognized name: distance; Did you mean distance_m? at [2:63]; reason: invalidQuery, location: query, message: Unrecognized name: distance; Did you mean distance_m? at [2:63]
+
+Location: us-central1
+Job ID: 23dd4213-b90d-4e7f-a0e1-623b4ff42af6
+
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.34s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.34s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.35s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.35s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.36s (20 rows)
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.36s (20 rows)
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.39s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.39s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.57s
+18:24:49 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.57s
+18:24:50 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.14s (140 samples)
+18:24:50 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.14s (140 samples)
+18:24:50 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.50s
+18:24:50 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.50s
+18:24:50 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:24:50 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:24:52 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:24:52 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:25:47 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 57264ms
+18:25:47 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 57264ms
+18:27:08 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+18:27:21 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:27:21 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:27:21 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:27:21 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:27:23 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:27:23 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:27:35 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 13274ms
+18:27:35 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 13274ms
+18:27:35 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:27:35 [INFO] src.tools.etl_tool: 🔄 Agent-triggered ETL sync starting...
+18:27:35 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:27:35 [INFO] src.tools.etl_job: Starting Incremental Biometric Sync...
+18:27:36 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:27:36 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.53s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.53s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.61s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.61s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.61s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.61s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.63s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.63s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.68s (10 rows)
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.68s (10 rows)
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.69s
+18:27:37 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.69s
+18:27:37 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:27:37 [INFO] src.tools.etl_job: Checking for Activities since 2026-04-29...
+18:27:38 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:27:38 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:27:38 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.04s (140 samples)
+18:27:38 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.04s (140 samples)
+18:27:38 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.73s
+18:27:38 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.73s
+18:27:39 [INFO] src.tools.etl_job: No new activities to sync.
+18:27:39 [INFO] src.tools.etl_job: No new activities to sync.
+18:27:43 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:27:43 [INFO] src.tools.etl_job: Patched VO2 Max from latest activity: 47.0
+18:27:49 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:27:49 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.training_status (WRITE_TRUNCATE).
+18:27:49 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:27:49 [INFO] src.tools.etl_job: Syncing User Profile & Wellness Metrics...
+18:27:53 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:27:53 [INFO] src.tools.etl_job: Patched Max HR with highest fallback: 196
+18:27:53 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:27:53 [INFO] src.tools.etl_job: Patched Resting HR with fallback: 59
+18:27:58 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:27:58 [INFO] src.tools.etl_job: Synced 1 rows to bio-intelligence-dev.biometric_data_dev.user_profile (WRITE_TRUNCATE).
+18:28:00 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:28:00 [INFO] src.tools.etl_job: Syncing Body Composition from 2026-05-01...
+18:28:00 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:28:00 [INFO] src.tools.etl_job: Syncing Scheduled Workouts (Calendar)...
+18:28:01 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:28:01 [INFO] garmin_training_toolkit_sdk.utils: Authenticated using tokens from /home/fsirio/.garminconnect/garmin_tokens.json
+18:28:05 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.scheduled_workouts (WRITE_TRUNCATE).
+18:28:05 [INFO] src.tools.etl_job: Synced 2 rows to bio-intelligence-dev.biometric_data_dev.scheduled_workouts (WRITE_TRUNCATE).
+18:28:05 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:28:05 [INFO] src.tools.etl_job: Incremental Sync Complete!
+18:28:05 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:28:05 [INFO] src.tools.etl_tool: 📡 ETL complete. Refreshing local context for the Agent...
+18:28:06 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.12s
+18:28:06 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.12s
+18:28:06 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.17s (20 rows)
+18:28:06 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.17s (20 rows)
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.17s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.17s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.25s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.25s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.26s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.26s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.25s
+18:28:07 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.25s
+18:28:08 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.05s (140 samples)
+18:28:08 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.05s (140 samples)
+18:28:08 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.22s
+18:28:08 [INFO] src.tools.retriever: ✅ Total context retrieval time: 2.22s
+18:28:08 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:28:08 [INFO] src.agent.graph: 🔄 Found updated biometric context in tool results. Using it for analysis.
+18:28:10 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:28:10 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:28:37 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 29906ms
+18:28:37 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 29906ms
+18:34:42 [INFO] src.utils.config: Successfully decoded GOOGLE_API_KEY from base64
+18:34:54 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:34:54 [INFO] google_genai.models: AFC is enabled with max remote calls: 10.
+18:34:54 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:34:54 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-26b-a4b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:34:56 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:34:56 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:35:08 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 13827ms
+18:35:08 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 13827ms
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.77s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: HRV history retrieved in 1.77s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.79s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Sleep history retrieved in 1.79s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.80s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Training status retrieved in 1.80s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.82s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Scheduled workouts retrieved in 1.82s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.82s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Body composition retrieved in 1.82s
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.89s (10 rows)
+18:35:11 [INFO] src.tools.retriever: ⏱️ BigQuery: Activities retrieved in 1.89s (10 rows)
+18:35:12 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.27s (140 samples)
+18:35:12 [INFO] src.tools.retriever: ⏱️ BigQuery: Telemetry time-series retrieved in 1.27s (140 samples)
+18:35:12 [INFO] src.tools.retriever: ✅ Total context retrieval time: 3.16s
+18:35:12 [INFO] src.tools.retriever: ✅ Total context retrieval time: 3.16s
+18:35:14 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:35:14 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+18:35:52 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40176ms
+18:35:52 [INFO] src.utils.finops: 💰 FinOps | Model: gemma-4-31b-it | Cost: $0.000000 | Latency: 40176ms

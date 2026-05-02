@@ -151,12 +151,15 @@ def get_manual_weigh_ins(client, start_date, end_date):
 def run_etl():
     log.info("Starting Incremental Biometric Sync...")
 
-    token_file = find_token_file()
-    if not token_file:
-        log.error("Garmin authentication token not found.")
+    from src.utils.provider_factory import get_provider
+
+    provider = get_provider()
+    client = getattr(provider, "client", None)
+
+    if not client:
+        log.error("Garmin authentication client not found in Provider.")
         return
 
-    client = get_authenticated_client(token_file)
     end_date = datetime.now()
 
     # --- 1. Incremental Activities ---
