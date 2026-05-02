@@ -379,20 +379,28 @@ def run_etl():
                 df_cal = df_cal[df_cal["itemType"] == "workout"]
 
             if not df_cal.empty:
-                # Deduplicate by Workout ID
-                df_cal["id"] = df_cal["calendarItemId"].fillna(df_cal["id"])
+                # Deduplicate by Workout ID (using .get() safely)
+                if "calendarItemId" in df_cal.columns:
+                    df_cal["id"] = df_cal["calendarItemId"].fillna(df_cal.get("id", pd.NA))
+                elif "id" in df_cal.columns:
+                    df_cal["id"] = df_cal["id"]
+                else:
+                    # If no ID found, we can't reliably sync
+                    log.warning("No ID columns found in calendar items.")
+                    return
+
                 df_cal = df_cal.drop_duplicates(subset=["id"])
 
-                # Map to our schema
+                # Map to our schema with safety fallbacks
                 final_cal = pd.DataFrame()
                 final_cal["id"] = df_cal["id"]
-                final_cal["workout_id"] = df_cal["workoutId"]
-                final_cal["title"] = df_cal["title"]
+                final_cal["workout_id"] = df_cal.get("workoutId", pd.NA)
+                final_cal["title"] = df_cal.get("title", "Untitled Workout")
                 final_cal["date"] = df_cal["date"].dt.date
-                final_cal["sport_type"] = df_cal["sportTypeKey"]
+                final_cal["sport_type"] = df_cal.get("sportTypeKey", "running")
                 final_cal["description"] = ""
-                final_cal["duration_sec"] = df_cal["duration"]
-                final_cal["distance"] = df_cal["distance"]
+                final_cal["duration_sec"] = df_cal.get("duration", 0)
+                final_cal["distance_m"] = df_cal.get("distance", 0)  # Corrected column name from distance
                 final_cal["updated_at"] = datetime.utcnow()
 
                 upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_TRUNCATE")
