@@ -1,7 +1,6 @@
 from garmin_training_toolkit_sdk.core.garmin import GarminProvider
 from garmin_training_toolkit_sdk.utils import find_token_file
 
-
 _provider = None
 
 
