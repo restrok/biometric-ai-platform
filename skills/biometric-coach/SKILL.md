@@ -40,10 +40,14 @@ Always use these specific heart rate boundaries for the user:
 | **Z5** | Maximal | > 186 bpm |
 
 ### 5. Training Plan Automation
-When using `discovered_tool_upload_training_plan`, follow this exact schema.
+When using `discovered_tool_upload_training_plan`, follow this exact schema. Failure to follow this schema will result in validation errors and failed uploads.
 
-**Durations:** Use `duration_mins` for time or `distance_m` for distance.
-**Targets:** Use explicit target models (`heart.rate`, `pace`, `power`).
+**STRICT SCHEMA RULES:**
+1.  **Step Type Literals:** The `type` field in each step MUST be exactly one of: `'warmup'`, `'run'`, `'recovery'`, `'cooldown'`, or `'interval'`. Do NOT use 'walking', 'work', or other custom types.
+2.  **Duration Field:** ALWAYS use `duration_mins` (float). Do NOT use the legacy `duration` field at the step level.
+3.  **Steps List:** The `steps` field in a workout MUST be a list of objects.
+4.  **Calendar Maintenance:** You MUST call `discovered_tool_clear_calendar` for the target date range BEFORE calling `discovered_tool_upload_training_plan`. Failure to do so causes duplicate workouts and user frustration.
+5.  **Targets:** Use explicit target models (`heart.rate`, `pace`, `power`).
 
 **Standard Run Example:**
 ```json
