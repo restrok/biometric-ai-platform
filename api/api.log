@@ -1118,3 +1118,33 @@ Job ID: 23dd4213-b90d-4e7f-a0e1-623b4ff42af6
 16:23:37 [INFO] src.tools.etl_job: Synced 7 rows to bio-intelligence-dev.biometric_data_dev.scheduled_workouts (WRITE_TRUNCATE).
 16:23:37 [INFO] src.tools.etl_job: Incremental Sync Complete!
 16:23:37 [INFO] src.tools.etl_job: Incremental Sync Complete!
+16:33:06 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:08 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:09 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:09 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:09 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:13 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:15 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:16 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:16 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:16 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:20 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:22 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:23 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:23 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:33:23 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:26 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:28 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:29 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:29 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:29 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:32 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:34 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:34 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:35 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:35 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:40 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:42 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:43 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:43 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
+16:34:43 [INFO] src.utils.config: Successfully loaded GOOGLE_API_KEY from plain text
