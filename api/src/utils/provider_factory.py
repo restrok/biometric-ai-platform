@@ -26,12 +26,21 @@ def get_provider():
     token_json = get_secret(secret_name)
     if token_json:
         try:
+            import tempfile
+            from pathlib import Path
+
             tokens = json.loads(token_json)
-            log.info("Successfully loaded Garmin tokens from Secret Manager")
-            _provider = GarminProvider(tokens=tokens)
+            # The SDK currently expects a file path for tokens.
+            # We create a temporary file that persists for the duration of the process.
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tf:
+                json.dump(tokens, tf)
+                temp_path = Path(tf.name)
+
+            log.info(f"Successfully loaded Garmin tokens from Secret Manager into {temp_path}")
+            _provider = GarminProvider(token_path=temp_path)
             return _provider
         except Exception as e:
-            log.warning(f"Failed to parse Garmin tokens from Secret Manager: {e}")
+            log.warning(f"Failed to load Garmin tokens from Secret Manager: {e}")
 
     # 2. Fallback to local token file
     token_file = find_token_file()
