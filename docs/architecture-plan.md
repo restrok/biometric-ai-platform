@@ -104,7 +104,8 @@ To ensure high performance for AI workloads while strictly adhering to Google Cl
 The platform implements a sophisticated reasoning layer in LangGraph that bridges generic scientific formulas and individual athlete reality:
 
 *   **Data-Driven Customization:** The agent prioritizes observed data (e.g., a real Max HR of 196 bpm found in telemetry) over standard formulas (like 220-age).
-*   **Subjective Integration (The Talk Test):** The agent integrates user feedback (e.g., "I can talk at 160 bpm") to propose **Custom HR Zones**, recognizing that individual Aerobic Thresholds (AeT) can vary significantly.
+*   **Subjective Integration:** The agent integrates user feedback (e.g., "I feel sick", "I have back stress") via the **User Health Status** table. This subjective context is persisted in BigQuery and retrieved in every session to ensure contextually aware coaching (e.g., suggesting rest during a cold).
+*   **Longitudinal Analysis:** The platform supports **Interannual Analysis** through a date-aware retriever, allowing the agent to compare seasonal performance (e.g., April 2025 vs. April 2026) and quantify long-term fitness gains.
 *   **Detailed Telemetry Analysis:** The retriever provides compact, high-signal second-by-second summaries of the last 3 activities. This allows the AI to autonomously detect complex physiological trends like **Aerobic Decoupling** and **Efficiency Leaks**.
 *   **High-Performance Execution:** Context retrieval is optimized using `ThreadPoolExecutor` for parallel BigQuery queries. Inference is powered by `gemini-2.5-flash`, driving low request latencies.
 
