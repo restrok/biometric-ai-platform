@@ -73,6 +73,23 @@ def create_profile_tables():
     client.create_table(scheduled_table, exists_ok=True)
     print(f"✅ Table {scheduled_table_id} ready.")
 
+    # 4. User Health Status Table (Subjective & Health Tracking)
+    health_table_id = f"{PROJECT_ID}.{DATASET_ID}.user_health_status"
+    health_schema = [
+        bigquery.SchemaField("date", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("feeling", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("notes", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("fatigue_level", "INTEGER", mode="NULLABLE"),  # 1-10 scale
+        bigquery.SchemaField("injury_notes", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
+    ]
+
+    health_table = bigquery.Table(health_table_id, schema=health_schema)
+    health_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+
+    client.create_table(health_table, exists_ok=True)
+    print(f"✅ Table {health_table_id} ready.")
+
 
 if __name__ == "__main__":
     create_profile_tables()

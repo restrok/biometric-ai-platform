@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2026-05-04
+
+### Added
+- **Injury & Health Tracking System:**
+  - Nueva tabla nativa en BigQuery `user_health_status` para persistencia de datos subjetivos.
+  - Herramienta `log_health_status` para que el Coach AI registre malestar, fatiga y "niggles" físicos.
+  - Protocolo de recuperación inteligente: El coach ahora prioriza el estado de salud reportado antes de prescribir entrenamientos de alta intensidad.
+- **Historical Analysis Engine:**
+  - Soporte para rangos de fechas (`start_date`, `end_date`) en la herramienta `retrieve_biometric_data`.
+  - Capacidad de realizar análisis interanuales comparando métricas de eficiencia entre 2025 y 2026.
+- **Secret Management Infrastructure:**
+  - Integración con **GCP Secret Manager** para el almacenamiento seguro de tokens de Garmin y API Keys de AI Studio.
+  - Soporte multi-usuario inicial mediante el prefijo de secretos por ID de usuario.
+- **Cloud Readiness:**
+  - Módulos de Terraform para el aprovisionamiento automatizado de Secret Manager.
+  - Soporte para carga de tokens desde Secret Manager en entornos sin archivos locales.
+
+### Changed
+- **Retriever Tooling:** Optimización del motor de búsqueda de BigQuery para manejar fechas almacenadas como INT64 (nanosegundos) con soporte para filtrado dinámico.
+- **Biometric Skill:** Actualizado el protocolo de ejecución para incluir la verificación obligatoria del `latest_health_status` en cada sesión.
+- **Documentation:** Actualización completa del `roadmap.md` y `architecture-plan.md` reflejando la madurez del sistema de seguimiento de salud.
+
+### Fixed
+- Corregida la discrepancia de tipos (FLOAT64 vs STRING) en la sincronización de potencia media (`avg_power`) durante importaciones manuales.
+- Solucionado el error de esquema en la tabla `recent_activities` que impedía el upsert de campos de natación/piscina en actividades de carrera.
+
 ## [1.4.0] - 2026-05-02
 ### 🚀 Features
 - **Self-Healing Authentication (SDK v0.6.0):** Migrated to the stable PyPI release of the `garmin-training-toolkit-sdk`. This introduces native handling for session refreshes and client ID rotation, eliminating "403 Forbidden" errors.

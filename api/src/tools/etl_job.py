@@ -46,6 +46,53 @@ def get_last_sync_date(table_name):
     return None
 
 
+def upsert_to_bq(df, table_name, unique_key="date"):
+    """
+    Performs an atomic UPSERT in BigQuery.
+    1. Uploads data to a temporary staging table.
+    2. Merges staging table into the final table.
+    3. Drops the staging table.
+    This ensures no data is lost if the process fails mid-way.
+    """
+    if df.empty:
+        return
+
+    client = bigquery.Client(project=PROJECT_ID)
+    dataset_ref = client.dataset(DATASET_NAME)
+    target_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
+    staging_table_name = f"{table_name}_staging_{int(datetime.now().timestamp())}"
+    staging_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{staging_table_name}"
+
+    # 1. Load data to staging table (Write Truncate to ensure staging is clean)
+    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+    client.load_table_from_dataframe(df, staging_table_id, job_config=job_config).result()
+
+    # 2. Perform MERGE
+    # We build the update clause dynamically excluding the unique key
+    # Use backticks for column names to avoid reserved keywords like 'end'
+    cols = [field.name for field in client.get_table(staging_table_id).schema]
+    update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c != unique_key])
+    insert_cols = ", ".join([f"`{c}`" for c in cols])
+    insert_values = ", ".join([f"S.`{c}`" for c in cols])
+
+    merge_query = f"""
+        MERGE `{target_table_id}` T
+        USING `{staging_table_id}` S
+        ON T.`{unique_key}` = S.`{unique_key}`
+        WHEN MATCHED THEN
+            UPDATE SET {update_set}
+        WHEN NOT MATCHED THEN
+            INSERT ({insert_cols}) VALUES ({insert_values})
+    """
+    
+    try:
+        client.query(merge_query).result()
+        log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}'.")
+    finally:
+        # 3. Clean up staging table
+        client.delete_table(staging_table_id, not_found_ok=True)
+
+
 def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND"):
     """Uploads data to a NATIVE BigQuery table."""
     if df.empty:
@@ -227,9 +274,10 @@ def run_etl():
         else:
             log.info("No new activities to sync.")
 
-    # --- 3. Incremental Sleep ---
+    # --- 3. Incremental Sleep (with 3-day overlap to handle finalized data) ---
     last_sleep_date = get_last_sync_date("sleep_history")
-    start_sleep = (last_sleep_date + timedelta(days=1)) if last_sleep_date else (datetime.now() - timedelta(days=30))
+    # Buffer: Always re-fetch last 3 days because Garmin "sleep drafts" populate late
+    start_sleep = (last_sleep_date - timedelta(days=3)) if last_sleep_date else (datetime.now() - timedelta(days=30))
 
     if start_sleep.date() <= end_date.date():
         log.info(f"Syncing Sleep from {start_sleep.date()} to {end_date.date()}...")
@@ -238,15 +286,22 @@ def run_etl():
         if sleep_data:
             df_sleep = pd.DataFrame([s.model_dump() for s in sleep_data])
             try:
-                upload_to_bq(df_sleep, "sleep_history", "biometrics", mode="WRITE_APPEND")
+                # Force nullable Int64 for BigQuery INT64 compatibility
+                int_cols = ["start", "end", "duration_sec", "deep_sec", "light_sec", "rem_sec", "awake_sec", "quality"]
+                for col in int_cols:
+                    if col in df_sleep.columns:
+                        df_sleep[col] = df_sleep[col].astype("Int64")
+                
+                # Atomic Upsert: updates if exists, inserts if new. No data loss risk.
+                upsert_to_bq(df_sleep, "sleep_history", unique_key="date")
             except Exception as e:
                 log.error(f"Sleep sync failed during upload: {e}")
         else:
             log.info("No sleep data returned from Provider for this range.")
 
-    # --- 3b. Incremental HRV ---
+    # --- 3b. Incremental HRV (with 3-day overlap) ---
     last_hrv_date = get_last_sync_date("hrv_history")
-    start_hrv = (last_hrv_date + timedelta(days=1)) if last_hrv_date else (datetime.now() - timedelta(days=30))
+    start_hrv = (last_hrv_date - timedelta(days=3)) if last_hrv_date else (datetime.now() - timedelta(days=30))
 
     if start_hrv.date() <= end_date.date():
         log.info(f"Syncing HRV from {start_hrv.date()} to {end_date.date()}...")
@@ -255,7 +310,13 @@ def run_etl():
         if hrv_data:
             df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
             try:
-                upload_to_bq(df_hrv, "hrv_history", "biometrics", mode="WRITE_APPEND")
+                # Ensure numeric types for BQ compatibility using nullable Int64
+                for col in ["avg_hrv", "min_hrv", "max_hrv"]:
+                    if col in df_hrv.columns:
+                        df_hrv[col] = df_hrv[col].astype("Int64")
+                
+                # Atomic Upsert: updates if exists, inserts if new. No data loss risk.
+                upsert_to_bq(df_hrv, "hrv_history", unique_key="date")
             except Exception as e:
                 log.error(f"HRV sync failed during upload: {e}")
         else:

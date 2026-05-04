@@ -18,9 +18,9 @@
 - [x] **Universal Goals Feature:** Native BigQuery persistence for user objectives (e.g., July 15 Race).
 - [x] **Dynamic Physiological Analysis:** Implemented session-adaptive power thresholds (90% rule) for high-precision stage detection.
 - [x] **Native Calendar Sync:** Garmin scheduled workouts are synced to BigQuery for proactive coaching.
+- [x] **Injury & Health Tracking** [SEVERITY: HIGH]: Native BigQuery persistence for physical 'niggles', soreness, and injury history to improve risk assessment.
 - [x] **Tool Robustness & Hardening:** Enforced `uv run` and standard tool invocation protocols to prevent environment-specific failures.
 - [ ] **Comprehensive E2E Testing** [SEVERITY: CRITICAL]: Validate full flows (ingestion -> plan) across edge cases to prevent regressions.
-- [ ] **Injury & Health Tracking** [SEVERITY: HIGH]: Native BigQuery persistence for physical 'niggles', soreness, and injury history to improve risk assessment.
 - [ ] **Performance Tuning** [SEVERITY: MEDIUM]: Optimize BigQuery query patterns and LangGraph execution latency.
 
 ## Phase 4: Production Deployment & Ecosystem Expansion (Current Focus 🚧)

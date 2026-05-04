@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from google.cloud import bigquery
 
@@ -43,6 +43,8 @@ class RetrieverInput(BaseModel):
     limit: int = Field(20, description="Max number of activities to retrieve.")
     offset: int = Field(0, description="Number of activities to skip (for paging).")
     activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
+    start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
+    end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
 
 
 @tool(args_schema=RetrieverInput)
@@ -52,6 +54,8 @@ def retrieve_biometric_data(
     limit: int = 20,
     offset: int = 0,
     activity_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> dict:
     """
     Retrieves the user's latest biometric context from BigQuery in parallel.
@@ -77,12 +81,32 @@ def retrieve_biometric_data(
         nonlocal top_3_ids
         try:
             t0 = time.time()
-            where_clause = ""
+            where_clauses = []
             if activity_type:
-                where_clause = f"WHERE type = '{activity_type}'"
+                where_clauses.append(f"type = '{activity_type}'")
+            
+            # Helper to convert YYYY-MM-DD to nanoseconds
+            def to_nanos(date_str):
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+                return int(dt.timestamp() * 1e9)
 
+            if start_date:
+                where_clauses.append(f"date >= {to_nanos(start_date)}")
+            if end_date:
+                # Add 1 day to end_date to include the full day
+                dt_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+                end_nanos = int(dt_end.timestamp() * 1e9)
+                where_clauses.append(f"date < {end_nanos}")
+            
+            where_clause = ""
+            if where_clauses:
+                where_clause = "WHERE " + " AND ".join(where_clauses)
+
+            # Convert nanoseconds to TIMESTAMP for readable output
             query_act = f"""
-                SELECT id, CAST(date AS STRING) as date, type, distance_m, avg_hr, vo2max 
+                SELECT id, 
+                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_MICROS(CAST(date / 1000 AS INT64))) as date, 
+                       type, distance_m, avg_hr, vo2max 
                 FROM `{project_id}.{dataset}.recent_activities` 
                 {where_clause}
                 ORDER BY date DESC 
@@ -161,6 +185,16 @@ def retrieve_biometric_data(
             return "latest_body_composition", (dict(body_rows[0]) if body_rows else None)
         except Exception:
             return "latest_body_composition", None
+
+    def fetch_health_status():
+        try:
+            t0 = time.time()
+            query_health = f"SELECT date, feeling, notes, fatigue_level, injury_notes FROM `{project_id}.{dataset}.user_health_status` ORDER BY date DESC LIMIT 1"
+            health_rows = list(client.query(query_health).result())
+            log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
+            return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
+        except Exception:
+            return "latest_health_status", None
 
     def fetch_scheduled_workouts():
         try:
@@ -243,6 +277,7 @@ def retrieve_biometric_data(
         f_hrv = executor.submit(fetch_hrv_history)
         f_profile = executor.submit(fetch_user_profile)
         f_body = executor.submit(fetch_body_composition)
+        f_health = executor.submit(fetch_health_status)
         f_sched = executor.submit(fetch_scheduled_workouts)
 
         # Wait for activities to finish to start telemetry
@@ -253,7 +288,7 @@ def retrieve_biometric_data(
         f_telemetry = executor.submit(fetch_telemetry, top_3_ids)
 
         # Collect results from others
-        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_sched, f_telemetry]:
+        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_health, f_sched, f_telemetry]:
             key, val = f.result()
             context[key] = val
 

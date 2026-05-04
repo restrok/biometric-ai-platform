@@ -52,3 +52,55 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int):
     except Exception as e:
         log.error(f"❌ Failed to update custom zones: {e}")
         return f"Error updating custom zones: {e}"
+
+
+class HealthStatusInput(BaseModel):
+    feeling: str = Field(..., description="Overall subjective feeling (e.g., 'Sick', 'Tired', 'Injured', 'Great')")
+    notes: str | None = Field(None, description="Detailed notes about the user's condition.")
+    fatigue_level: int | None = Field(None, description="General fatigue level on a 1-10 scale.")
+    injury_notes: str | None = Field(None, description="Notes about any physical discomfort or injuries.")
+    status_date: str | None = Field(None, description="Date of the status (YYYY-MM-DD). Defaults to today.")
+
+
+@tool(args_schema=HealthStatusInput)
+def log_health_status(feeling: str, notes: str | None = None, fatigue_level: int | None = None, injury_notes: str | None = None, status_date: str | None = None):
+    """
+    Logs the user's subjective health status and physical feeling into BigQuery.
+    Use this tool whenever the user reports feeling unwell, injured, tired, or particularly strong.
+    This ensures that the AI coach can persist and retrieve this context in future sessions.
+    """
+    config = get_config()
+    project_id = config["project_id"]
+    dataset = config["dataset_id"]
+
+    client = bigquery.Client(project=project_id)
+    table_id = f"{project_id}.{dataset}.user_health_status"
+
+    from datetime import date
+    target_date = status_date if status_date else date.today().isoformat()
+
+    # We use a MERGE (UPSERT) to ensure one entry per day
+    query = f"""
+        MERGE `{table_id}` T
+        USING (SELECT DATE '{target_date}' as date) S
+        ON T.date = S.date
+        WHEN MATCHED THEN
+            UPDATE SET 
+                feeling = '{feeling}',
+                notes = {f"'{notes}'" if notes else "NULL"},
+                fatigue_level = {fatigue_level if fatigue_level is not None else "NULL"},
+                injury_notes = {f"'{injury_notes}'" if injury_notes else "NULL"},
+                updated_at = CURRENT_TIMESTAMP()
+        WHEN NOT MATCHED THEN
+            INSERT (date, feeling, notes, fatigue_level, injury_notes, updated_at)
+            VALUES ('{target_date}', '{feeling}', {f"'{notes}'" if notes else "NULL"}, {fatigue_level if fatigue_level is not None else "NULL"}, {f"'{injury_notes}'" if injury_notes else "NULL"}, CURRENT_TIMESTAMP())
+    """
+
+    try:
+        query_job = client.query(query)
+        query_job.result()
+        log.info(f"✅ Successfully logged health status for {target_date}: {feeling}")
+        return f"Successfully logged health status for {target_date}: {feeling}."
+    except Exception as e:
+        log.error(f"❌ Failed to log health status: {e}")
+        return f"Error logging health status: {e}"
