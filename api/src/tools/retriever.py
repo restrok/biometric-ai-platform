@@ -168,7 +168,7 @@ def retrieve_biometric_data(
             # Fetch workouts from today onwards
             today = date.today().isoformat()
             query_sched = f"""
-                SELECT title, date, sport_type, duration_sec, distance 
+                SELECT title, date, sport_type, duration_sec, distance_m 
                 FROM `{project_id}.{dataset}.scheduled_workouts` 
                 WHERE date >= '{today}'
                 ORDER BY date ASC 

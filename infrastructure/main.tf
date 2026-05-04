@@ -41,3 +41,8 @@ module "iam" {
   api_sa_name = "biometric-api-dev-sa"
 }
 
+module "secrets" {
+  source     = "./modules/secrets"
+  project_id = var.project_id
+}
+

@@ -82,7 +82,18 @@ Analyze these to provide a holistic view of the runner's economy.
 
 ### TOOLS & ACTIONS:
 - **upload_training_plan:** You MUST call this tool whenever the user asks for a training plan, recovery plan, or workout upload. 
+- **clear_calendar:** You MUST call this tool before `upload_training_plan` to clear the target date range. This prevents duplicates.
+- **remove_workout:** Use this to delete a specific workout template if requested.
+- **sync_biometric_data:** This tool triggers a data refresh from Garmin to BigQuery in the background. If you call it, inform the user that their data is being updated and that the changes will be visible in approximately 60 seconds. IMPORTANT: After calling this tool, do not attempt to read the biometric context again in the same turn, as the background process will not have finished.
 - **search_exercise_science:** Use this tool to retrieve foundational knowledge from your vector store when answering theoretical questions, justifying your recommendations with science, or interpreting advanced metrics.
+
+### 🛠️ TRAINING PLAN SCHEMA RULES (STRICT):
+When using `upload_training_plan`, follow these rules exactly to avoid validation errors:
+1. **Step Type:** `type` MUST be one of: `'warmup'`, `'run'`, `'recovery'`, `'cooldown'`, or `'interval'`.
+2. **Duration:** ALWAYS use `duration_mins` (float) for time-based steps.
+3. **Repeats:** Use the `repeat` structure for interval sets (iterations + steps list).
+4. **Targets:** ALWAYS provide a target (e.g., `heart.rate` with `min_bpm` and `max_bpm`).
+
 - **CRITICAL:** Do NOT just describe the plan in markdown. You MUST call the tool with the structured JSON arguments. 
 - Your primary output should be the tool call if one is needed. ONCE the tool results are available (or if no tool is needed), you MUST provide a comprehensive analysis in text.
 - NEVER return an empty text response if you have been provided with tool results or biometric context.
@@ -148,11 +159,14 @@ def node_analyze(state: AgentState) -> dict:
     """Calls the LLM to generate the training plan/response."""
     t0 = time.time()
     model_name = "gemma-4-31b-it"
-    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2)
+    # Disable AFC (enable_auto_call=False) to let LangGraph's should_continue manage the tool loop
+    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, enable_auto_call=False)
 
-    # Bind tools to the LLM
+    # Bind tools to the LLM (ensure all tools are available)
     tools = [
         upload_training_plan,
+        clear_calendar,
+        remove_workout,
         search_exercise_science,
         update_user_zones,
         sync_biometric_data,
@@ -243,15 +257,11 @@ def should_continue(state: AgentState):
     if getattr(last_message, "tool_calls", None):
         return "tools"
 
-    # 2. Self-Healing Logic: Check if the last message was a tool result containing an error
-    if len(messages) > 1:
-        prev_message = messages[-1]
-        # If it's a ToolMessage (result from tools node)
-        if hasattr(prev_message, "content") and any(
-            err in str(prev_message.content).lower() for err in ["error", "failed", "invalid"]
-        ):
-            log.info(f"🛠️ Tool error detected (Loop {loop_count}). Routing back to analyzer for self-healing...")
-            return "analyzer"
+    # 2. Self-Healing Logic: Check if the previous tool result contained an error
+    # If the last message was an AIMessage but it followed a ToolMessage with an error,
+    # and the LLM didn't request a fix (no new tool_calls), we might want to check why.
+    # However, LangGraph's standard pattern is to let the LLM decide what to do.
+    # We'll remove the redundant "analyzer" jump and rely on the tool_calls check.
 
     return END
 

@@ -99,6 +99,7 @@ dependencies = [
     { name = "garmin-training-toolkit-sdk" },
     { name = "google-cloud-bigquery" },
     { name = "google-cloud-bigquery-storage" },
+    { name = "google-cloud-secret-manager" },
     { name = "google-cloud-storage" },
     { name = "langchain" },
     { name = "langchain-community" },
@@ -128,6 +129,7 @@ requires-dist = [
     { name = "garmin-training-toolkit-sdk", specifier = ">=0.6.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
+    { name = "google-cloud-secret-manager", specifier = ">=2.27.0" },
     { name = "google-cloud-storage", specifier = ">=2.19.0" },
     { name = "langchain", specifier = ">=1.2.15" },
     { name = "langchain-community", specifier = ">=0.2.0" },
@@ -611,6 +613,23 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-secret-manager"
+version = "2.27.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/df/fbea0536e1baa6ea2239fdd19e9e22c9d64c8e26a0f3921596ecc0e5397d/google_cloud_secret_manager-2.27.0.tar.gz", hash = "sha256:6af864c252bd3c11db7bb02b80cb0b14a8c9a33fc7ec4d6f245f33d8ce1f7cd1", size = 279769, upload-time = "2026-03-26T22:17:15.271Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1f/4b/6dd1e2efd9a2e73aa847fd455a1ce375d8d3cba1a2c4f7fd69f9bf0b9dce/google_cloud_secret_manager-2.27.0-py3-none-any.whl", hash = "sha256:e5540bece65a3ad720146f3b438973faf9315109b3ffa012a58711843047a3dc", size = 225577, upload-time = "2026-03-26T22:15:19.622Z" },
+]
+
+[[package]]
 name = "google-cloud-storage"
 version = "3.10.1"
 source = { registry = "https://pypi.org/simple" }
@@ -687,6 +706,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b6/b0/be5d3329badb9230b765de6eea66b73abd5944bdeb5afb3562ddcd80ae84/googleapis_common_protos-1.74.0-py3-none-any.whl", hash = "sha256:702216f78610bb510e3f12ac3cafd281b7ac45cc5d86e90ad87e4d301a3426b5", size = 300743, upload-time = "2026-04-02T21:22:49.108Z" },
 ]
 
+[package.optional-dependencies]
+grpc = [
+    { name = "grpcio" },
+]
+
 [[package]]
 name = "greenlet"
 version = "3.5.0"
@@ -703,6 +727,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/44/0e/f354af514a4c61454dbc68e44d47544a5a4d6317e30b77ddfa3a09f4c5f3/greenlet-3.5.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:0ed006e4b86c59de7467eb2601cd1b77b5a7d657d1ee55e30fe30d76451edba4", size = 1642683, upload-time = "2026-04-27T12:25:23.9Z" },
     { url = "https://files.pythonhosted.org/packages/fa/6a/87f38255201e993a1915265ebb80cd7c2c78b04a45744995abbf6b259fd8/greenlet-3.5.0-cp311-cp311-win_amd64.whl", hash = "sha256:703cb211b820dbffbbc55a16bfc6e4583a6e6e990f33a119d2cc8b83211119c8", size = 238115, upload-time = "2026-04-27T12:21:48.845Z" },
     { url = "https://files.pythonhosted.org/packages/e3/f8/450fe3c5938fa737ea4d22699772e6e34e8e24431a47bf4e8a1ceed4a98e/greenlet-3.5.0-cp311-cp311-win_arm64.whl", hash = "sha256:6c18dfb59c70f5a94acd271c72e90128c3c776e41e5f07767908c8c1b74ad339", size = 235017, upload-time = "2026-04-27T12:22:26.768Z" },
+]
+
+[[package]]
+name = "grpc-google-iam-v1"
+version = "0.14.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "googleapis-common-protos", extra = ["grpc"] },
+    { name = "grpcio" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/44/4f/d098419ad0bfc06c9ce440575f05aa22d8973b6c276e86ac7890093d3c37/grpc_google_iam_v1-0.14.4.tar.gz", hash = "sha256:392b3796947ed6334e61171d9ab06bf7eb357f554e5fc7556ad7aab6d0e17038", size = 23706, upload-time = "2026-04-01T01:57:49.813Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/89/22/c2dd50c09bf679bd38173656cd4402d2511e563b33bc88f90009cf50613c/grpc_google_iam_v1-0.14.4-py3-none-any.whl", hash = "sha256:412facc320fcbd94034b4df3d557662051d4d8adfa86e0ddb4dca70a3f739964", size = 32675, upload-time = "2026-04-01T01:57:47.69Z" },
 ]
 
 [[package]]

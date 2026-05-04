@@ -42,10 +42,9 @@ class LegacyTarget(BaseModel):
 
 
 class WorkoutStep(BaseModel):
-    type: str  # e.g., 'run', 'recovery', 'interval', 'warmup', 'cooldown'
+    type: Literal["warmup", "run", "recovery", "cooldown", "interval"]
     duration_mins: float | None = None
     distance_m: int | None = None
-    duration: float | None = None  # Legacy support (minutes)
     target: HeartRateTarget | PaceTarget | PowerTarget | LegacyTarget | None = None
 
 
