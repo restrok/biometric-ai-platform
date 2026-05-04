@@ -58,7 +58,6 @@ def upsert_to_bq(df, table_name, unique_key="date"):
         return
 
     client = bigquery.Client(project=PROJECT_ID)
-    dataset_ref = client.dataset(DATASET_NAME)
     target_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
     staging_table_name = f"{table_name}_staging_{int(datetime.now().timestamp())}"
     staging_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{staging_table_name}"
@@ -84,7 +83,7 @@ def upsert_to_bq(df, table_name, unique_key="date"):
         WHEN NOT MATCHED THEN
             INSERT ({insert_cols}) VALUES ({insert_values})
     """
-    
+
     try:
         client.query(merge_query).result()
         log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}'.")
@@ -291,7 +290,7 @@ def run_etl():
                 for col in int_cols:
                     if col in df_sleep.columns:
                         df_sleep[col] = df_sleep[col].astype("Int64")
-                
+
                 # Atomic Upsert: updates if exists, inserts if new. No data loss risk.
                 upsert_to_bq(df_sleep, "sleep_history", unique_key="date")
             except Exception as e:
@@ -314,7 +313,7 @@ def run_etl():
                 for col in ["avg_hrv", "min_hrv", "max_hrv"]:
                     if col in df_hrv.columns:
                         df_hrv[col] = df_hrv[col].astype("Int64")
-                
+
                 # Atomic Upsert: updates if exists, inserts if new. No data loss risk.
                 upsert_to_bq(df_hrv, "hrv_history", unique_key="date")
             except Exception as e:

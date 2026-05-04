@@ -63,7 +63,13 @@ class HealthStatusInput(BaseModel):
 
 
 @tool(args_schema=HealthStatusInput)
-def log_health_status(feeling: str, notes: str | None = None, fatigue_level: int | None = None, injury_notes: str | None = None, status_date: str | None = None):
+def log_health_status(
+    feeling: str,
+    notes: str | None = None,
+    fatigue_level: int | None = None,
+    injury_notes: str | None = None,
+    status_date: str | None = None,
+):
     """
     Logs the user's subjective health status and physical feeling into BigQuery.
     Use this tool whenever the user reports feeling unwell, injured, tired, or particularly strong.
@@ -77,6 +83,7 @@ def log_health_status(feeling: str, notes: str | None = None, fatigue_level: int
     table_id = f"{project_id}.{dataset}.user_health_status"
 
     from datetime import date
+
     target_date = status_date if status_date else date.today().isoformat()
 
     # We use a MERGE (UPSERT) to ensure one entry per day

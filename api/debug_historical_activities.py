@@ -1,5 +1,7 @@
 import os
+
 from google.cloud import bigquery
+
 from src.utils.config import setup_environment
 
 setup_environment()
@@ -16,7 +18,7 @@ rows_meta = list(client.query(query_meta).result())
 for r in rows_meta:
     print(dict(r))
 
-print(f"\n--- Checking telemetry (ticks) for these IDs ---")
+print("\n--- Checking telemetry (ticks) for these IDs ---")
 query_tel = f"SELECT activity_id, count(*) as tick_count FROM `{project}.{dataset}.latest_activity_telemetry` WHERE activity_id IN ({ids_str}) GROUP BY activity_id"
 rows_tel = list(client.query(query_tel).result())
 for r in rows_tel:

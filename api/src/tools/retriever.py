@@ -84,7 +84,7 @@ def retrieve_biometric_data(
             where_clauses = []
             if activity_type:
                 where_clauses.append(f"type = '{activity_type}'")
-            
+
             # Helper to convert YYYY-MM-DD to nanoseconds
             def to_nanos(date_str):
                 dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -97,7 +97,7 @@ def retrieve_biometric_data(
                 dt_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
                 end_nanos = int(dt_end.timestamp() * 1e9)
                 where_clauses.append(f"date < {end_nanos}")
-            
+
             where_clause = ""
             if where_clauses:
                 where_clause = "WHERE " + " AND ".join(where_clauses)
