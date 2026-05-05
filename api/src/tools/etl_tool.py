@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 
 @tool
-def sync_biometric_data():
+def sync_biometric_data(user_id: str | None = None):
     """
     Triggers an incremental synchronization of biometric data from the provider (e.g., Garmin) to BigQuery.
     Use this if the user mentions they just finished a workout, if the data seems stale,
@@ -17,11 +17,10 @@ def sync_biometric_data():
     This process runs in the background.
     """
     try:
-        log.info("🔄 Agent-triggered ETL sync starting in background...")
+        log.info(f"🔄 Agent-triggered ETL sync starting in background for user: {user_id}...")
 
         # Run ETL in a separate thread to avoid blocking the AI Agent's response
-        # This reduces latency from ~40s to <1s for the tool call
-        thread = threading.Thread(target=run_etl, daemon=True)
+        thread = threading.Thread(target=run_etl, kwargs={"user_id": user_id}, daemon=True)
         thread.start()
 
         return {
