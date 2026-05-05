@@ -136,3 +136,21 @@ Run the evaluation and integration tests:
 cd api
 uv run pytest tests/
 ```
+
+---
+
+## 🏗️ Running with Docker
+
+For production-like environments or home servers (e.g., Raspberry Pi), you can run the platform using Docker Compose.
+
+### 1. Build and Start
+```bash
+docker-compose up -d --build
+```
+
+### 2. Monitoring Logs
+```bash
+docker-compose logs -f api
+```
+
+The container automatically manages the **hourly Garmin token refresh loop**, ensuring your connection stays alive 24/7.

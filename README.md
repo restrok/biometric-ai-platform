@@ -98,6 +98,28 @@ Want to look under the hood or set this up for yourself? We have you covered:
 
 - [🚀 Getting Started (Setup & Installation)](docs/getting-started.md)
 - [🛠️ Developer Guide (Architecture & Workflows)](docs/developer-guide.md)
+- [🏗️ Docker Deployment](#-docker-deployment)
+
+---
+
+## 🏗️ Docker Deployment
+
+The platform is fully containerized for easy deployment on home servers or Raspberry Pis.
+
+### Prerequisites
+- Docker and Docker Compose installed.
+- Your `.env` file configured in `api/`.
+- Your `garmin_tokens.json` initialized (if not using Secret Manager).
+
+### Quick Start
+```bash
+# Start the API and the background token refresh loop
+docker-compose up -d --build
+```
+
+The API will be available at `http://localhost:8000`. The container includes an automatic hourly token refresh loop to ensure your session remains active without manual intervention.
+
+---
 - [📐 Architecture Plan](docs/architecture-plan.md)
 - [🎯 Project Goals](docs/goal.md)
 - [🗺️ Development Roadmap](docs/roadmap.md)
