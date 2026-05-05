@@ -1,7 +1,7 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel, Field
 
 # Import tools
@@ -157,10 +157,10 @@ async def api_update_zones(req: ZoneUpdate):
 
 
 @router.post("/biometric/sync")
-async def api_sync_biometric():
+async def api_sync_biometric(x_user_id: str | None = Header(None)):
     """Triggers an incremental synchronization of biometric data from the provider to BigQuery."""
     try:
-        result = sync_biometric_data.invoke({})
+        result = sync_biometric_data.invoke({"user_id": x_user_id})
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
