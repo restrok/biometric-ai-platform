@@ -65,13 +65,14 @@ class Workout(BaseModel):
 
 class TrainingPlan(BaseModel):
     workouts: list[Workout]
+    user_id: str | None = None
 
 
 @tool(args_schema=TrainingPlan)
-def upload_training_plan(workouts: list[Workout]):
+def upload_training_plan(workouts: list[Workout], user_id: str | None = None):
     """Uploads a training plan with support for repeats, distances, and typed targets."""
-    log.info(f"📤 Uploading {len(workouts)} workouts via Provider...")
-    provider = get_provider()
+    log.info(f"📤 Uploading {len(workouts)} workouts via Provider (user: {user_id})...")
+    provider = get_provider(user_id=user_id)
 
     try:
         # The SDK's WorkoutPlan will now handle the mapping of these new structures
@@ -93,13 +94,14 @@ def upload_training_plan(workouts: list[Workout]):
 class CalendarRange(BaseModel):
     start_date: str
     end_date: str
+    user_id: str | None = None
 
 
 @tool(args_schema=CalendarRange)
-def clear_calendar(start_date: str, end_date: str):
+def clear_calendar(start_date: str, end_date: str, user_id: str | None = None):
     """Clears calendar range for the active provider."""
-    log.info(f"🧹 Clearing Calendar from {start_date} to {end_date}...")
-    provider = get_provider()
+    log.info(f"🧹 Clearing Calendar from {start_date} to {end_date} (user: {user_id})...")
+    provider = get_provider(user_id=user_id)
 
     try:
         from datetime import datetime
@@ -129,13 +131,14 @@ def clear_calendar(start_date: str, end_date: str):
 
 class WorkoutID(BaseModel):
     workout_id: str
+    user_id: str | None = None
 
 
 @tool(args_schema=WorkoutID)
-def remove_workout(workout_id: str):
+def remove_workout(workout_id: str, user_id: str | None = None):
     """Deletes a specific workout template using the active provider."""
-    log.info(f"🗑️ Deleting workout template {workout_id}...")
-    provider = get_provider()
+    log.info(f"🗑️ Deleting workout template {workout_id} (user: {user_id})...")
+    provider = get_provider(user_id=user_id)
     try:
         # Use the standardized delete_workout_template method
         provider.delete_workout_template(workout_id)

@@ -16,11 +16,11 @@ def get_provider(user_id: str | None = None):
     """
     Returns the active biometric provider (currently hardcoded to Garmin,
     but easily swappable for future brands).
-    
+
     If user_id is provided, it attempts to load user-specific tokens.
     """
     global _providers
-    
+
     cache_key = user_id or "default"
     if cache_key in _providers:
         return _providers[cache_key]
@@ -29,7 +29,7 @@ def get_provider(user_id: str | None = None):
     # Defaulting to garmin-tokens for single-user, or garmin-tokens-{user_id} for multi-user
     secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
     secret_name = f"{secret_base_name}-{user_id}" if user_id else secret_base_name
-    
+
     token_json = get_secret(secret_name)
     if token_json:
         try:
@@ -52,6 +52,7 @@ def get_provider(user_id: str | None = None):
     # We look for garmin_tokens_{user_id}.json or the default from the SDK
     if user_id:
         from pathlib import Path
+
         # Search in common locations with the user suffix
         possible_paths = [
             Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",

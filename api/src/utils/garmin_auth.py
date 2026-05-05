@@ -34,14 +34,14 @@ def refresh_garmin_tokens() -> bool:
             # Load current tokens into the garminconnect client
             client.client.loads(json.dumps(tokens))
             client.client.di_client_id = client_id
-            
+
             # This is the internal SDK/garminconnect method that rotates the token
             client.client._refresh_di_token()
 
             # Get the new token state
             new_tokens_json = client.client.dumps()
             new_tokens = json.loads(new_tokens_json)
-            
+
             log.info(f"Successfully refreshed Garmin session using {client_id}")
             success = True
             break

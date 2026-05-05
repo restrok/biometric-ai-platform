@@ -21,22 +21,23 @@ TABLES = [
     "latest_activity_telemetry",
     "sleep_history",
     "hrv_history",
-    "training_status"
+    "training_status",
 ]
+
 
 def migrate():
     client = bigquery.Client(project=PROJECT_ID)
-    
+
     for table_name in TABLES:
         table_id = f"{PROJECT_ID}.{DATASET_ID}.{table_name}"
         print(f"⌛ Migrating table: {table_id}...")
-        
+
         try:
             table = client.get_table(table_id)
-            
+
             # 1. Check if user_id column exists
             has_user_id = any(field.name == "user_id" for field in table.schema)
-            
+
             if not has_user_id:
                 print(f"  Adding 'user_id' column to {table_name}...")
                 new_schema = table.schema[:]
@@ -57,9 +58,10 @@ def migrate():
             query_job = client.query(update_query)
             query_job.result()
             print("  ✅ Backfill complete.")
-            
+
         except Exception as e:
             print(f"  ❌ Error migrating {table_name}: {e}")
+
 
 if __name__ == "__main__":
     if not PROJECT_ID:

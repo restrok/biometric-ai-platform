@@ -212,6 +212,18 @@ def retrieve_biometric_data(
         except Exception:
             return "latest_health_status", None
 
+    def fetch_user_goals():
+        try:
+            t0 = time.time()
+            user_filter = f" AND user_id = '{user_id}'" if user_id else ""
+            query_goals = f"SELECT target_date, goal_type, target_value, description FROM `{project_id}.{dataset}.user_goals` WHERE status = 'active'{user_filter} ORDER BY target_date ASC"
+            goal_rows = [dict(row) for row in client.query(query_goals).result()]
+            log.info(f"⏱️ BigQuery: Active goals retrieved in {time.time() - t0:.2f}s")
+            return "active_goals", goal_rows
+        except Exception as e:
+            log.warning(f"❌ Goals retrieval failed: {e}")
+            return "active_goals", []
+
     def fetch_scheduled_workouts():
         try:
             t0 = time.time()
@@ -241,24 +253,61 @@ def retrieve_biometric_data(
         try:
             t0 = time.time()
             ids_str = ", ".join([f"'{i}'" for i in activity_ids])
-            where_tel = f"WHERE activity_id IN ({ids_str}) AND MOD(timestamp_ms, 60000) < 2000"
-            if user_id:
-                where_tel += f" AND user_id = '{user_id}'"
 
+            # Implementation of Dynamic Effort Segmentation (from telemetry-optimization-plan.md)
             query_tel_series = f"""
+            WITH raw_minutes AS (
+                -- 1. Aggregate to 1-minute blocks for baseline smoothing
+                SELECT 
+                    activity_id,
+                    activity_name,
+                    TIMESTAMP_TRUNC(TIMESTAMP_MICROS(CAST(timestamp_ms * 1000 AS INT64)), MINUTE) as minute,
+                    AVG(hr_bpm) as hr,
+                    AVG(power_w) as pwr,
+                    AVG(cadence_spm) as cad,
+                    AVG(vertical_oscillation_cm) as osc,
+                    AVG(ground_contact_time_ms) as gct
+                FROM `{project_id}.{dataset}.latest_activity_telemetry`
+                WHERE activity_id IN ({ids_str}) {f" AND user_id = '{user_id}'" if user_id else ""}
+                GROUP BY 1, 2, 3
+            ),
+            deltas AS (
+                -- 2. Calculate deltas to find "shifts" in effort
+                SELECT *,
+                    LAG(hr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_hr,
+                    LAG(pwr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_pwr
+                FROM raw_minutes
+            ),
+            segments AS (
+                -- 3. Mark the start of a new segment if HR or Power changes significantly
+                SELECT *,
+                    CASE 
+                        WHEN prev_hr IS NULL THEN 1
+                        WHEN ABS(hr - prev_hr) > 7 OR ABS(pwr - prev_pwr) > 25 THEN 1 
+                        ELSE 0 
+                    END as is_new_segment
+                FROM deltas
+            ),
+            segmented_data AS (
+                -- 4. Assign segment IDs
+                SELECT *,
+                    SUM(is_new_segment) OVER(PARTITION BY activity_id ORDER BY minute) as segment_id
+                FROM segments
+            )
+            -- 5. Final aggregation of segments
             SELECT 
-                activity_id, 
-                activity_name, 
-                hr_bpm, 
-                power_w, 
-                cadence_spm,
-                stride_length_mm,
-                vertical_oscillation_cm,
-                ground_contact_time_ms,
-                temperature_c
-            FROM `{project_id}.{dataset}.latest_activity_telemetry`
-            {where_tel}
-            ORDER BY activity_id, timestamp_ms ASC
+                activity_id,
+                activity_name,
+                MIN(minute) as start_time,
+                COUNT(*) as duration_mins,
+                AVG(hr) as avg_hr,
+                AVG(pwr) as avg_pwr,
+                AVG(cad) as avg_cad,
+                AVG(osc) as avg_osc,
+                AVG(gct) as avg_gct
+            FROM segmented_data
+            GROUP BY 1, 2, segment_id
+            ORDER BY activity_id, start_time ASC
             """
             rows = list(client.query(query_tel_series).result())
 
@@ -268,27 +317,29 @@ def retrieve_biometric_data(
                 if key not in series_data:
                     series_data[key] = []
 
-                metrics = [f"{int(row.hr_bpm)}bpm"]
-                if row.get("power_w"):
-                    metrics.append(f"{int(row.power_w)}W")
-                if row.get("vertical_oscillation_cm"):
-                    metrics.append(f"{round(row.vertical_oscillation_cm, 1)}cm_osc")
-                if row.get("ground_contact_time_ms"):
-                    metrics.append(f"{int(row.ground_contact_time_ms)}ms_gct")
+                metrics = [f"{int(row.duration_mins)}m", f"{int(row.avg_hr)}bpm"]
+                if row.avg_pwr and row.avg_pwr > 0:
+                    metrics.append(f"{int(row.avg_pwr)}W")
+                if row.avg_osc:
+                    metrics.append(f"{round(row.avg_osc, 1)}cm_osc")
+                if row.avg_gct:
+                    metrics.append(f"{int(row.avg_gct)}ms_gct")
 
                 series_data[key].append(f"[{'|'.join(metrics)}]")
 
             compact_series = []
-            for activity_label, bpm_list in series_data.items():
-                compact_series.append(f"{activity_label}: {', '.join(bpm_list)}")
+            for activity_label, segments_list in series_data.items():
+                compact_series.append(f"{activity_label}: {' '.join(segments_list)}")
 
-            log.info(f"⏱️ BigQuery: Telemetry time-series retrieved in {time.time() - t0:.2f}s ({len(rows)} samples)")
+            log.info(
+                f"⏱️ BigQuery: Telemetry dynamic segments retrieved in {time.time() - t0:.2f}s ({len(rows)} segments)"
+            )
             return "last_3_runs_timeseries_summary", (
                 "\n".join(compact_series) if compact_series else "No detailed telemetry found."
             )
         except Exception as e:
             log.error(f"❌ Telemetry retrieval failed: {e}")
-            return "last_3_runs_timeseries_summary", "Error retrieving telemetry."
+            return "last_3_runs_timeseries_summary", f"Error retrieving telemetry: {e}"
 
     # Execute first queries in parallel
     with ThreadPoolExecutor(max_workers=7) as executor:
@@ -301,6 +352,7 @@ def retrieve_biometric_data(
         f_profile = executor.submit(fetch_user_profile)
         f_body = executor.submit(fetch_body_composition)
         f_health = executor.submit(fetch_health_status)
+        f_goals = executor.submit(fetch_user_goals)
         f_sched = executor.submit(fetch_scheduled_workouts)
 
         # Wait for activities to finish to start telemetry
@@ -311,7 +363,7 @@ def retrieve_biometric_data(
         f_telemetry = executor.submit(fetch_telemetry, top_3_ids)
 
         # Collect results from others
-        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_health, f_sched, f_telemetry]:
+        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_health, f_goals, f_sched, f_telemetry]:
             key, val = f.result()
             context[key] = val
 

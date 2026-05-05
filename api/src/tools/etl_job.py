@@ -273,7 +273,9 @@ def run_etl(user_id=None):
                 # Fix schema mismatch: ensure run_walk_index is float to match BQ
                 if "run_walk_index" in df_telemetry.columns:
                     df_telemetry["run_walk_index"] = df_telemetry["run_walk_index"].astype(float)
-                upload_to_bq(df_telemetry, "latest_activity_telemetry", "telemetry", mode="WRITE_APPEND", user_id=user_id)
+                upload_to_bq(
+                    df_telemetry, "latest_activity_telemetry", "telemetry", mode="WRITE_APPEND", user_id=user_id
+                )
         else:
             log.info(f"No new activities to sync for user {user_id}.")
 
@@ -331,7 +333,9 @@ def run_etl(user_id=None):
             except Exception:
                 pass
 
-        upload_to_bq(pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id)
+        upload_to_bq(
+            pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id
+        )
 
     # --- 5. User Profile ---
     try:
@@ -386,7 +390,7 @@ def run_etl(user_id=None):
                 df_body = df_body.dropna(subset=["date"])
 
                 # Auto-calculate BMI if missing
-                profile = provider.get_user_profile() # Use provider here
+                profile = provider.get_user_profile()  # Use provider here
                 if profile and profile.height_cm:
                     height_m = profile.height_cm / 100.0
                     df_body["bmi"] = df_body.apply(

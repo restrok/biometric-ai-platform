@@ -70,9 +70,9 @@ async def lifespan(app: FastAPI):
 
     # Start the background task
     refresh_task = asyncio.create_task(refresh_loop())
-    
+
     yield
-    
+
     # Clean up on shutdown
     refresh_task.cancel()
     with suppress(asyncio.CancelledError):
