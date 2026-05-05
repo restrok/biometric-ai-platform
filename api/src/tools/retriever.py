@@ -45,6 +45,7 @@ class RetrieverInput(BaseModel):
     activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
     start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
     end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
+    user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
 
 
 @tool(args_schema=RetrieverInput)
@@ -56,6 +57,7 @@ def retrieve_biometric_data(
     activity_type: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    user_id: str | None = None,
 ) -> dict:
     """
     Retrieves the user's latest biometric context from BigQuery in parallel.
@@ -77,11 +79,16 @@ def retrieve_biometric_data(
     context = {}
     top_3_ids = []
 
+    # Common WHERE clause helper for user_id
+    user_where = f"WHERE user_id = '{user_id}'" if user_id else ""
+
     def fetch_activities():
         nonlocal top_3_ids
         try:
             t0 = time.time()
             where_clauses = []
+            if user_id:
+                where_clauses.append(f"user_id = '{user_id}'")
             if activity_type:
                 where_clauses.append(f"type = '{activity_type}'")
 
@@ -124,10 +131,14 @@ def retrieve_biometric_data(
         try:
             t0 = time.time()
             # Filter for records that actually have a status or load
+            where_status = "WHERE (status IS NOT NULL OR acute_load IS NOT NULL)"
+            if user_id:
+                where_status += f" AND user_id = '{user_id}'"
+
             query_status = f"""
                 SELECT status, acute_load, chronic_load, vo2max 
                 FROM `{project_id}.{dataset}.training_status` 
-                WHERE status IS NOT NULL OR acute_load IS NOT NULL
+                {where_status}
                 ORDER BY date DESC LIMIT 1
             """
             status_rows = list(client.query(query_status).result())
@@ -140,10 +151,14 @@ def retrieve_biometric_data(
         try:
             t0 = time.time()
             # Filter for records that actually have a duration or quality
+            where_sleep = "WHERE (duration_sec IS NOT NULL OR quality IS NOT NULL)"
+            if user_id:
+                where_sleep += f" AND user_id = '{user_id}'"
+
             query_sleep = f"""
                 SELECT date, duration_sec, quality 
                 FROM `{project_id}.{dataset}.sleep_history` 
-                WHERE duration_sec IS NOT NULL OR quality IS NOT NULL
+                {where_sleep}
                 ORDER BY date DESC LIMIT 1
             """
             sleep_rows = list(client.query(query_sleep).result())
@@ -158,6 +173,7 @@ def retrieve_biometric_data(
             query_hrv = f"""
                 SELECT date, avg_hrv, min_hrv, max_hrv
                 FROM `{project_id}.{dataset}.hrv_history` 
+                {user_where}
                 ORDER BY date DESC LIMIT 7
             """
             hrv_rows = [dict(row) for row in client.query(query_hrv).result()]
@@ -169,7 +185,7 @@ def retrieve_biometric_data(
     def fetch_user_profile():
         try:
             t0 = time.time()
-            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max FROM `{project_id}.{dataset}.user_profile` LIMIT 1"
+            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max FROM `{project_id}.{dataset}.user_profile` {user_where} LIMIT 1"
             profile_rows = list(client.query(query_profile).result())
             log.info(f"⏱️ BigQuery: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", (dict(profile_rows[0]) if profile_rows else None)
@@ -179,7 +195,7 @@ def retrieve_biometric_data(
     def fetch_body_composition():
         try:
             t0 = time.time()
-            query_body = f"SELECT date, weight_kg, bmi, fat_percentage, muscle_mass_kg FROM `{project_id}.{dataset}.body_composition` ORDER BY date DESC LIMIT 1"
+            query_body = f"SELECT date, weight_kg, bmi, fat_percentage, muscle_mass_kg FROM `{project_id}.{dataset}.body_composition` {user_where} ORDER BY date DESC LIMIT 1"
             body_rows = list(client.query(query_body).result())
             log.info(f"⏱️ BigQuery: Body composition retrieved in {time.time() - t0:.2f}s")
             return "latest_body_composition", (dict(body_rows[0]) if body_rows else None)
@@ -189,7 +205,7 @@ def retrieve_biometric_data(
     def fetch_health_status():
         try:
             t0 = time.time()
-            query_health = f"SELECT date, feeling, notes, fatigue_level, injury_notes FROM `{project_id}.{dataset}.user_health_status` ORDER BY date DESC LIMIT 1"
+            query_health = f"SELECT date, feeling, notes, fatigue_level, injury_notes FROM `{project_id}.{dataset}.user_health_status` {user_where} ORDER BY date DESC LIMIT 1"
             health_rows = list(client.query(query_health).result())
             log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
             return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
@@ -201,10 +217,14 @@ def retrieve_biometric_data(
             t0 = time.time()
             # Fetch workouts from today onwards
             today = date.today().isoformat()
+            where_sched = f"WHERE date >= '{today}'"
+            if user_id:
+                where_sched += f" AND user_id = '{user_id}'"
+
             query_sched = f"""
                 SELECT title, date, sport_type, duration_sec, distance_m 
                 FROM `{project_id}.{dataset}.scheduled_workouts` 
-                WHERE date >= '{today}'
+                {where_sched}
                 ORDER BY date ASC 
                 LIMIT 5
             """
@@ -221,6 +241,10 @@ def retrieve_biometric_data(
         try:
             t0 = time.time()
             ids_str = ", ".join([f"'{i}'" for i in activity_ids])
+            where_tel = f"WHERE activity_id IN ({ids_str}) AND MOD(timestamp_ms, 60000) < 2000"
+            if user_id:
+                where_tel += f" AND user_id = '{user_id}'"
+
             query_tel_series = f"""
             SELECT 
                 activity_id, 
@@ -233,8 +257,7 @@ def retrieve_biometric_data(
                 ground_contact_time_ms,
                 temperature_c
             FROM `{project_id}.{dataset}.latest_activity_telemetry`
-            WHERE activity_id IN ({ids_str})
-              AND MOD(timestamp_ms, 60000) < 2000 
+            {where_tel}
             ORDER BY activity_id, timestamp_ms ASC
             """
             rows = list(client.query(query_tel_series).result())

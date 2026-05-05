@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     usage_stats: dict  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
     loop_count: int  # Prevent infinite self-healing
+    user_id: str | None
 
 
 class IntentClassifier(BaseModel):
@@ -138,14 +139,13 @@ def node_router(state: AgentState) -> dict:
 def node_retrieve_context(state: AgentState) -> dict:
     """Retrieves data based on the classified intent."""
     intent = state.get("intent", "full")
+    user_id = state.get("user_id")
 
     if intent == "none":
         return {"biometric_context": {"info": "No user data retrieved for this query type."}}
 
-    # If profile_only, we'd ideally have a tool that only gets the profile.
-    # For now, we'll use a hack or just pass a flag if our tool supports it.
-    # Since our retriever is already fast (~3s), we'll keep it simple but skip if 'none'.
-    context = retrieve_biometric_data.invoke({})
+    # Pass the user_id to the retriever tool
+    context = retrieve_biometric_data.invoke({"user_id": user_id})
     return {"biometric_context": context}
 
 

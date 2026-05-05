@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any, Literal, cast
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -164,7 +164,7 @@ async def update_zones(zones: ZoneUpdate):
 
 
 @app.post("/v1/chat/completions", tags=["AI Agent"])
-async def openai_chat_completion(req: OpenAICompletionRequest):
+async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None)):
     """
     OpenAI-compatible endpoint for the Biometric Coach.
     Supports both streaming and non-streaming modes.
@@ -173,13 +173,12 @@ async def openai_chat_completion(req: OpenAICompletionRequest):
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
 
     # We take the last user message as the primary query
-    # In a multi-turn scenario, LangGraph handles the message history
     user_messages = [m for m in req.messages if m.role == "user"]
     if not user_messages:
         raise HTTPException(status_code=400, detail="No user message provided.")
 
     last_query = user_messages[-1].content
-    initial_state = {"messages": [HumanMessage(content=last_query)]}
+    initial_state = {"messages": [HumanMessage(content=last_query)], "user_id": x_user_id}
 
     # 1. Handle Streaming Mode
     if req.stream:
