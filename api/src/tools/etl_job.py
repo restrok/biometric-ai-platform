@@ -12,7 +12,7 @@ import pandas as pd
 from garmin_training_toolkit_sdk.extractors import (
     get_training_status,
 )
-from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition, get_user_profile
+from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition
 
 from src.utils.config import setup_environment
 

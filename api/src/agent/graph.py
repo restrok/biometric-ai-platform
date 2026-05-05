@@ -133,6 +133,7 @@ def node_router(state: AgentState) -> dict:
     except Exception:
         intent = "full"  # Fallback to safe default
 
+    log.info(f"🔍 Intent Classified: {intent.upper()}")
     return {"intent": intent, "loop_count": 0}
 
 

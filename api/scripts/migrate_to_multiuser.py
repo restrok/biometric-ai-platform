@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
@@ -42,9 +43,9 @@ def migrate():
                 new_schema.append(bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"))
                 table.schema = new_schema
                 client.update_table(table, ["schema"])
-                print(f"  ✅ Column added.")
+                print("  ✅ Column added.")
             else:
-                print(f"  'user_id' column already exists.")
+                print("  'user_id' column already exists.")
 
             # 2. Backfill existing rows with the default user ID
             print(f"  Backfilling existing rows with user_id='{DEFAULT_USER_ID}'...")
@@ -55,7 +56,7 @@ def migrate():
             """
             query_job = client.query(update_query)
             query_job.result()
-            print(f"  ✅ Backfill complete.")
+            print("  ✅ Backfill complete.")
             
         except Exception as e:
             print(f"  ❌ Error migrating {table_name}: {e}")

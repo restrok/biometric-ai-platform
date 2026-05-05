@@ -23,6 +23,9 @@ file_handler.setFormatter(log_formatter)
 
 # Root configuration
 root_logger = logging.getLogger()
+for h in root_logger.handlers[:]:
+    root_logger.removeHandler(h)
+
 root_logger.setLevel(logging.INFO)
 root_logger.addHandler(stream_handler)
 root_logger.addHandler(file_handler)
@@ -169,6 +172,8 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
     OpenAI-compatible endpoint for the Biometric Coach.
     Supports both streaming and non-streaming modes.
     """
+    log.info(f"📩 Incoming chat completion request for user: {x_user_id or 'anonymous'}")
+
     if not os.getenv("GOOGLE_API_KEY"):
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
 

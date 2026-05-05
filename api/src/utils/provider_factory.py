@@ -9,7 +9,7 @@ from src.utils.config import get_secret
 
 log = logging.getLogger(__name__)
 
-_providers = {}
+_providers: dict[str, GarminProvider] = {}
 
 
 def get_provider(user_id: str | None = None):
