@@ -19,7 +19,6 @@ from src.utils.config import setup_environment
 # Initialize environment
 setup_environment()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 log = logging.getLogger(__name__)
 
 # Config
@@ -31,31 +30,32 @@ if not PROJECT_ID or not BUCKET_NAME:
     raise ValueError("GOOGLE_CLOUD_PROJECT and DATALAKE_BUCKET environment variables must be set.")
 
 
-def get_last_sync_date(table_name):
+def get_last_sync_date(table_name, user_id=None):
     """Queries BigQuery to find the latest date we have stored."""
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
     try:
-        query = f"SELECT MAX(date) as last_date FROM `{table_id}`"
+        where_clause = f"WHERE user_id = '{user_id}'" if user_id else ""
+        query = f"SELECT MAX(date) as last_date FROM `{table_id}` {where_clause}"
         results = client.query(query).result()
         row = next(results)
         if row.last_date:
             return pd.to_datetime(row.last_date)
     except Exception:
-        log.info(f"Table {table_name} not found or empty. Starting from scratch.")
+        log.info(f"Table {table_name} not found or empty (user: {user_id}). Starting from scratch.")
     return None
 
 
-def upsert_to_bq(df, table_name, unique_key="date"):
+def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
     """
     Performs an atomic UPSERT in BigQuery.
-    1. Uploads data to a temporary staging table.
-    2. Merges staging table into the final table.
-    3. Drops the staging table.
-    This ensures no data is lost if the process fails mid-way.
     """
     if df.empty:
         return
+
+    # Add user_id to the dataframe before uploading
+    if user_id:
+        df["user_id"] = user_id
 
     client = bigquery.Client(project=PROJECT_ID)
     target_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
@@ -67,17 +67,20 @@ def upsert_to_bq(df, table_name, unique_key="date"):
     client.load_table_from_dataframe(df, staging_table_id, job_config=job_config).result()
 
     # 2. Perform MERGE
-    # We build the update clause dynamically excluding the unique key
-    # Use backticks for column names to avoid reserved keywords like 'end'
     cols = [field.name for field in client.get_table(staging_table_id).schema]
-    update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c != unique_key])
+    update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]])
     insert_cols = ", ".join([f"`{c}`" for c in cols])
     insert_values = ", ".join([f"S.`{c}`" for c in cols])
+
+    # Merge condition must include user_id if present
+    on_clause = f"T.`{unique_key}` = S.`{unique_key}`"
+    if user_id:
+        on_clause += " AND T.`user_id` = S.`user_id`"
 
     merge_query = f"""
         MERGE `{target_table_id}` T
         USING `{staging_table_id}` S
-        ON T.`{unique_key}` = S.`{unique_key}`
+        ON {on_clause}
         WHEN MATCHED THEN
             UPDATE SET {update_set}
         WHEN NOT MATCHED THEN
@@ -86,16 +89,20 @@ def upsert_to_bq(df, table_name, unique_key="date"):
 
     try:
         client.query(merge_query).result()
-        log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}'.")
+        log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}' (user: {user_id}).")
     finally:
         # 3. Clean up staging table
         client.delete_table(staging_table_id, not_found_ok=True)
 
 
-def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND"):
+def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND", user_id=None):
     """Uploads data to a NATIVE BigQuery table."""
     if df.empty:
         return
+
+    # Add user_id to the dataframe before uploading
+    if user_id:
+        df["user_id"] = user_id
 
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
@@ -116,20 +123,22 @@ def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND"):
         gcs_client = storage.Client(project=PROJECT_ID)
         bucket = gcs_client.bucket(BUCKET_NAME)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        blob_path = f"archive/{folder_name}/{table_name}_{timestamp}.parquet"
+        suffix = f"_{user_id}" if user_id else ""
+        blob_path = f"archive/{folder_name}/{table_name}{suffix}_{timestamp}.parquet"
         bucket.blob(blob_path).upload_from_filename(str(local_path))
     except Exception as e:
         log.warning(f"GCS archival failed (but BQ load succeeded): {e}")
 
-    log.info(f"Synced {len(df)} rows to {table_id} ({mode}).")
+    log.info(f"Synced {len(df)} rows to {table_id} ({mode}) (user: {user_id}).")
 
 
-def get_current_user_metrics():
+def get_current_user_metrics(user_id=None):
     """Queries BigQuery to find the current max_hr and resting_hr."""
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.user_profile"
     try:
-        query = f"SELECT max_hr, resting_hr FROM `{table_id}` LIMIT 1"
+        where_clause = f"WHERE user_id = '{user_id}'" if user_id else ""
+        query = f"SELECT max_hr, resting_hr FROM `{table_id}` {where_clause} LIMIT 1"
         results = client.query(query).result()
         row = next(results)
         return row.max_hr, row.resting_hr
@@ -434,8 +443,6 @@ def run_etl(user_id=None):
         log.warning(f"Scheduled Workouts sync failed: {e}")
 
     log.info(f"Incremental Sync Complete for user {user_id}!")
-
-    log.info("Incremental Sync Complete!")
 
 
 if __name__ == "__main__":
