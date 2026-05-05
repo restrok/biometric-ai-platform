@@ -26,6 +26,7 @@ The platform is designed as an **Agentic RAG** system, decoupled into several sp
 ### 3. Reasoning Layer (Agent Skills)
 The platform's intelligence is modularized into **Skills**.
 *   **`biometric-coach` Skill**: A portable set of instructions (`SKILL.md`) that transforms any agentic framework into an Exercise Physiologist.
+*   **Multi-Tenancy Support**: The reasoning layer is user-aware. It extracts `user_id` from the `AgentState` (populated via the `X-User-ID` request header) to isolate data retrieval and device synchronization.
 *   **Ethical & Precision Protocol**: Mandatory rules for separating data facts from physiological interpretation and avoiding overconfidence.
 *   **State Graph Nodes (`api/src/agent/graph.py`):**
     - `retriever`: Fetches 7 context domains (Activities, Sleep, HRV, Scheduled Workouts, etc.) from BigQuery in parallel.
@@ -75,8 +76,8 @@ result = await graph.ainvoke(initial_state)
 ### Environment & Tools
 - **Python (Runtime):** ALWAYS use `uv run` for script execution or troubleshooting within the `api/` directory. This ensures all dependencies (pandas, pydantic, etc.) are correctly loaded from the virtual environment.
 - **Tool Execution:** Internal tools should be invoked via `uv run scripts/manage_tools.py call <tool_name> '<args>'`.
-- **BigQuery:** This is the primary source of truth for all historical biometric context.
-- **Garmin Tokens:** Persisted at `~/.garminconnect/garmin_tokens.json`.
+- **BigQuery:** This is the primary source of truth for all historical biometric context. Tables are partitioned by a `user_id` column.
+- **Garmin Tokens:** Persisted at `~/.garminconnect/garmin_tokens_<user_id>.json`.
 - **Model Discovery:** To check available models and their exact API identifiers (especially when using free-tier keys), use the following command:
   ```bash
   curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_API_KEY"

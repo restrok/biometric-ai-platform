@@ -81,6 +81,7 @@ def create_profile_tables():
         bigquery.SchemaField("notes", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("fatigue_level", "INTEGER", mode="NULLABLE"),  # 1-10 scale
         bigquery.SchemaField("injury_notes", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
     ]
 
@@ -89,6 +90,23 @@ def create_profile_tables():
 
     client.create_table(health_table, exists_ok=True)
     print(f"✅ Table {health_table_id} ready.")
+
+    # 5. User Goals Table (Race targets, time objectives, etc.)
+    goals_table_id = f"{PROJECT_ID}.{DATASET_ID}.user_goals"
+    goals_schema = [
+        bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("target_date", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("goal_type", "STRING", mode="REQUIRED"),  # 'race', 'volume', 'weight', etc.
+        bigquery.SchemaField("target_value", "STRING", mode="REQUIRED"),  # '50:00', '100km', etc.
+        bigquery.SchemaField("description", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("status", "STRING", mode="REQUIRED"),  # 'active', 'completed', 'abandoned'
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
+    ]
+
+    goals_table = bigquery.Table(goals_table_id, schema=goals_schema)
+    client.create_table(goals_table, exists_ok=True)
+    print(f"✅ Table {goals_table_id} ready.")
 
 
 if __name__ == "__main__":

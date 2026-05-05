@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any, Literal, cast
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -23,6 +23,9 @@ file_handler.setFormatter(log_formatter)
 
 # Root configuration
 root_logger = logging.getLogger()
+for h in root_logger.handlers[:]:
+    root_logger.removeHandler(h)
+
 root_logger.setLevel(logging.INFO)
 root_logger.addHandler(stream_handler)
 root_logger.addHandler(file_handler)
@@ -32,15 +35,55 @@ log = logging.getLogger("api")
 # Load environment and handle API keys
 setup_environment()
 
+from contextlib import asynccontextmanager, suppress
+
 from langchain_core.messages import HumanMessage
 
 from src.agent.graph import graph
 from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
+from src.utils.garmin_auth import refresh_garmin_tokens
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Handles application startup and shutdown events.
+    """
+    import asyncio
+
+    async def refresh_loop():
+        while True:
+            # Wait for 1 hour between refreshes
+            await asyncio.sleep(3600)
+            try:
+                log.info("🕒 Starting scheduled Garmin token refresh...")
+                loop = asyncio.get_event_loop()
+                success = await loop.run_in_executor(None, refresh_garmin_tokens)
+                if success:
+                    log.info("✅ Scheduled Garmin token refresh successful.")
+                else:
+                    log.warning("⚠️ Scheduled Garmin token refresh failed.")
+            except Exception as e:
+                log.error(f"❌ Error in scheduled token refresh: {e}")
+
+    # Start the background task
+    refresh_task = asyncio.create_task(refresh_loop())
+
+    yield
+
+    # Clean up on shutdown
+    refresh_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await refresh_task
+
 
 app = FastAPI(
-    title="Biometric AI Platform API", description="Agentic RAG Backend for Biometric Data Analysis", version="0.1.0"
+    title="Biometric AI Platform API",
+    description="Agentic RAG Backend for Biometric Data Analysis",
+    version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.include_router(tools.router)
@@ -124,22 +167,23 @@ async def update_zones(zones: ZoneUpdate):
 
 
 @app.post("/v1/chat/completions", tags=["AI Agent"])
-async def openai_chat_completion(req: OpenAICompletionRequest):
+async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None)):
     """
     OpenAI-compatible endpoint for the Biometric Coach.
     Supports both streaming and non-streaming modes.
     """
+    log.info(f"📩 Incoming chat completion request for user: {x_user_id or 'anonymous'}")
+
     if not os.getenv("GOOGLE_API_KEY"):
         raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
 
     # We take the last user message as the primary query
-    # In a multi-turn scenario, LangGraph handles the message history
     user_messages = [m for m in req.messages if m.role == "user"]
     if not user_messages:
         raise HTTPException(status_code=400, detail="No user message provided.")
 
     last_query = user_messages[-1].content
-    initial_state = {"messages": [HumanMessage(content=last_query)]}
+    initial_state = {"messages": [HumanMessage(content=last_query)], "user_id": x_user_id}
 
     # 1. Handle Streaming Mode
     if req.stream:

@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     usage_stats: dict  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
     loop_count: int  # Prevent infinite self-healing
+    user_id: str | None
 
 
 class IntentClassifier(BaseModel):
@@ -110,14 +111,17 @@ When using `upload_training_plan`, follow these rules exactly to avoid validatio
 
 def node_router(state: AgentState) -> dict:
     """Classifies user intent to decide which data to fetch."""
-    # Use Gemma 4 26B for the router to save primary model quota (Higher RPD/RPM)
-    model = ChatGoogleGenerativeAI(model="gemma-4-26b-a4b-it", temperature=0)
+    # Using the more stable 31B model for routing due to 500 errors on 26B
+    model_name = "gemma-4-31b-it"
+    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
     # We only look at the last message for intent
     last_msg = state["messages"][-1].content
 
+    log.info(f"🧠 Classifying intent for: {last_msg[:50]}...")
+
     # Use structured output for fast, reliable routing
-    structured_llm = model.with_structured_output(IntentClassifier)
     try:
+        structured_llm = model.with_structured_output(IntentClassifier)
         # Note: In a real app, you'd handle the case where content is a list of blocks
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
         classification = structured_llm.invoke(
@@ -129,23 +133,24 @@ def node_router(state: AgentState) -> dict:
             intent = classification.get("intent", "full")
         else:
             intent = "full"
-    except Exception:
+    except Exception as e:
+        log.warning(f"⚠️ Intent classification failed ({e}). Falling back to 'full' data retrieval.")
         intent = "full"  # Fallback to safe default
 
+    log.info(f"🔍 Intent Classified: {intent.upper()}")
     return {"intent": intent, "loop_count": 0}
 
 
 def node_retrieve_context(state: AgentState) -> dict:
     """Retrieves data based on the classified intent."""
     intent = state.get("intent", "full")
+    user_id = state.get("user_id")
 
     if intent == "none":
         return {"biometric_context": {"info": "No user data retrieved for this query type."}}
 
-    # If profile_only, we'd ideally have a tool that only gets the profile.
-    # For now, we'll use a hack or just pass a flag if our tool supports it.
-    # Since our retriever is already fast (~3s), we'll keep it simple but skip if 'none'.
-    context = retrieve_biometric_data.invoke({})
+    # Pass the user_id to the retriever tool
+    context = retrieve_biometric_data.invoke({"user_id": user_id})
     return {"biometric_context": context}
 
 
@@ -159,8 +164,8 @@ def node_analyze(state: AgentState) -> dict:
     """Calls the LLM to generate the training plan/response."""
     t0 = time.time()
     model_name = "gemma-4-31b-it"
-    # Disable AFC (enable_auto_call=False) to let LangGraph's should_continue manage the tool loop
-    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, enable_auto_call=False)
+    # Disable AFC via model_kwargs to let LangGraph's should_continue manage the tool loop
+    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False})
 
     # Bind tools to the LLM (ensure all tools are available)
     tools = [
@@ -226,20 +231,48 @@ def node_analyze(state: AgentState) -> dict:
     return {"messages": [response], "usage_stats": usage, "loop_count": state.get("loop_count", 0) + 1}
 
 
-# Define Tool Node
-tool_node = ToolNode(
-    [
-        upload_training_plan,
-        clear_calendar,
-        remove_workout,
-        search_exercise_science,
-        update_user_zones,
-        sync_biometric_data,
-        analyze_activity_efficiency,
-        analyze_activity_stages,
-        retrieve_biometric_data,
-    ]
-)
+# Define Custom Tool Node to inject user_id
+def tool_node(state: AgentState):
+    """
+    Executes tool calls and automatically injects user_id from state
+    to ensure data isolation.
+    """
+
+    messages = state["messages"]
+    last_message = messages[-1]
+    user_id = state.get("user_id")
+
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        # Create a new list of tool calls to ensure mutations are preserved
+        new_tool_calls = []
+        for tc in last_message.tool_calls:
+            new_tc = tc.copy()
+            # We don't know for sure if the tool expects user_id without inspecting schemas,
+            # but our multi-user tools all support it.
+            # If the tool doesn't expect it, it will just be ignored by the function.
+            if "user_id" not in new_tc["args"] or new_tc["args"]["user_id"] is None:
+                new_tc["args"]["user_id"] = user_id
+                log.info(f"💉 Injected user_id '{user_id}' into tool '{new_tc['name']}'")
+            new_tool_calls.append(new_tc)
+
+        # Replace the tool_calls on the message
+        last_message.tool_calls = new_tool_calls
+
+    # Now execute using the updated state/message
+    tn = ToolNode(
+        [
+            upload_training_plan,
+            clear_calendar,
+            remove_workout,
+            search_exercise_science,
+            update_user_zones,
+            sync_biometric_data,
+            analyze_activity_efficiency,
+            analyze_activity_stages,
+            retrieve_biometric_data,
+        ]
+    )
+    return tn.invoke(state)
 
 
 def should_continue(state: AgentState):

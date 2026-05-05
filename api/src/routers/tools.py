@@ -1,7 +1,7 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 # Import tools
@@ -11,6 +11,7 @@ from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_tra
 from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
+from src.utils.garmin_auth import refresh_garmin_tokens
 
 log = logging.getLogger(__name__)
 
@@ -156,10 +157,10 @@ async def api_update_zones(req: ZoneUpdate):
 
 
 @router.post("/biometric/sync")
-async def api_sync_biometric():
+async def api_sync_biometric(x_user_id: str | None = Header(None)):
     """Triggers an incremental synchronization of biometric data from the provider to BigQuery."""
     try:
-        result = sync_biometric_data.invoke({})
+        result = sync_biometric_data.invoke({"user_id": x_user_id})
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -201,5 +202,17 @@ async def api_retrieve_biometric(req: RetrieverInput):
     try:
         result = retrieve_biometric_data.invoke(req.model_dump())
         return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/session/refresh")
+async def api_refresh_session():
+    """Rotates the Garmin tokens automatically and updates Secret Manager."""
+    try:
+        success = refresh_garmin_tokens()
+        if success:
+            return {"status": "success", "message": "Garmin tokens refreshed successfully."}
+        raise HTTPException(status_code=500, detail="Failed to refresh Garmin tokens.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -84,9 +84,10 @@ sudo .venv/bin/python3 -m playwright install-deps
 
 Then run the authentication script:
 ```bash
+# Authenticate a specific user
 uv run python -m garmin_training_toolkit_sdk.auth
 ```
-*Note: This will save tokens to `~/.garminconnect/garmin_tokens.json`.*
+*Note: For multi-user setups, rename the resulting token file to `garmin_tokens_<user_id>.json` in your `.garminconnect/` folder.*
 
 ### 2. Run the Incremental ETL
 Fetch your latest activities and telemetry:
@@ -96,7 +97,7 @@ cd api
 PYTHONPATH=src uv run python src/tools/etl_job.py
 
 # Option B: API endpoint
-curl -X 'POST' 'http://localhost:8000/sync'
+curl -X 'POST' 'http://localhost:8000/sync' -H 'X-User-ID: your_id'
 ```
 
 ---
@@ -110,21 +111,26 @@ uv run python main.py
 ```
 
 ### 2. Interact with the Agent
-The API now supports both **Agentic Chat** and **Deterministic Actions**:
+The API supports **Multi-User Context Isolation** via the `X-User-ID` header:
 
-*   **Chat (Agentic RAG):** `POST /chat`
+*   **Chat (Agentic RAG):** `POST /v1/chat/completions`
     ```bash
     curl -X 'POST' \
-      'http://localhost:8000/chat' \
+      'http://localhost:8000/v1/chat/completions' \
       -H 'Content-Type: application/json' \
-      -d '{"message": "Sync my data and analyze my last run efficiency."}'
+      -H 'X-User-ID: fsirio' \
+      -d '{
+        "model": "biometric-coach",
+        "messages": [{"role": "user", "content": "Analyze my last run efficiency."}]
+      }'
     ```
-*   **Manual Sync:** `POST /sync`
-*   **Profile Management:** `POST /profile/zones`
+*   **Manual Sync:** `POST /api/v1/tools/biometric/sync`
+*   **Profile Management:** `POST /api/v1/tools/zones/update`
     ```bash
     curl -X 'POST' \
-      'http://localhost:8000/profile/zones' \
+      'http://localhost:8000/api/v1/tools/zones/update' \
       -H 'Content-Type: application/json' \
+      -H 'X-User-ID: fsirio' \
       -d '{"z1_max": 143, "z2_max": 165, "z3_max": 176, "z4_max": 186}'
     ```
 
@@ -136,3 +142,21 @@ Run the evaluation and integration tests:
 cd api
 uv run pytest tests/
 ```
+
+---
+
+## 🏗️ Running with Docker
+
+For production-like environments or home servers (e.g., Raspberry Pi), you can run the platform using Docker Compose.
+
+### 1. Build and Start
+```bash
+docker-compose up -d --build
+```
+
+### 2. Monitoring Logs
+```bash
+docker-compose logs -f api
+```
+
+The container automatically manages the **hourly Garmin token refresh loop**, ensuring your connection stays alive 24/7.

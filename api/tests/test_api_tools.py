@@ -60,3 +60,20 @@ def test_upload_plan_endpoint(mock_tool):
     response = client.post("/api/v1/tools/training_plan/upload", json=payload)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
+
+
+@patch("src.routers.tools.refresh_garmin_tokens")
+def test_session_refresh_endpoint(mock_refresh):
+    mock_refresh.return_value = True
+    response = client.post("/api/v1/tools/session/refresh")
+    assert response.status_code == 200
+    assert response.json() == {"status": "success", "message": "Garmin tokens refreshed successfully."}
+    mock_refresh.assert_called_once()
+
+
+@patch("src.routers.tools.refresh_garmin_tokens")
+def test_session_refresh_endpoint_failure(mock_refresh):
+    mock_refresh.return_value = False
+    response = client.post("/api/v1/tools/session/refresh")
+    assert response.status_code == 500
+    assert "Failed to refresh" in response.json()["detail"]

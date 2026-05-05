@@ -12,10 +12,11 @@ log = logging.getLogger(__name__)
 
 class ActivityID(BaseModel):
     activity_id: str = Field(..., description="The unique ID of the activity to analyze.")
+    user_id: str | None = Field(None, description="The ID of the user.")
 
 
 @tool(args_schema=ActivityID)
-def analyze_activity_efficiency(activity_id: str):
+def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
     """
     Performs high-precision physiological analysis in BigQuery.
     Calculates Aerobic Decoupling, Form Efficiency, and Metabolic Cost (HR per Step).
@@ -24,6 +25,8 @@ def analyze_activity_efficiency(activity_id: str):
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
+
+    user_where = f"AND user_id = '{user_id}'" if user_id else ""
 
     query = f"""
     WITH telemetry_stats AS (
@@ -37,6 +40,7 @@ def analyze_activity_efficiency(activity_id: str):
             PERCENT_RANK() OVER(ORDER BY timestamp_ms) as progress
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
         WHERE activity_id = '{activity_id}'
+        {user_where}
         AND hr_bpm > 0
     ),
     halves AS (
@@ -111,7 +115,7 @@ def analyze_activity_efficiency(activity_id: str):
 
 
 @tool(args_schema=ActivityID)
-def analyze_activity_stages(activity_id: str):
+def analyze_activity_stages(activity_id: str, user_id: str | None = None):
     """
     Analyzes telemetry to split an activity into physiological stages (Intervals/Work vs. Rest).
     Returns granular stats for each stage: HR, Power, Cadence, GCT, and HR per Step.
@@ -119,6 +123,8 @@ def analyze_activity_stages(activity_id: str):
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
+
+    user_where = f"AND user_id = '{user_id}'" if user_id else ""
 
     query = f"""
         SELECT 
@@ -132,6 +138,7 @@ def analyze_activity_stages(activity_id: str):
             temperature_c
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` 
         WHERE activity_id = '{activity_id}' 
+        {user_where}
         ORDER BY timestamp_ms ASC
     """
 

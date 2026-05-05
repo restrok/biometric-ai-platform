@@ -1,0 +1,31 @@
+# 🏃‍♂️ Biometric AI Platform - Docker Compose Example
+# Use this as a template to deploy the platform in your own environment.
+# Copy this to 'docker-compose.yml' and adjust paths as needed.
+
+services:
+  api:
+    container_name: biometric-coach-api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount your environment variables
+      - ./api/.env:/app/.env
+      
+      # Mount your Garmin tokens to persist session across restarts.
+      # Create this file before starting the container: touch garmin_tokens.json
+      - ./garmin_tokens.json:/root/.garminconnect/garmin_tokens.json
+      
+      # Optional: Mount logs to the host
+      - ./api/api.log:/app/api.log
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+# Example of using an external network (uncomment if needed)
+# networks:
+#   default:
+#     external:
+#       name: your-external-network

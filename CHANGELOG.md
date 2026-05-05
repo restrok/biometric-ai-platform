@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-05-05
+### Added
+- **Universal Goals Feature**: New `user_goals` table in BigQuery and `manage_goals` tool to persist long-term user objectives.
+- **Robust Multi-User Injection**: Automated `user_id` injection in the LangGraph `tool_node` to ensure data isolation without LLM intervention.
+- **Telemetry Optimization**: Implemented Dynamic Effort Segmentation in BigQuery to reduce LLM token usage by 60-80% while preserving precision.
+- **Multi-User Identity Enforcement**: Updated all analysis, health, and uploader tools to strictly filter and operate by `user_id`.
+
+### Fixed
+- **API Stability**: Switched Intent Classifier to Gemma 31B and added fallback to 'full' intent to resolve 500 errors on the 26B model.
+- **Data Integrity**: Completed backfill of `user_id` for all historical BigQuery data to prevent cross-user data leakage.
+- **Logging**: Silenced recurring `enable_auto_call` warnings by refactoring LLM configuration to match the updated LangChain interface.
+
 ## [Unreleased] - 2026-05-04
 
 ### Added

@@ -83,9 +83,11 @@ We don't just look at your average heart rate. The platform analyzes your **Grou
 
 ---
 
-## 🚀 Key Features
+### 🚀 Key Features
 
+* **Multi-User Architecture:** Support for multiple athletes on a single deployment. The API uses `X-User-ID` context isolation for data retrieval and Garmin authentication.
 * **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin (and future brands) without altering the core agent logic.
+
 * **Persistent Bio-Profiles:** The agent autonomously discovers physiological thresholds (like your Aerobic Threshold) and updates your BigQuery profile automatically.
 * **Automated Calendar Management:** The AI can build complex interval sessions (e.g., 10x400m) and sync them directly to your device.
 * **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.
@@ -98,6 +100,28 @@ Want to look under the hood or set this up for yourself? We have you covered:
 
 - [🚀 Getting Started (Setup & Installation)](docs/getting-started.md)
 - [🛠️ Developer Guide (Architecture & Workflows)](docs/developer-guide.md)
+- [🏗️ Docker Deployment](#-docker-deployment)
+
+---
+
+## 🏗️ Docker Deployment
+
+The platform is fully containerized for easy deployment on home servers or Raspberry Pis.
+
+### Prerequisites
+- Docker and Docker Compose installed.
+- Your `.env` file configured in `api/`.
+- Your `garmin_tokens.json` initialized (if not using Secret Manager).
+
+### Quick Start
+```bash
+# Start the API and the background token refresh loop
+docker-compose up -d --build
+```
+
+The API will be available at `http://localhost:8000`. The container includes an automatic hourly token refresh loop to ensure your session remains active without manual intervention.
+
+---
 - [📐 Architecture Plan](docs/architecture-plan.md)
 - [🎯 Project Goals](docs/goal.md)
 - [🗺️ Development Roadmap](docs/roadmap.md)
