@@ -93,7 +93,14 @@ When using `upload_training_plan`, follow these rules exactly to avoid validatio
 1. **Step Type:** `type` MUST be one of: `'warmup'`, `'run'`, `'recovery'`, `'cooldown'`, or `'interval'`.
 2. **Duration:** ALWAYS use `duration_mins` (float) for time-based steps.
 3. **Repeats:** Use the `repeat` structure for interval sets (iterations + steps list).
-4. **Targets:** ALWAYS provide a target (e.g., `heart.rate` with `min_bpm` and `max_bpm`).
+4. **Targets (CRITICAL):** 
+   - **Run/Interval Steps:** MUST strictly follow the requested intensity. Use `{"target_type": "heart.rate", "min_bpm": X, "max_bpm": Y}`.
+   - **Warmup/Cooldown Steps:** Generally use NO target (empty `{}`) to allow for natural adaptation. 
+   - **Exception:** If the user explicitly asks to 'avoid alerts' or set a floor/ceiling for the *entire* session, apply a broad, non-restrictive target to the Warmup/Cooldown (e.g., `60-180 bpm`) to satisfy the watch's technical requirements without forcing a pace.
+   - **Example:** If Zone 2 (140-150 bpm) is requested:
+     - Warmup: `target: {}` (or `60-180` if avoiding alerts).
+     - Run: `target: {"target_type": "heart.rate", "min_bpm": 140, "max_bpm": 150}`.
+     - Cooldown: `target: {}`.
 
 - **CRITICAL:** Do NOT just describe the plan in markdown. You MUST call the tool with the structured JSON arguments. 
 - Your primary output should be the tool call if one is needed. ONCE the tool results are available (or if no tool is needed), you MUST provide a comprehensive analysis in text.
@@ -208,6 +215,12 @@ def node_analyze(state: AgentState) -> dict:
     # Format the prompt
     context_str = f"\nUser Biometric Context:\n{current_context}"
     messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
+
+    # DEBUG: Print full prompt sent to LLM
+    log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
+    for i, m in enumerate(messages):
+        log.debug(f"DEBUG: Message {i} ({m.type}): {m.content[:500]}...") # Truncate for log readability if needed
+    log.debug("DEBUG: -------------------------------")
 
     response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
 

@@ -72,6 +72,11 @@ class TrainingPlan(BaseModel):
 def upload_training_plan(workouts: list[Workout], user_id: str | None = None):
     """Uploads a training plan with support for repeats, distances, and typed targets."""
     log.info(f"📤 Uploading {len(workouts)} workouts via Provider (user: {user_id})...")
+    
+    # DEBUG: Print the payload being sent to the SDK
+    import json
+    log.debug(f"DEBUG: Workout payload: {json.dumps([w.model_dump(exclude_none=True) for w in workouts], indent=2)}")
+    
     provider = get_provider(user_id=user_id)
 
     try:

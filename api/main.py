@@ -10,7 +10,13 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import setup_environment
 
+# Load environment and handle API keys (must be before logging setup to get LOG_LEVEL)
+setup_environment()
+
 # Configure logging
+log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_name, logging.INFO)
+
 log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
 
 # Console Handler
@@ -26,14 +32,12 @@ root_logger = logging.getLogger()
 for h in root_logger.handlers[:]:
     root_logger.removeHandler(h)
 
-root_logger.setLevel(logging.INFO)
+root_logger.setLevel(log_level)
 root_logger.addHandler(stream_handler)
 root_logger.addHandler(file_handler)
 
 log = logging.getLogger("api")
-
-# Load environment and handle API keys
-setup_environment()
+log.info(f"🚀 Logging initialized with level: {log_level_name}")
 
 from contextlib import asynccontextmanager, suppress
 
