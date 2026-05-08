@@ -18,6 +18,7 @@
 - [x] **Universal Goals Feature:** Native BigQuery persistence for user objectives (e.g., July 15 Race).
 - [x] **High-Fidelity Telemetry Optimization:** Dynamic Effort Segmentation implemented to reduce token usage by 60-80% while preserving precision.
 - [x] **Multi-User Identity Injection:** Robust background user_id injection for tool calls and data isolation.
+- [x] **Workout Library Management:** Added SDK introspection (`get_workout_templates`) and intelligent pruning tools (`prune_unused_workouts`) to automatically prevent device memory limits.
 - [ ] **Comprehensive E2E Testing** [SEVERITY: CRITICAL]: Validate full flows (ingestion -> plan) across edge cases to prevent regressions.
 - [ ] **Performance Tuning** [SEVERITY: MEDIUM]: Optimize BigQuery query patterns and LangGraph execution latency.
 

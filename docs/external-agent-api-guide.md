@@ -101,7 +101,20 @@ If you need direct, non-agentic access to the data, use the specialized tool end
 }
 ```
 
-### 6. Streaming Chat (Real-time)
+### 6. Workout Library Management
+**Endpoints:** 
+- `POST /api/v1/tools/workout/list`
+- `POST /api/v1/tools/workout/batch_remove`
+- `POST /api/v1/tools/workout/prune_unused`
+**Payload Example (batch_remove):**
+```json
+{
+  "workout_ids": ["1548790427", "1548790184"]
+}
+```
+**Description:** Tools to list all workout templates, batch delete specific IDs, or automatically prune templates not scheduled in the next 30 days. These operations utilize the official SDK introspection capabilities (`get_workout_templates`).
+
+### 7. Streaming Chat (Real-time)
 **Endpoint:** `POST /chat/stream`
 **Payload:** `{"message": "Analyze my month"}`
 **Description:** Returns a Server-Sent Events (SSE) stream of tokens, tool calls, and tool results. Perfect for providing immediate feedback in UI applications.
