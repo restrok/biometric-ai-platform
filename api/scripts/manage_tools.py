@@ -13,7 +13,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.etl_tool import sync_biometric_data
-from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
+from src.tools.garmin_uploader import (
+    batch_remove_workouts,
+    clear_calendar,
+    list_workouts,
+    prune_unused_workouts,
+    remove_workout,
+    upload_training_plan,
+)
 from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -23,6 +30,9 @@ TOOLS = {
     "clear_calendar": clear_calendar,
     "upload_training_plan": upload_training_plan,
     "remove_workout": remove_workout,
+    "list_workouts": list_workouts,
+    "batch_remove_workouts": batch_remove_workouts,
+    "prune_unused_workouts": prune_unused_workouts,
     "update_user_zones": update_user_zones,
     "log_health_status": log_health_status,
     "manage_goals": manage_goals,

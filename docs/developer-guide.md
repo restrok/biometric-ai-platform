@@ -22,6 +22,7 @@ The platform is designed as an **Agentic RAG** system, decoupled into several sp
     - **`RepeatGroup`**: Enables concise definition of interval sessions (e.g., 10x400m) in a single JSON block.
     - **Strongly Typed Targets**: Uses `HeartRateTarget`, `PaceTarget`, and `PowerTarget` with explicit fields (e.g., `min_bpm`) to remove ambiguity.
     - **Auto-Conversion**: The SDK handles the heavy lifting of converting high-level LLM intent (minutes, meters) into proprietary brand requirements (seconds, m/s).
+*   **Introspection capabilities**: Extends the provider interface with `get_workout_templates()` to allow querying the user's established workout library efficiently.
 
 ### 3. Reasoning Layer (Agent Skills)
 The platform's intelligence is modularized into **Skills**.
@@ -33,6 +34,7 @@ The platform's intelligence is modularized into **Skills**.
     - `analyzer`: Uses **Gemini 2.0 Flash** with the coach skill to reason over the retrieved context.
     *   `tools`: Executes external actions. Standard tools include:
         *   `upload_training_plan`: Schedules tailored workouts on the user's device.
+        *   `list_workouts`, `batch_remove_workouts`, `prune_unused_workouts`: Advanced workout library management leveraging SDK introspection to prevent capacity limits.
         *   `sync_biometric_data`: Triggers the ETL pipeline to refresh BigQuery.
         *   **update_user_zones**: Persists detected physiological thresholds to the user profile.
         *   **search_knowledge_base**: Native BigQuery vector search for exercise science.
