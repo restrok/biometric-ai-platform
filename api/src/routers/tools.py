@@ -7,7 +7,14 @@ from pydantic import BaseModel, Field
 # Import tools
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.etl_tool import sync_biometric_data
-from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
+from src.tools.garmin_uploader import (
+    batch_remove_workouts,
+    clear_calendar,
+    list_workouts,
+    prune_unused_workouts,
+    remove_workout,
+    upload_training_plan,
+)
 from src.tools.profile_manager import update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -96,6 +103,10 @@ class ActivityID(BaseModel):
     activity_id: str = Field(..., description="The unique ID of the activity (e.g., Garmin Activity ID) to analyze.")
 
 
+class BatchWorkoutID(BaseModel):
+    workout_ids: list[str] = Field(..., description="List of internal workout IDs to be removed.")
+
+
 class SearchQuery(BaseModel):
     query: str = Field(
         ..., description="Natural language science question.", examples=["Polarized training 80/20 rule"]
@@ -141,6 +152,38 @@ async def api_remove_workout(req: WorkoutID):
     """Deletes a specific workout using the active provider."""
     try:
         result = remove_workout.invoke(req.model_dump())
+        return {"status": "success", "message": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/workout/list")
+async def api_list_workouts(x_user_id: str | None = Header(None)):
+    """Lists all workouts in the user's Garmin library."""
+    try:
+        result = list_workouts.invoke({"user_id": x_user_id})
+        return {"status": "success", "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/workout/batch_remove")
+async def api_batch_remove_workouts(req: BatchWorkoutID, x_user_id: str | None = Header(None)):
+    """Deletes multiple workout templates in a single batch operation."""
+    try:
+        args = req.model_dump()
+        args["user_id"] = x_user_id
+        result = batch_remove_workouts.invoke(args)
+        return {"status": "success", "message": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/workout/prune_unused")
+async def api_prune_unused_workouts(x_user_id: str | None = Header(None)):
+    """Deletes workout templates that are not currently scheduled in the calendar."""
+    try:
+        result = prune_unused_workouts.invoke({"user_id": x_user_id})
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
