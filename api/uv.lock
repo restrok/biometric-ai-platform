@@ -126,7 +126,7 @@ dev = [
 requires-dist = [
     { name = "db-dtypes", specifier = ">=1.5.1" },
     { name = "fastapi", specifier = ">=0.136.0" },
-    { name = "garmin-training-toolkit-sdk", specifier = ">=0.6.0" },
+    { name = "garmin-training-toolkit-sdk", specifier = ">=0.7.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
     { name = "google-cloud-secret-manager", specifier = ">=2.27.0" },
@@ -483,7 +483,7 @@ http = [
 
 [[package]]
 name = "garmin-training-toolkit-sdk"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "garminconnect" },
@@ -493,9 +493,9 @@ dependencies = [
     { name = "requests" },
     { name = "requests-oauthlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7e/44/7d47a6ca8a64eeeba996c6bb839a17b7376c0a13ed2b209a66e3ccdc4e39/garmin_training_toolkit_sdk-0.6.0.tar.gz", hash = "sha256:9213a484cf90f1f68ec610e0257503981a22c5b7619511bf2f28ade5fdd1b120", size = 38624, upload-time = "2026-05-02T20:42:31.356Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/5d/55b72d6783a20fef6577ef21374932c69e63d80948b41da85f85bcbd4be2/garmin_training_toolkit_sdk-0.7.0.tar.gz", hash = "sha256:b26685c5dda173feb1d1dc846fc94d9b192adbaebe070ba7bdce511e82c395e0", size = 39113, upload-time = "2026-05-09T00:18:27.286Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/be/61679cd0afe5cbce3cff46258010506b0e8ece306bdf79aec8690fa2edef/garmin_training_toolkit_sdk-0.6.0-py3-none-any.whl", hash = "sha256:102b41e030588ecf0cd12a3d7a3b737aea53a21f1b1b6b8624ff2ef3201e036d", size = 50250, upload-time = "2026-05-02T20:42:32.402Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/71/1509f83900ac0fdde8788c0ac980085491df80e19de6b3655243a2281117/garmin_training_toolkit_sdk-0.7.0-py3-none-any.whl", hash = "sha256:52071dc9caff74e5b6ffd7e525f1073a4c0d19ab37c983e8ea9b5bc22e6c3550", size = 50728, upload-time = "2026-05-09T00:18:28.227Z" },
 ]
 
 [[package]]
