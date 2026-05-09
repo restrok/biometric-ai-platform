@@ -66,8 +66,25 @@ def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
     job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
     client.load_table_from_dataframe(df, staging_table_id, job_config=job_config).result()
 
-    # 2. Perform MERGE
-    cols = [field.name for field in client.get_table(staging_table_id).schema]
+    # 2. Sync Schema (Add missing columns to target table)
+    staging_table = client.get_table(staging_table_id)
+    try:
+        target_table = client.get_table(target_table_id)
+        target_fields = {f.name for f in target_table.schema}
+        missing_fields = [f for f in staging_table.schema if f.name not in target_fields]
+
+        if missing_fields:
+            log.info(
+                f"Updating schema for {table_name}: adding fields {[f.name for f in missing_fields]} (user: {user_id})."
+            )
+            new_schema = list(target_table.schema) + missing_fields
+            target_table.schema = new_schema
+            client.update_table(target_table, ["schema"])
+    except Exception as e:
+        log.warning(f"Schema sync for {table_name} failed: {e}. Attempting MERGE anyway.")
+
+    # 3. Perform MERGE
+    cols = [field.name for field in staging_table.schema]
     update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]])
     insert_cols = ", ".join([f"`{c}`" for c in cols])
     insert_values = ", ".join([f"S.`{c}`" for c in cols])
@@ -110,6 +127,10 @@ def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND", user_id=None)
     # Configure the load job
     job_config = bigquery.LoadJobConfig(
         write_disposition=mode,
+        schema_update_options=[
+            bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION,
+            bigquery.SchemaUpdateOption.ALLOW_FIELD_RELAXATION,
+        ],
     )
 
     # Load into BigQuery
