@@ -72,11 +72,12 @@ class TrainingPlan(BaseModel):
 def upload_training_plan(workouts: list[Workout], user_id: str | None = None):
     """Uploads a training plan with support for repeats, distances, and typed targets."""
     log.info(f"📤 Uploading {len(workouts)} workouts via Provider (user: {user_id})...")
-    
+
     # DEBUG: Print the payload being sent to the SDK
     import json
+
     log.debug(f"DEBUG: Workout payload: {json.dumps([w.model_dump(exclude_none=True) for w in workouts], indent=2)}")
-    
+
     provider = get_provider(user_id=user_id)
 
     try:
@@ -167,13 +168,15 @@ def list_workouts(user_id: str | None = None):
         templates = provider.get_workout_templates()
         result = []
         for t in templates:
-            result.append({
-                "workoutId": t.workout_id,
-                "workoutName": t.workout_name,
-                "sportType": t.sport_type,
-                "createdDate": t.created_date.isoformat() if t.created_date else None,
-                "description": t.description
-            })
+            result.append(
+                {
+                    "workoutId": t.workout_id,
+                    "workoutName": t.workout_name,
+                    "sportType": t.sport_type,
+                    "createdDate": t.created_date.isoformat() if t.created_date else None,
+                    "description": t.description,
+                }
+            )
         return result
     except Exception as e:
         log.error(f"❌ Failed to list workouts: {e}")
@@ -220,27 +223,27 @@ def prune_unused_workouts(user_id: str | None = None):
         # 1. Get all templates in the library
         templates = provider.get_workout_templates()
         all_ids = {str(t.workout_id) for t in templates}
-        
+
         # 2. Get all scheduled workouts for the next 30 days
         start = date.today()
         end = start + timedelta(days=30)
         calendar_items = provider.get_calendar_range(start, end)
-        
+
         scheduled_ids = set()
         for item in calendar_items:
             # We look for the workoutId associated with the calendar item
             wid = item.get("workoutId") or item.get("id")
             if item.get("itemType") == "workout" and wid:
                 scheduled_ids.add(str(wid))
-        
+
         # 3. Identify IDs to delete (those in library but NOT in calendar)
-        # Note: We skip Garmin proprietary ones by logic if needed, 
+        # Note: We skip Garmin proprietary ones by logic if needed,
         # but usually user templates are the ones we want to prune.
         to_delete = all_ids - scheduled_ids
-        
+
         if not to_delete:
             return "No unused workouts found. Your library is already clean."
-            
+
         success_count = 0
         errors = []
         for wid in to_delete:
@@ -249,12 +252,12 @@ def prune_unused_workouts(user_id: str | None = None):
                 success_count += 1
             except Exception as e:
                 errors.append(f"ID {wid}: {e}")
-        
+
         result = f"Pruned {success_count} unused workouts. Library IDs kept: {len(scheduled_ids)}."
         if errors:
             result += f" Errors: {len(errors)} failed to delete."
         return result
-        
+
     except Exception as e:
         log.error(f"❌ Failed to prune workouts: {e}")
         return f"Error: {e}"

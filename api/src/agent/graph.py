@@ -219,7 +219,7 @@ def node_analyze(state: AgentState) -> dict:
     # DEBUG: Print full prompt sent to LLM
     log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
     for i, m in enumerate(messages):
-        log.debug(f"DEBUG: Message {i} ({m.type}): {m.content[:500]}...") # Truncate for log readability if needed
+        log.debug(f"DEBUG: Message {i} ({m.type}): {m.content[:500]}...")  # Truncate for log readability if needed
     log.debug("DEBUG: -------------------------------")
 
     response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
