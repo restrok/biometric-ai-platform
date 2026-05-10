@@ -127,11 +127,15 @@ def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND", user_id=None)
     # Configure the load job
     job_config = bigquery.LoadJobConfig(
         write_disposition=mode,
-        schema_update_options=[
+    )
+
+    # Schema update options only supported for WRITE_APPEND or WRITE_TRUNCATE on partitioned tables.
+    # To be safe and avoid 400 errors, we only enable them for WRITE_APPEND.
+    if mode == "WRITE_APPEND":
+        job_config.schema_update_options = [
             bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION,
             bigquery.SchemaUpdateOption.ALLOW_FIELD_RELAXATION,
-        ],
-    )
+        ]
 
     # Load into BigQuery
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
@@ -278,15 +282,38 @@ def run_etl(user_id=None):
 
                 # Build summary row
                 summary = act.model_dump()
-                summary["avg_power"] = avg_pwr
+
+                # --- Fix schema mismatch: BQ types vs SDK/Pandas types ---
+                # STRING fields (often come as floats/ints from SDK or contains Nones)
+                string_fields = ["max_power", "normalized_power", "avg_cadence", "max_cadence", "pool_length_m", "total_strokes", "avg_swolf"]
+                for field in string_fields:
+                    if field in summary:
+                        summary[field] = str(summary[field]) if summary[field] is not None else None
+
+                # FLOAT fields
+                float_fields = ["duration_sec", "distance_m", "avg_hr", "max_hr", "avg_pace", "calories", "elevation_gain", "vo2max"]
+                for field in float_fields:
+                    if field in summary:
+                        summary[field] = float(summary[field]) if summary[field] is not None else None
+
+                # Special: avg_power is calculated separately
+                summary["avg_power"] = float(avg_pwr) if avg_pwr is not None else None
+
                 activity_summaries.append(summary)
 
             # Upload Activity Summaries
             df_act = pd.DataFrame(activity_summaries)
             if "splits" in df_act.columns:
                 df_act.drop(columns=["splits"], inplace=True)
-            df_act["date"] = pd.to_datetime(df_act["date"])
-            upload_to_bq(df_act, "recent_activities", "activities", mode="WRITE_APPEND", user_id=user_id)
+
+            # Fix schema mismatch: BQ uses INTEGER (unix timestamp) for 'date' and 'id'
+            if "date" in df_act.columns:
+                # Convert to unix timestamp (integer) if it's currently a datetime/string
+                df_act["date"] = pd.to_datetime(df_act["date"]).astype(int) // 10**9
+            if "id" in df_act.columns:
+                df_act["id"] = df_act["id"].astype(int)
+
+            upsert_to_bq(df_act, "recent_activities", unique_key="id", user_id=user_id)
 
             # Upload Telemetry
             if all_telemetry:
@@ -354,8 +381,8 @@ def run_etl(user_id=None):
             except Exception:
                 pass
 
-        upload_to_bq(
-            pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id
+        upsert_to_bq(
+            pd.DataFrame([status.model_dump()]), "training_status", unique_key="user_id", user_id=user_id
         )
 
     # --- 5. User Profile ---
@@ -384,7 +411,7 @@ def run_etl(user_id=None):
                     log.info(f"Patched Resting HR with fallback: {fallback_rest}")
 
             df_profile["updated_at"] = datetime.utcnow()
-            upload_to_bq(df_profile, "user_profile", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id)
+            upsert_to_bq(df_profile, "user_profile", unique_key="user_id", user_id=user_id)
     except Exception as e:
         log.warning(f"User Profile sync failed: {e}")
 
@@ -422,7 +449,7 @@ def run_etl(user_id=None):
                 for col in ["weight_kg", "bmi", "fat_percentage", "muscle_mass_kg"]:
                     if col in df_body.columns:
                         df_body[col] = df_body[col].astype(float)
-                upload_to_bq(df_body, "body_composition", "biometrics", mode="WRITE_APPEND", user_id=user_id)
+                upsert_to_bq(df_body, "body_composition", unique_key="date", user_id=user_id)
     except Exception as e:
         log.warning(f"Body Composition sync failed: {e}")
 
@@ -463,7 +490,18 @@ def run_etl(user_id=None):
                 final_cal["distance_m"] = df_cal.get("distance", 0)
                 final_cal["updated_at"] = datetime.utcnow()
 
-                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id)
+                # To handle deletions/moves in Garmin safely for multi-user:
+                # 1. Delete future workouts for THIS user only
+                # 2. Append the fresh state
+                bq_client = bigquery.Client(project=PROJECT_ID)
+                today_str = now.strftime("%Y-%m-%d")
+                delete_query = f"""
+                    DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
+                    WHERE user_id = '{user_id}' AND date >= '{today_str}'
+                """
+                bq_client.query(delete_query).result()
+
+                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_APPEND", user_id=user_id)
     except Exception as e:
         log.warning(f"Scheduled Workouts sync failed: {e}")
 
