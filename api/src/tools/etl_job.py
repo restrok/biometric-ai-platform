@@ -461,15 +461,14 @@ def run_etl(user_id=None):
 
         all_calendar_items = provider.get_calendar_range(now.date(), end_window.date())
 
-        # 1. Always cleanup BigQuery calendar for THIS user from today onwards
-        # This ensures that if Garmin is empty (deletions), BQ reflects it.
+        # 1. Always cleanup BigQuery calendar for THIS user
+        # Clean Slate approach: Wipe all history and future to ensure BQ is a perfect mirror of Garmin
         bq_client = bigquery.Client(project=PROJECT_ID)
-        today_str = now.strftime("%Y-%m-%d")
         delete_query = f"""
             DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
-            WHERE user_id = '{user_id}' AND date >= '{today_str}'
+            WHERE user_id = '{user_id}'
         """
-        log.info(f"Cleaning up BigQuery calendar for {user_id} from {today_str}...")
+        log.info(f"Performing total calendar wipe for {user_id} in BigQuery...")
         bq_client.query(delete_query).result()
 
         if all_calendar_items:
