@@ -461,6 +461,17 @@ def run_etl(user_id=None):
 
         all_calendar_items = provider.get_calendar_range(now.date(), end_window.date())
 
+        # 1. Always cleanup BigQuery calendar for THIS user from today onwards
+        # This ensures that if Garmin is empty (deletions), BQ reflects it.
+        bq_client = bigquery.Client(project=PROJECT_ID)
+        today_str = now.strftime("%Y-%m-%d")
+        delete_query = f"""
+            DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
+            WHERE user_id = '{user_id}' AND date >= '{today_str}'
+        """
+        log.info(f"Cleaning up BigQuery calendar for {user_id} from {today_str}...")
+        bq_client.query(delete_query).result()
+
         if all_calendar_items:
             df_cal = pd.DataFrame(all_calendar_items)
             df_cal["date"] = pd.to_datetime(df_cal["date"])
@@ -490,24 +501,11 @@ def run_etl(user_id=None):
                 final_cal["distance_m"] = df_cal.get("distance", 0)
                 final_cal["updated_at"] = datetime.utcnow()
 
-                # To handle deletions/moves in Garmin safely for multi-user:
-                # 1. Delete future workouts for THIS user only
-                # 2. Append the fresh state
-                bq_client = bigquery.Client(project=PROJECT_ID)
-                today_str = now.strftime("%Y-%m-%d")
-                
-                # Delete from today onwards to ensure deletions in Garmin are reflected
-                delete_query = f"""
-                    DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
-                    WHERE user_id = '{user_id}' AND date >= '{today_str}'
-                """
-                log.info(f"Cleaning up BigQuery calendar for {user_id} from {today_str}...")
-                bq_client.query(delete_query).result()
-
-                if not final_cal.empty:
-                    upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_APPEND", user_id=user_id)
-                else:
-                    log.info(f"No scheduled workouts found in Garmin for {user_id}. BigQuery is now empty (synced).")
+                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_APPEND", user_id=user_id)
+            else:
+                log.info(f"No workouts found in Garmin calendar range for {user_id}.")
+        else:
+            log.info(f"Garmin calendar is empty for {user_id}. BigQuery remains clean.")
     except Exception as e:
         log.warning(f"Scheduled Workouts sync failed: {e}")
 
