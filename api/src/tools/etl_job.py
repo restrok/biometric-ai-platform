@@ -495,13 +495,19 @@ def run_etl(user_id=None):
                 # 2. Append the fresh state
                 bq_client = bigquery.Client(project=PROJECT_ID)
                 today_str = now.strftime("%Y-%m-%d")
+                
+                # Delete from today onwards to ensure deletions in Garmin are reflected
                 delete_query = f"""
                     DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
                     WHERE user_id = '{user_id}' AND date >= '{today_str}'
                 """
+                log.info(f"Cleaning up BigQuery calendar for {user_id} from {today_str}...")
                 bq_client.query(delete_query).result()
 
-                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_APPEND", user_id=user_id)
+                if not final_cal.empty:
+                    upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_APPEND", user_id=user_id)
+                else:
+                    log.info(f"No scheduled workouts found in Garmin for {user_id}. BigQuery is now empty (synced).")
     except Exception as e:
         log.warning(f"Scheduled Workouts sync failed: {e}")
 
