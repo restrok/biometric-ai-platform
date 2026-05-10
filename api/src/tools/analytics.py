@@ -47,6 +47,8 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
         SELECT
             AVG(CASE WHEN progress < 0.5 THEN power_w / NULLIF(hr_bpm, 0) END) as eff_first_half,
             AVG(CASE WHEN progress >= 0.5 THEN power_w / NULLIF(hr_bpm, 0) END) as eff_second_half,
+            AVG(CASE WHEN progress < 0.5 THEN gct END) as gct_first_half,
+            AVG(CASE WHEN progress >= 0.5 THEN gct END) as gct_second_half,
             AVG(vo / NULLIF(sl/10.0, 0)) as avg_oscillation_ratio,
             AVG(hr_bpm / NULLIF(cadence_spm, 0)) as hr_per_step,
             AVG(hr_bpm) as avg_hr,
@@ -60,6 +62,8 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
     SELECT 
         eff_first_half, 
         eff_second_half, 
+        gct_first_half,
+        gct_second_half,
         avg_oscillation_ratio, 
         hr_per_step, 
         avg_hr, 
@@ -90,6 +94,8 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
                 else "N/A"
             ),
             "efficiency_score": (round(row.eff_first_half, 3) if row.eff_first_half is not None else None),
+            "gct_first_half": (round(row.gct_first_half, 1) if row.gct_first_half is not None else None),
+            "gct_second_half": (round(row.gct_second_half, 1) if row.gct_second_half is not None else None),
             "oscillation_ratio": (
                 round(row.avg_oscillation_ratio, 2) if row.avg_oscillation_ratio is not None else None
             ),

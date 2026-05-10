@@ -47,7 +47,9 @@ from src.agent.graph import graph
 from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
-from src.utils.garmin_auth import refresh_garmin_tokens
+from src.agent.proactive import run_proactive_analysis
+from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
+from src.utils.notifications import send_proactive_notification
 
 
 @asynccontextmanager
@@ -72,15 +74,44 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 log.error(f"❌ Error in scheduled token refresh: {e}")
 
-    # Start the background task
+    async def auto_sync_loop():
+        # Initial delay to let the system settle
+        await asyncio.sleep(60)
+        while True:
+            try:
+                log.info("🕒 Starting proactive auto-sync ETL...")
+                user_ids = get_all_garmin_user_ids()
+                
+                if not user_ids:
+                    log.warning("No users found to sync.")
+                
+                for uid in user_ids:
+                    log.info(f"🔄 Syncing data for user: {uid}")
+                    loop = asyncio.get_event_loop()
+                    # run_etl is synchronous, run in executor
+                    await loop.run_in_executor(None, run_etl, uid)
+                    
+                    log.info(f"🧠 Running proactive analysis for user: {uid}")
+                    await loop.run_in_executor(None, run_proactive_analysis, uid)
+                
+                log.info("✅ Proactive auto-sync cycle completed.")
+            except Exception as e:
+                log.error(f"❌ Error in auto-sync loop: {e}")
+            
+            # Wait for 3 hours between syncs
+            await asyncio.sleep(3 * 3600)
+
+    # Start the background tasks
     refresh_task = asyncio.create_task(refresh_loop())
+    sync_task = asyncio.create_task(auto_sync_loop())
 
     yield
 
     # Clean up on shutdown
     refresh_task.cancel()
+    sync_task.cancel()
     with suppress(asyncio.CancelledError):
-        await refresh_task
+        await asyncio.gather(refresh_task, sync_task)
 
 
 app = FastAPI(

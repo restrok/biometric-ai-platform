@@ -9,6 +9,28 @@ from garminconnect import Garmin
 log = logging.getLogger(__name__)
 
 
+def get_all_garmin_user_ids() -> list[str]:
+    """
+    Scans the token directories and returns a list of user IDs found.
+    Extracts {user_id} from garmin_tokens_{user_id}.json.
+    """
+    possible_dirs = [
+        Path("/root/.garminconnect"),
+        Path.home() / ".garminconnect",
+    ]
+    
+    user_ids = set()
+    for d in possible_dirs:
+        if d.exists():
+            for f in d.glob("garmin_tokens_*.json"):
+                # Extract 'fsirio' from 'garmin_tokens_fsirio.json'
+                user_id = f.name.replace("garmin_tokens_", "").replace(".json", "")
+                if user_id:
+                    user_ids.add(user_id)
+                    
+    return list(user_ids)
+
+
 def refresh_garmin_tokens() -> bool:
     """
     Manually refreshes all Garmin tokens found in the token directories.
