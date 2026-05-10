@@ -49,6 +49,7 @@ def get_last_sync_date(table_name, user_id=None):
 def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
     """
     Performs an atomic UPSERT in BigQuery.
+    Automatically aligns DataFrame types with target table schema.
     """
     if df.empty:
         return
@@ -59,6 +60,28 @@ def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
 
     client = bigquery.Client(project=PROJECT_ID)
     target_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
+    
+    # 0. Align types with target table to avoid schema mismatches
+    try:
+        target_table = client.get_table(target_table_id)
+        target_schema = {f.name: f.field_type for f in target_table.schema}
+        
+        for col in df.columns:
+            if col in target_schema:
+                bqt = target_schema[col]
+                if bqt == "INTEGER":
+                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype("int64")
+                elif bqt == "FLOAT":
+                    df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+                elif bqt == "STRING":
+                    df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
+                elif bqt in ["DATETIME", "TIMESTAMP"]:
+                    df[col] = pd.to_datetime(df[col], errors="coerce")
+                elif bqt == "BOOLEAN":
+                    df[col] = df[col].astype(bool)
+    except Exception as e:
+        log.warning(f"Could not align types for {table_name} (might be a new table): {e}")
+
     staging_table_name = f"{table_name}_staging_{int(datetime.now().timestamp())}"
     staging_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{staging_table_name}"
 
@@ -282,36 +305,13 @@ def run_etl(user_id=None):
 
                 # Build summary row
                 summary = act.model_dump()
-
-                # --- Fix schema mismatch: BQ types vs SDK/Pandas types ---
-                # STRING fields (often come as floats/ints from SDK or contains Nones)
-                string_fields = ["max_power", "normalized_power", "avg_cadence", "max_cadence", "pool_length_m", "total_strokes", "avg_swolf"]
-                for field in string_fields:
-                    if field in summary:
-                        summary[field] = str(summary[field]) if summary[field] is not None else None
-
-                # FLOAT fields
-                float_fields = ["duration_sec", "distance_m", "avg_hr", "max_hr", "avg_pace", "calories", "elevation_gain", "vo2max"]
-                for field in float_fields:
-                    if field in summary:
-                        summary[field] = float(summary[field]) if summary[field] is not None else None
-
-                # Special: avg_power is calculated separately
                 summary["avg_power"] = float(avg_pwr) if avg_pwr is not None else None
-
                 activity_summaries.append(summary)
 
             # Upload Activity Summaries
             df_act = pd.DataFrame(activity_summaries)
             if "splits" in df_act.columns:
                 df_act.drop(columns=["splits"], inplace=True)
-
-            # Fix schema mismatch: BQ uses INTEGER (unix timestamp) for 'date' and 'id'
-            if "date" in df_act.columns:
-                # Convert to unix timestamp (integer) if it's currently a datetime/string
-                df_act["date"] = pd.to_datetime(df_act["date"]).astype(int) // 10**9
-            if "id" in df_act.columns:
-                df_act["id"] = df_act["id"].astype(int)
 
             upsert_to_bq(df_act, "recent_activities", unique_key="id", user_id=user_id)
 
