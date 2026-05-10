@@ -358,10 +358,6 @@ def run_etl(user_id=None):
         if hrv_data:
             df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
             try:
-                for col in ["avg_hrv", "min_hrv", "max_hrv"]:
-                    if col in df_hrv.columns:
-                        df_hrv[col] = df_hrv[col].astype("Int64")
-
                 upsert_to_bq(df_hrv, "hrv_history", unique_key="date", user_id=user_id)
             except Exception as e:
                 log.error(f"HRV sync failed during upload: {e}")
