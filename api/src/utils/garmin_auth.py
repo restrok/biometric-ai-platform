@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from pathlib import Path
 
 from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS, find_token_file
@@ -18,7 +17,7 @@ def get_all_garmin_user_ids() -> list[str]:
         Path("/root/.garminconnect"),
         Path.home() / ".garminconnect",
     ]
-    
+
     user_ids = set()
     for d in possible_dirs:
         if d.exists():
@@ -27,14 +26,14 @@ def get_all_garmin_user_ids() -> list[str]:
                 user_id = f.name.replace("garmin_tokens_", "").replace(".json", "")
                 if user_id:
                     user_ids.add(user_id)
-                    
+
     return list(user_ids)
 
 
 def refresh_garmin_tokens() -> bool:
     """
     Manually refreshes all Garmin tokens found in the token directories.
-    Scans for garmin_tokens*.json and refreshes each session using 
+    Scans for garmin_tokens*.json and refreshes each session using
     multi-client ID rotation.
     """
     # 1. Identify all potential token files
@@ -43,7 +42,7 @@ def refresh_garmin_tokens() -> bool:
         Path("/root/.garminconnect"),
         Path.home() / ".garminconnect",
     ]
-    
+
     # Also add the path from find_token_file if it finds anything
     primary = find_token_file()
     if primary:
@@ -51,7 +50,7 @@ def refresh_garmin_tokens() -> bool:
 
     token_files = []
     checked_dirs = set()
-    
+
     for d in possible_dirs:
         if d.exists() and d not in checked_dirs:
             token_files.extend(list(d.glob("garmin_tokens*.json")))

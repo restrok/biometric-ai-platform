@@ -181,6 +181,7 @@ def retrieve_biometric_data(
             return "hrv", hrv_rows
         except Exception:
             return "hrv", []
+
     def fetch_user_profile():
         try:
             t0 = time.time()

@@ -60,12 +60,12 @@ def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
 
     client = bigquery.Client(project=PROJECT_ID)
     target_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
-    
+
     # 0. Align types with target table to avoid schema mismatches
     try:
         target_table = client.get_table(target_table_id)
         target_schema = {f.name: f.field_type for f in target_table.schema}
-        
+
         for col in df.columns:
             if col in target_schema:
                 bqt = target_schema[col]
@@ -377,9 +377,7 @@ def run_etl(user_id=None):
             except Exception:
                 pass
 
-        upsert_to_bq(
-            pd.DataFrame([status.model_dump()]), "training_status", unique_key="user_id", user_id=user_id
-        )
+        upsert_to_bq(pd.DataFrame([status.model_dump()]), "training_status", unique_key="user_id", user_id=user_id)
 
     # --- 5. User Profile ---
     try:

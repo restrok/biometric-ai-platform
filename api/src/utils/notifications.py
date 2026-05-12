@@ -1,8 +1,10 @@
 import logging
 import os
+
 import httpx
 
 log = logging.getLogger("api.notifications")
+
 
 def send_proactive_notification(user_id: str, message: str, agent_id: str = "biometric-coach"):
     """
@@ -14,11 +16,7 @@ def send_proactive_notification(user_id: str, message: str, agent_id: str = "bio
         log.warning("⚠️ ORCHESTRATOR_NOTIFY_URL not set. Notification skipped.")
         return False
 
-    payload = {
-        "user_id": user_id,
-        "agent_id": agent_id,
-        "message": message
-    }
+    payload = {"user_id": user_id, "agent_id": agent_id, "message": message}
 
     try:
         with httpx.Client() as client:
@@ -26,9 +24,8 @@ def send_proactive_notification(user_id: str, message: str, agent_id: str = "bio
             if response.status_code == 200:
                 log.info(f"✅ Notification sent to {user_id} via {notify_url}")
                 return True
-            else:
-                log.error(f"❌ Failed to send notification: {response.status_code} - {response.text}")
-                return False
+            log.error(f"❌ Failed to send notification: {response.status_code} - {response.text}")
+            return False
     except Exception as e:
         log.error(f"❌ Exception sending notification: {e}")
         return False

@@ -1,22 +1,20 @@
-import sys
 import os
+import sys
+
 import httpx
 from dotenv import load_dotenv
 
+
 def send_custom(message):
     # Load config from the local .env
-    load_dotenv('/app/.env')
-    url = os.getenv('ORCHESTRATOR_NOTIFY_URL')
-    
+    load_dotenv("/app/.env")
+    url = os.getenv("ORCHESTRATOR_NOTIFY_URL")
+
     if not url:
         print("❌ Error: ORCHESTRATOR_NOTIFY_URL not found in .env")
         return
 
-    payload = {
-        "user_id": "fsirio",
-        "agent_id": "biometric-coach",
-        "message": message
-    }
+    payload = {"user_id": "fsirio", "agent_id": "biometric-coach", "message": message}
 
     try:
         resp = httpx.post(url, json=payload, timeout=10.0)
@@ -26,6 +24,7 @@ def send_custom(message):
             print(f"❌ Error del Orchestrator ({resp.status_code}): {resp.text}")
     except Exception as e:
         print(f"❌ Falló la conexión: {e}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

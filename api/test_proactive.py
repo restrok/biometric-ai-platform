@@ -1,9 +1,9 @@
-import sys
-import os
 import logging
+import os
+import sys
 
 # Configure logging to see what's happening
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 # Add the project root to sys.path
 sys.path.append(os.getcwd())
