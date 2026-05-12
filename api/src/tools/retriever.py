@@ -298,14 +298,16 @@ def _retrieve_biometric_data_cached(
             ),
             deltas AS (
                 -- 2. Calculate deltas to find "shifts" in effort
-                SELECT *,
+                SELECT 
+                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
                     LAG(hr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_hr,
                     LAG(pwr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_pwr
                 FROM raw_minutes
             ),
             segments AS (
                 -- 3. Mark the start of a new segment if HR or Power changes significantly
-                SELECT *,
+                SELECT 
+                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
                     CASE 
                         WHEN prev_hr IS NULL THEN 1
                         WHEN ABS(hr - prev_hr) > 7 OR ABS(pwr - prev_pwr) > 25 THEN 1 
@@ -315,7 +317,8 @@ def _retrieve_biometric_data_cached(
             ),
             segmented_data AS (
                 -- 4. Assign segment IDs
-                SELECT *,
+                SELECT 
+                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
                     SUM(is_new_segment) OVER(PARTITION BY activity_id ORDER BY minute) as segment_id
                 FROM segments
             )
