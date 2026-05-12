@@ -49,6 +49,7 @@ def get_last_sync_date(table_name, user_id=None):
 def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
     """
     Performs an atomic UPSERT in BigQuery.
+    Automatically aligns DataFrame types with target table schema.
     """
     if df.empty:
         return
@@ -59,6 +60,28 @@ def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
 
     client = bigquery.Client(project=PROJECT_ID)
     target_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
+
+    # 0. Align types with target table to avoid schema mismatches
+    try:
+        target_table = client.get_table(target_table_id)
+        target_schema = {f.name: f.field_type for f in target_table.schema}
+
+        for col in df.columns:
+            if col in target_schema:
+                bqt = target_schema[col]
+                if bqt == "INTEGER":
+                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype("int64")
+                elif bqt == "FLOAT":
+                    df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+                elif bqt == "STRING":
+                    df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
+                elif bqt in ["DATETIME", "TIMESTAMP"]:
+                    df[col] = pd.to_datetime(df[col], errors="coerce")
+                elif bqt == "BOOLEAN":
+                    df[col] = df[col].astype(bool)
+    except Exception as e:
+        log.warning(f"Could not align types for {table_name} (might be a new table): {e}")
+
     staging_table_name = f"{table_name}_staging_{int(datetime.now().timestamp())}"
     staging_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{staging_table_name}"
 
@@ -127,11 +150,15 @@ def upload_to_bq(df, table_name, folder_name, mode="WRITE_APPEND", user_id=None)
     # Configure the load job
     job_config = bigquery.LoadJobConfig(
         write_disposition=mode,
-        schema_update_options=[
+    )
+
+    # Schema update options only supported for WRITE_APPEND or WRITE_TRUNCATE on partitioned tables.
+    # To be safe and avoid 400 errors, we only enable them for WRITE_APPEND.
+    if mode == "WRITE_APPEND":
+        job_config.schema_update_options = [
             bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION,
             bigquery.SchemaUpdateOption.ALLOW_FIELD_RELAXATION,
-        ],
-    )
+        ]
 
     # Load into BigQuery
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
@@ -278,15 +305,15 @@ def run_etl(user_id=None):
 
                 # Build summary row
                 summary = act.model_dump()
-                summary["avg_power"] = avg_pwr
+                summary["avg_power"] = float(avg_pwr) if avg_pwr is not None else None
                 activity_summaries.append(summary)
 
             # Upload Activity Summaries
             df_act = pd.DataFrame(activity_summaries)
             if "splits" in df_act.columns:
                 df_act.drop(columns=["splits"], inplace=True)
-            df_act["date"] = pd.to_datetime(df_act["date"])
-            upload_to_bq(df_act, "recent_activities", "activities", mode="WRITE_APPEND", user_id=user_id)
+
+            upsert_to_bq(df_act, "recent_activities", unique_key="id", user_id=user_id)
 
             # Upload Telemetry
             if all_telemetry:
@@ -331,10 +358,6 @@ def run_etl(user_id=None):
         if hrv_data:
             df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
             try:
-                for col in ["avg_hrv", "min_hrv", "max_hrv"]:
-                    if col in df_hrv.columns:
-                        df_hrv[col] = df_hrv[col].astype("Int64")
-
                 upsert_to_bq(df_hrv, "hrv_history", unique_key="date", user_id=user_id)
             except Exception as e:
                 log.error(f"HRV sync failed during upload: {e}")
@@ -354,9 +377,7 @@ def run_etl(user_id=None):
             except Exception:
                 pass
 
-        upload_to_bq(
-            pd.DataFrame([status.model_dump()]), "training_status", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id
-        )
+        upsert_to_bq(pd.DataFrame([status.model_dump()]), "training_status", unique_key="user_id", user_id=user_id)
 
     # --- 5. User Profile ---
     try:
@@ -384,7 +405,7 @@ def run_etl(user_id=None):
                     log.info(f"Patched Resting HR with fallback: {fallback_rest}")
 
             df_profile["updated_at"] = datetime.utcnow()
-            upload_to_bq(df_profile, "user_profile", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id)
+            upsert_to_bq(df_profile, "user_profile", unique_key="user_id", user_id=user_id)
     except Exception as e:
         log.warning(f"User Profile sync failed: {e}")
 
@@ -422,7 +443,7 @@ def run_etl(user_id=None):
                 for col in ["weight_kg", "bmi", "fat_percentage", "muscle_mass_kg"]:
                     if col in df_body.columns:
                         df_body[col] = df_body[col].astype(float)
-                upload_to_bq(df_body, "body_composition", "biometrics", mode="WRITE_APPEND", user_id=user_id)
+                upsert_to_bq(df_body, "body_composition", unique_key="date", user_id=user_id)
     except Exception as e:
         log.warning(f"Body Composition sync failed: {e}")
 
@@ -433,6 +454,16 @@ def run_etl(user_id=None):
         end_window = now + timedelta(days=14)
 
         all_calendar_items = provider.get_calendar_range(now.date(), end_window.date())
+
+        # 1. Always cleanup BigQuery calendar for THIS user
+        # Clean Slate approach: Wipe all history and future to ensure BQ is a perfect mirror of Garmin
+        bq_client = bigquery.Client(project=PROJECT_ID)
+        delete_query = f"""
+            DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
+            WHERE user_id = '{user_id}'
+        """
+        log.info(f"Performing total calendar wipe for {user_id} in BigQuery...")
+        bq_client.query(delete_query).result()
 
         if all_calendar_items:
             df_cal = pd.DataFrame(all_calendar_items)
@@ -463,7 +494,11 @@ def run_etl(user_id=None):
                 final_cal["distance_m"] = df_cal.get("distance", 0)
                 final_cal["updated_at"] = datetime.utcnow()
 
-                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_TRUNCATE", user_id=user_id)
+                upload_to_bq(final_cal, "scheduled_workouts", "biometrics", mode="WRITE_APPEND", user_id=user_id)
+            else:
+                log.info(f"No workouts found in Garmin calendar range for {user_id}.")
+        else:
+            log.info(f"Garmin calendar is empty for {user_id}. BigQuery remains clean.")
     except Exception as e:
         log.warning(f"Scheduled Workouts sync failed: {e}")
 

@@ -171,8 +171,8 @@ def retrieve_biometric_data(
         try:
             t0 = time.time()
             query_hrv = f"""
-                SELECT date, avg_hrv, min_hrv, max_hrv
-                FROM `{project_id}.{dataset}.hrv_history` 
+                SELECT date, avg_hrv, min_hrv, max_hrv, status, baseline_low, baseline_high
+                FROM `{project_id}.{dataset}.hrv_history`
                 {user_where}
                 ORDER BY date DESC LIMIT 7
             """
