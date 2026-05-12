@@ -48,6 +48,15 @@ class RetrieverInput(BaseModel):
     user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
 
 
+import functools
+
+
+# Cache for retrieve_biometric_data to avoid redundant BQ calls in short intervals
+# TTL: 5 minutes (300 seconds)
+def _get_cache_key(user_id):
+    return f"{user_id}_{int(time.time() / 300)}"
+
+
 @tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(
     project_id: str | None = None,
@@ -63,6 +72,16 @@ def retrieve_biometric_data(
     Retrieves the user's latest biometric context from BigQuery in parallel.
     Supports pagination and filtering for activities.
     """
+    cache_key = _get_cache_key(user_id)
+    return _retrieve_biometric_data_cached(
+        project_id, dataset, limit, offset, activity_type, start_date, end_date, user_id, cache_key
+    )
+
+
+@functools.lru_cache(maxsize=32)
+def _retrieve_biometric_data_cached(
+    project_id, dataset, limit, offset, activity_type, start_date, end_date, user_id, cache_key
+):
     if not project_id:
         project_id = config["project_id"]
     if not dataset:
@@ -254,6 +273,10 @@ def retrieve_biometric_data(
             t0 = time.time()
             ids_str = ", ".join([f"'{i}'" for i in activity_ids])
 
+            # Optimization: Add a date filter to the telemetry query to hit partitions
+            # We assume telemetry for the last 3 activities is within the last 30 days.
+            thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp() * 1e6)
+
             # Implementation of Dynamic Effort Segmentation (from telemetry-optimization-plan.md)
             query_tel_series = f"""
             WITH raw_minutes AS (
@@ -268,7 +291,9 @@ def retrieve_biometric_data(
                     AVG(vertical_oscillation_cm) as osc,
                     AVG(ground_contact_time_ms) as gct
                 FROM `{project_id}.{dataset}.latest_activity_telemetry`
-                WHERE activity_id IN ({ids_str}) {f" AND user_id = '{user_id}'" if user_id else ""}
+                WHERE activity_id IN ({ids_str}) 
+                  AND timestamp_ms >= {thirty_days_ago}
+                  {f" AND user_id = '{user_id}'" if user_id else ""}
                 GROUP BY 1, 2, 3
             ),
             deltas AS (

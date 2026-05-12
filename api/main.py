@@ -60,8 +60,8 @@ async def lifespan(app: FastAPI):
 
     async def refresh_loop():
         while True:
-            # Wait for 1 hour between refreshes
-            await asyncio.sleep(3600)
+            # Wait for 2 hours between refreshes
+            await asyncio.sleep(2 * 3600)
             try:
                 log.info("🕒 Starting scheduled Garmin token refresh...")
                 loop = asyncio.get_event_loop()
@@ -97,8 +97,8 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 log.error(f"❌ Error in auto-sync loop: {e}")
 
-            # Wait for 3 hours between syncs
-            await asyncio.sleep(3 * 3600)
+            # Wait for 6 hours between syncs (Optimization: reduce frequency to save quota)
+            await asyncio.sleep(6 * 3600)
 
     # Start the background tasks
     refresh_task = asyncio.create_task(refresh_loop())
