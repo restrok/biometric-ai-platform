@@ -101,11 +101,21 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
 }
 ```
 
-### 6. Runtime & Dependency Management
-- **Tool Discovery:** If tools are not appearing in your context, navigate to the `api/` directory and execute `uv run scripts/manage_tools.py list`.
-- **Environment Stability:** If you encounter a `ModuleNotFoundError` (e.g., "No module named 'pandas'"), it is an indicator that `uv run` was omitted. Re-run the command using the `uv` prefix.
+### 6. Runtime & System Awareness
+- **CONTAINERIZED ENVIRONMENT:** The API runs in a Docker container (`biometric-coach-api`).
+- **Dependency Management:** 
+  - On the **HOST**: Use `uv run` for all scripts.
+  - Inside the **CONTAINER**: Use `python` directly (e.g., `docker exec biometric-coach-api python scripts/manage_tools.py ...`).
+- **BIGQUERY CACHE:** `retrieve_biometric_data` uses a **5-minute time-based cache**. If the user reports a new activity, you MUST use `sync_biometric_data` first, then wait or explain that the cache will refresh in a few minutes if they don't see the change immediately.
+- **Log Inspection:** If tools fail, you can inspect logs using `docker logs biometric-coach-api --tail 50`.
 
 ## 🛠️ Tool & Metric Logic (Expert Knowledge)
+
+### Proactive Detection Priorities (CRITICAL)
+- **Silent Dehydration:** Monitor **Aerobic Decoupling (Cardiac Drift)**. If Drift > 5%, recommend immediate electrolyte intake even if the user isn't thirsty.
+- **Systemic Stress:** Check **HRV Status**. If "UNBALANCED" or "LOW", prioritize Rest/Zone 1 over any scheduled high-intensity sessions.
+- **Neuromuscular Fatigue:** Monitor **Ground Contact Time (GCT)**. If GCT increases > 4% at steady power during an activity, prioritize "stiffness" drills and recovery.
+- **Perception Gap:** Contrast the user's subjective feeling (from `log_health_status`) with objective biometrics (HRV/Sleep). Alert the user if they feel "Great" but biometrics indicate high stress.
 
 ### Physiological Metrics
 - **Efficiency Score:** Calculated as `Power (Watts) / Heart Rate (BPM)`. This is your primary measure of mechanical output vs. metabolic cost.
