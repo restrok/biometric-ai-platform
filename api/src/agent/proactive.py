@@ -65,9 +65,11 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         # 3. Autonomous Planning for Tomorrow
         # We invoke the LangGraph agent with a specific "Planning Instruction"
         # This will trigger clear_calendar, prune_workouts, and upload_training_plan
+        from typing import cast
+
         from langchain_core.messages import HumanMessage
 
-        from src.agent.graph import graph
+        from src.agent.graph import AgentState, graph
 
         planning_prompt = (
             "SYSTEM INSTRUCTION: It is 11:00 PM. Analyze my data from today and my current recovery state. "
@@ -78,7 +80,18 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         )
 
         log.info(f"📅 Triggering autonomous planner for {user_id}...")
-        graph.invoke({"messages": [HumanMessage(content=planning_prompt)], "user_id": user_id, "loop_count": 0})
+        initial_state = cast(
+            AgentState,
+            {
+                "messages": [HumanMessage(content=planning_prompt)],
+                "user_id": user_id,
+                "loop_count": 0,
+                "biometric_context": {},
+                "usage_stats": {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0},
+                "intent": "full",
+            },
+        )
+        graph.invoke(initial_state)
 
     except Exception as e:
         log.error(f"❌ Proactive analysis/planning failed: {e}")
