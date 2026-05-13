@@ -28,6 +28,12 @@
 - [ ] **Persistent Conversation Memory** [SEVERITY: HIGH]: Use BigQuery/Vector store to allow the agent to recall past coaching sessions over months.
 - [ ] **OpenClaw Integration** [SEVERITY: LOW]: Document the pattern for using the platform as an OpenClaw backend.
 
+## Phase 5: AI Health & Performance Butler (Future Vision 💎)
+- [ ] **Advanced Immune Radar:** Cross-reference HRV, Resting HR, and Sleep Quality to provide 24-48h early warning for illness or systemic overreach.
+- [ ] **Precision Nutrition Engine:** Use 'Metabolic Cost' (HR per Step) and session intensity to provide exact carbohydrate/protein timing advice for the next day.
+- [ ] **Lifestyle Stress Auditor:** Correlate subjective 'Health Logs' with objective Stress/HRV data to identify non-training stressors (e.g., work, travel, diet).
+- [ ] **Injury Prevention Hub:** Track 'Niggles' and fatigue trends in mechanical metrics (GCT balance, Vertical Oscillation) to proactively prescribe mobility or rest.
+
 ## Architecture Philosophy
 - **API as the Engine:** Complex logic (ETL, BQ, Auth) lives in Python.
 - **Agent as the Brain:** Modular Skills (`SKILL.md`) provide the expert persona.
