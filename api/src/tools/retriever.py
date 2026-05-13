@@ -222,13 +222,22 @@ def _retrieve_biometric_data_cached(
             return "latest_body_composition", None
 
     def fetch_health_status():
+        t0 = time.time()
         try:
-            t0 = time.time()
-            query_health = f"SELECT date, feeling, notes, fatigue_level, injury_notes FROM `{project_id}.{dataset}.user_health_status` {user_where} ORDER BY date DESC LIMIT 1"
+            # Only fetch health status from the last 3 days to avoid "zombie" context
+            query_health = f"""
+                SELECT date, feeling, notes, fatigue_level, injury_notes 
+                FROM `{project_id}.{dataset}.user_health_status` 
+                {user_where} 
+                AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
+                ORDER BY date DESC 
+                LIMIT 1
+            """
             health_rows = list(client.query(query_health).result())
             log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
             return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
-        except Exception:
+        except Exception as e:
+            log.warning(f"❌ Health status retrieval failed: {e}")
             return "latest_health_status", None
 
     def fetch_user_goals():
@@ -289,7 +298,9 @@ def _retrieve_biometric_data_cached(
                     AVG(power_w) as pwr,
                     AVG(cadence_spm) as cad,
                     AVG(vertical_oscillation_cm) as osc,
-                    AVG(ground_contact_time_ms) as gct
+                    AVG(ground_contact_time_ms) as gct,
+                    -- Add a 5-minute counter for hybrid segmentation
+                    CAST(FLOOR(EXTRACT(MINUTE FROM TIMESTAMP_TRUNC(TIMESTAMP_MICROS(CAST(timestamp_ms * 1000 AS INT64)), MINUTE)) / 5) AS INT64) as time_block
                 FROM `{project_id}.{dataset}.latest_activity_telemetry`
                 WHERE activity_id IN ({ids_str}) 
                   AND timestamp_ms >= {thirty_days_ago}
@@ -298,24 +309,29 @@ def _retrieve_biometric_data_cached(
             ),
             deltas AS (
                 -- 2. Calculate deltas to find "shifts" in effort
-                SELECT *,
+                SELECT 
+                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct, time_block,
                     LAG(hr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_hr,
-                    LAG(pwr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_pwr
+                    LAG(pwr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_pwr,
+                    LAG(time_block) OVER(PARTITION BY activity_id ORDER BY minute) as prev_time_block
                 FROM raw_minutes
             ),
             segments AS (
-                -- 3. Mark the start of a new segment if HR or Power changes significantly
-                SELECT *,
+                -- 3. Mark the start of a new segment if HR/Power changes OR every 5 minutes
+                SELECT 
+                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
                     CASE 
                         WHEN prev_hr IS NULL THEN 1
                         WHEN ABS(hr - prev_hr) > 7 OR ABS(pwr - prev_pwr) > 25 THEN 1 
+                        WHEN time_block != prev_time_block THEN 1 -- Force new segment every 5 mins
                         ELSE 0 
                     END as is_new_segment
                 FROM deltas
             ),
             segmented_data AS (
                 -- 4. Assign segment IDs
-                SELECT *,
+                SELECT 
+                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
                     SUM(is_new_segment) OVER(PARTITION BY activity_id ORDER BY minute) as segment_id
                 FROM segments
             )

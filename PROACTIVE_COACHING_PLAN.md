@@ -43,9 +43,9 @@ We will implement a **Decoupled Notification Flow**:
 3.  **Handoff Logic:** Create a utility in the API to send messages to the Orchestrator via the new endpoint.
 
 ### Phase 2: Deep Insight Features (COMPLETED ✅)
-1.  **Hydration Mandatory Protocol:** (DONE ✅)
+1.  **Hydration Safety Protocol:** (UPDATED 🛡️)
     - Calculate `Cardiac Drift` and `Estimated Sweat Rate`.
-    - If Drift > 5%, push a message: *"Silent Dehydration Detected. Drink X liters of electrolytes immediately."*
+    - If Drift > 5%, push a message: *"Cardiovascular Drift Detected. Consider rehydrating with X liters (capped at 1.5L for safety)."*
 2.  **HRV Stress Alert:** (DONE ✅)
     - Monitor HRV status and baseline.
     - If UNBALANCED or LOW, push a message: *"Recovery Alert: HRV Unbalanced. Today should be a Rest Day."*

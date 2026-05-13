@@ -29,19 +29,27 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
     user_where = f"AND user_id = '{user_id}'" if user_id else ""
 
     query = f"""
-    WITH telemetry_stats AS (
+    WITH telemetry_base AS (
         SELECT 
+            timestamp_ms,
             hr_bpm, 
             power_w, 
             cadence_spm,
             vertical_oscillation_cm as vo,
             stride_length_mm as sl,
             ground_contact_time_ms as gct,
-            PERCENT_RANK() OVER(ORDER BY timestamp_ms) as progress
+            PERCENT_RANK() OVER(ORDER BY timestamp_ms) as total_progress
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
         WHERE activity_id = '{activity_id}'
         {user_where}
         AND hr_bpm > 0
+    ),
+    telemetry_stats AS (
+        SELECT 
+            *,
+            PERCENT_RANK() OVER(ORDER BY timestamp_ms) as progress
+        FROM telemetry_base
+        WHERE total_progress >= 0.15 -- Exclude first 15% (dynamic warmup/stabilization)
     ),
     halves AS (
         SELECT
