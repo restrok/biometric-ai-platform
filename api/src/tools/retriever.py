@@ -220,24 +220,25 @@ def _retrieve_biometric_data_cached(
             return "latest_body_composition", (dict(body_rows[0]) if body_rows else None)
         except Exception:
             return "latest_body_composition", None
-def fetch_health_status():
-    t0 = time.time()
-    try:
-        # Only fetch health status from the last 3 days to avoid "zombie" context
-        query_health = f"""
-            SELECT date, feeling, notes, fatigue_level, injury_notes 
-            FROM `{project_id}.{dataset}.user_health_status` 
-            {user_where} 
-            AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
-            ORDER BY date DESC 
-            LIMIT 1
-        """
-        health_rows = list(client.query(query_health).result())
-        log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
-        return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
-    except Exception as e:
-        log.warning(f"❌ Health status retrieval failed: {e}")
-        return "latest_health_status", None
+
+    def fetch_health_status():
+        t0 = time.time()
+        try:
+            # Only fetch health status from the last 3 days to avoid "zombie" context
+            query_health = f"""
+                SELECT date, feeling, notes, fatigue_level, injury_notes 
+                FROM `{project_id}.{dataset}.user_health_status` 
+                {user_where} 
+                AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
+                ORDER BY date DESC 
+                LIMIT 1
+            """
+            health_rows = list(client.query(query_health).result())
+            log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
+            return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
+        except Exception as e:
+            log.warning(f"❌ Health status retrieval failed: {e}")
+            return "latest_health_status", None
 
     def fetch_user_goals():
         try:

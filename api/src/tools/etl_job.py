@@ -260,7 +260,7 @@ def run_etl(user_id=None):
 
     if not client:
         log.error(f"Garmin authentication client not found in Provider for user {user_id}.")
-        return
+        return None
 
     end_date = datetime.now()
 
@@ -481,7 +481,7 @@ def run_etl(user_id=None):
                 elif "id" in df_cal.columns:
                     df_cal["id"] = df_cal["id"]
                 else:
-                    return
+                    return None
 
                 df_cal = df_cal.drop_duplicates(subset=["id"])
 

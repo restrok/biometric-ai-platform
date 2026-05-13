@@ -65,8 +65,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         # 3. Autonomous Planning for Tomorrow
         # We invoke the LangGraph agent with a specific "Planning Instruction"
         # This will trigger clear_calendar, prune_workouts, and upload_training_plan
-        from src.agent.graph import graph
         from langchain_core.messages import HumanMessage
+
+        from src.agent.graph import graph
         
         planning_prompt = (
             "SYSTEM INSTRUCTION: It is 11:00 PM. Analyze my data from today and my current recovery state. "
@@ -109,29 +110,28 @@ def _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_timest
 
 def _check_health_pre_symptoms(user_id):
     log.info(f"🩺 Checking for pre-symptom health markers for {user_id}...")
-    data = retrieve_biometric_data.invoke({"user_id": user_id})
-    hrv_history = data.get("hrv", [])
-    
-    if len(hrv_history) >= 2:
-        latest = hrv_history[0]
-        prev = hrv_history[1]
+    try:
+        data = retrieve_biometric_data.invoke({"user_id": user_id})
+        hrv_history = data.get("hrv", [])
         
-        hrv_drop = prev.get("avg_hrv", 0) - latest.get("avg_hrv", 0)
-        # Placeholder for RHR check - in a real scenario we would fetch RHR specifically
-        # For now, we use HRV trend which is a strong proxy.
-        if hrv_drop > 15: # Significant drop
-            msg = (
-                f"🩺 *Early Warning: Immune System Stress*\n\n"
-                f"Your HRV dropped significantly ({hrv_drop}ms) compared to yesterday.\n\n"
-                f"📅 *Plan for Tomorrow:* This often precedes a cold or overtraining. "
-                f"I have adjusted your plan to prioritize rest. Focus on hydration and extra sleep tonight."
-            )
-            if send_proactive_notification(user_id, msg):
-                _log_notification(user_id, "health", "pre_symptom", msg)
-
-
+        if len(hrv_history) >= 2:
+            latest = hrv_history[0]
+            prev = hrv_history[1]
+            
+            hrv_drop = prev.get("avg_hrv", 0) - latest.get("avg_hrv", 0)
+            # Placeholder for RHR check - in a real scenario we would fetch RHR specifically
+            # For now, we use HRV trend which is a strong proxy.
+            if hrv_drop > 15: # Significant drop
+                msg = (
+                    f"🩺 *Early Warning: Immune System Stress*\n\n"
+                    f"Your HRV dropped significantly ({hrv_drop}ms) compared to yesterday.\n\n"
+                    f"📅 *Plan for Tomorrow:* This often precedes a cold or overtraining. "
+                    f"I have adjusted your plan to prioritize rest. Focus on hydration and extra sleep tonight."
+                )
+                if send_proactive_notification(user_id, msg):
+                    _log_notification(user_id, "health", "pre_symptom", msg)
     except Exception as e:
-        log.error(f"❌ Proactive analysis failed: {e}")
+        log.error(f"❌ Health pre-symptom check failed: {e}")
 
 
 def _has_been_notified(client, dataset, user_id, entity_id, notification_type):
@@ -205,7 +205,7 @@ def _analyze_hydration(user_id, activity_id, activity_name, activity_timestamp):
                     f"🚨 *Cardiovascular Drift Detected*\n\n"
                     f"During your run '{activity_name}' on {date_str}, your efficiency dropped by {drift}%.\n\n"
                     f"💡 *Preparation for Tomorrow:* Your body is slightly more dehydrated than usual. "
-                    f"In addition to what you drink tonight, make sure to start *tomorrow* with an extra 500ml of electrolytes to "
+                    f"In addition to what you drink tonight, make sure to start *tomorrow* with an extra {liters}L of electrolytes to "
                     f"fully restore your plasma volume and be ready for your next session."
                 )
 
@@ -236,7 +236,7 @@ def _analyze_hrv_status(user_id):
                 baseline = f"{latest_hrv.get('baseline_low')}-{latest_hrv.get('baseline_high')}ms"
                 msg = (
                     f"⚠️ *Recovery Alert: HRV is {status}*\n\n"
-                    f"Based on your latest data ({latest_hrv.get('avg_hrv')}ms), your nervous system is under stress.\n\n"
+                    f"Based on your latest data ({latest_hrv.get('avg_hrv')}ms), your nervous system is under stress (Baseline: {baseline}).\n\n"
                     f"📅 *Advice for Tomorrow:* Treat tomorrow as a *Rest Day* or keep it very light (Zone 1). "
                     f"Prioritize sleep and recovery tonight to bounce back."
                 )
