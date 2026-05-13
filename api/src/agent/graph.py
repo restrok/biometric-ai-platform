@@ -9,8 +9,15 @@ from pydantic import BaseModel, Field
 
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.etl_tool import sync_biometric_data
-from src.tools.garmin_uploader import clear_calendar, remove_workout, upload_training_plan
-from src.tools.profile_manager import update_user_zones
+from src.tools.garmin_uploader import (
+    batch_remove_workouts,
+    clear_calendar,
+    list_workouts,
+    prune_unused_workouts,
+    remove_workout,
+    upload_training_plan,
+)
+from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 from src.utils.finops import log_llm_call
@@ -185,6 +192,11 @@ def node_analyze(state: AgentState) -> dict:
         analyze_activity_efficiency,
         analyze_activity_stages,
         retrieve_biometric_data,
+        log_health_status,
+        prune_unused_workouts,
+        manage_goals,
+        list_workouts,
+        batch_remove_workouts,
     ]
     llm_with_tools = llm.bind_tools(tools)
 
@@ -283,6 +295,11 @@ def tool_node(state: AgentState):
             analyze_activity_efficiency,
             analyze_activity_stages,
             retrieve_biometric_data,
+            log_health_status,
+            prune_unused_workouts,
+            manage_goals,
+            list_workouts,
+            batch_remove_workouts,
         ]
     )
     return tn.invoke(state)

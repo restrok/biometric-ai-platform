@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2026-05-13
+### Fixed
+- **Critical Hydration Safety:** Implemented a safety cap of 1.5L for proactive hydration recommendations and refined the messaging to be advisory rather than mandatory, mitigating hyponatremia risks.
+- **Cardiovascular Drift Messaging:** Renamed "Silent Dehydration" to "Cardiovascular Drift" in proactive alerts for better clinical accuracy and reduced alarmism.
+
 ## [0.2.0] - 2026-05-05
 ### Added
 - **Universal Goals Feature**: New `user_goals` table in BigQuery and `manage_goals` tool to persist long-term user objectives.

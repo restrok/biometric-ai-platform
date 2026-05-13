@@ -106,6 +106,9 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
 - **Dependency Management:** 
   - On the **HOST**: Use `uv run` for all scripts.
   - Inside the **CONTAINER**: Use `python` directly (e.g., `docker exec biometric-coach-api python scripts/manage_tools.py ...`).
+- **RAPID TESTING WORKFLOW (HOT-SWAP):** To test local changes without a full rebuild:
+  1. Copy modified files: `docker cp api/<file> biometric-coach-api:/app/<file>`
+  2. Restart the container: `docker restart biometric-coach-api`
 - **BIGQUERY CACHE:** `retrieve_biometric_data` uses a **5-minute time-based cache**. If the user reports a new activity, you MUST use `sync_biometric_data` first, then wait or explain that the cache will refresh in a few minutes if they don't see the change immediately.
 - **Log Inspection:** If tools fail, you can inspect logs using `docker logs biometric-coach-api --tail 50`.
 

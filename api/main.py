@@ -75,10 +75,23 @@ async def lifespan(app: FastAPI):
 
     async def auto_sync_loop():
         # Initial delay to let the system settle
-        await asyncio.sleep(60)
+        await asyncio.sleep(10)
         while True:
             try:
-                log.info("🕒 Starting proactive auto-sync ETL...")
+                # Calculate seconds until next 11:00 PM (23:00)
+                from datetime import datetime, timedelta
+                now = datetime.now()
+                next_run = now.replace(hour=23, minute=0, second=0, microsecond=0)
+                if next_run <= now:
+                    next_run += timedelta(days=1)
+                
+                sleep_seconds = (next_run - now).total_seconds()
+                log.info(f"📅 Next proactive auto-sync scheduled for {next_run} (in {sleep_seconds/3600:.2f} hours)")
+                
+                # Wait until 11:00 PM
+                await asyncio.sleep(sleep_seconds)
+
+                log.info("🕒 It is 11:00 PM. Starting daily proactive auto-sync ETL...")
                 user_ids = get_all_garmin_user_ids()
 
                 if not user_ids:
@@ -88,17 +101,16 @@ async def lifespan(app: FastAPI):
                     log.info(f"🔄 Syncing data for user: {uid}")
                     loop = asyncio.get_event_loop()
                     # run_etl is synchronous, run in executor
-                    await loop.run_in_executor(None, run_etl, uid)
+                    new_ids = await loop.run_in_executor(None, run_etl, uid)
 
                     log.info(f"🧠 Running proactive analysis for user: {uid}")
-                    await loop.run_in_executor(None, run_proactive_analysis, uid)
+                    await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
 
-                log.info("✅ Proactive auto-sync cycle completed.")
+                log.info("✅ Daily proactive auto-sync cycle completed.")
             except Exception as e:
                 log.error(f"❌ Error in auto-sync loop: {e}")
-
-            # Wait for 6 hours between syncs (Optimization: reduce frequency to save quota)
-            await asyncio.sleep(6 * 3600)
+                # If it fails, wait 1 hour and try again (or wait until next 8am)
+                await asyncio.sleep(3600)
 
     # Start the background tasks
     refresh_task = asyncio.create_task(refresh_loop())

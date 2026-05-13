@@ -11,48 +11,124 @@ from src.utils.notifications import send_proactive_notification
 log = logging.getLogger(__name__)
 
 
-def run_proactive_analysis(user_id: str):
+def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = None):
     """
-    Analyzes the latest biometric data and sends proactive notifications
-    if physiological anomalies are detected.
+    Analyzed recent data. If new_activity_ids is provided, it only analyzes those.
+    Then, it triggers an autonomous planning agent to schedule tomorrow.
     """
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
 
-    log.info(f"🧠 Starting proactive analysis for user: {user_id}")
+    log.info(f"🧠 Starting proactive analysis and autonomous planning for user: {user_id}")
 
-    # 1. Check for recent activities that haven't been notified
-    # We need a way to track what we've already processed.
-    # For now, let's look at the latest activity from the last 6 hours.
-
-    query_latest = f"""
-        SELECT id, date, type 
-        FROM `{config["project_id"]}.{dataset}.recent_activities`
-        WHERE user_id = '{user_id}'
-        AND date >= UNIX_SECONDS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR))
-        ORDER BY date DESC
-        LIMIT 1
-    """
+    # 1. Physical Analysis (Telemetry-based)
+    activities_to_process = []
+    if new_activity_ids:
+        query_specific = f"""
+            SELECT id, date, type, name 
+            FROM `{config["project_id"]}.{dataset}.recent_activities`
+            WHERE user_id = '{user_id}'
+            AND id IN UNNEST({new_activity_ids})
+        """
+        activities_to_process = list(client.query(query_specific).result())
+    else:
+        query_latest = f"""
+            SELECT id, date, type, name 
+            FROM `{config["project_id"]}.{dataset}.recent_activities`
+            WHERE user_id = '{user_id}'
+            AND date >= UNIX_SECONDS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR))
+            ORDER BY date DESC
+            LIMIT 1
+        """
+        activities_to_process = list(client.query(query_latest).result())
 
     try:
-        results = list(client.query(query_latest).result())
-        if results:
-            activity = results[0]
+        for activity in activities_to_process:
             activity_id = str(activity.id)
+            activity_name = activity.name
+            activity_date = activity.date
 
-            # Check if notified already (using a simple local cache or a BQ table)
             if not _has_been_notified(client, dataset, user_id, activity_id, "hydration"):
-                _analyze_hydration(user_id, activity_id)
+                _analyze_hydration(user_id, activity_id, activity_name, activity_date)
 
             if not _has_been_notified(client, dataset, user_id, activity_id, "neuromuscular"):
-                _analyze_neuromuscular_fatigue(user_id, activity_id)
+                _analyze_neuromuscular_fatigue(user_id, activity_id, activity_name, activity_date)
 
-            if not _has_been_notified(client, dataset, user_id, activity_id, "rpe_request"):
-                _request_rpe(user_id, activity_id)
+            if not _has_been_notified(client, dataset, user_id, activity_id, "metabolic"):
+                _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_date)
 
-        # 2. Check HRV Status
+        # 2. Health & Recovery Analysis
         _analyze_hrv_status(user_id)
+        _check_health_pre_symptoms(user_id)
+
+        # 3. Autonomous Planning for Tomorrow
+        # We invoke the LangGraph agent with a specific "Planning Instruction"
+        # This will trigger clear_calendar, prune_workouts, and upload_training_plan
+        from src.agent.graph import graph
+        from langchain_core.messages import HumanMessage
+        
+        planning_prompt = (
+            "SYSTEM INSTRUCTION: It is 11:00 PM. Analyze my data from today and my current recovery state. "
+            "1. Clear my calendar for tomorrow. "
+            "2. Prune my workout library. "
+            "3. Schedule the optimal session (or Rest Day) for tomorrow on my watch. "
+            "Explain your reasoning based on today's telemetry and my health status."
+        )
+        
+        log.info(f"📅 Triggering autonomous planner for {user_id}...")
+        graph.invoke({
+            "messages": [HumanMessage(content=planning_prompt)],
+            "user_id": user_id,
+            "loop_count": 0
+        })
+
+    except Exception as e:
+        log.error(f"❌ Proactive analysis/planning failed: {e}")
+
+
+def _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_timestamp):
+    log.info(f"🔥 Analyzing metabolic cost for activity {activity_id}...")
+    efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
+
+    if isinstance(efficiency, dict) and "hr_per_step" in efficiency:
+        hr_step = efficiency["hr_per_step"]
+        # Threshold: > 0.95 HR/Step often indicates metabolic inefficiency for most runners
+        if hr_step > 0.95:
+            date_str = time.strftime("%A, %d %b", time.localtime(activity_timestamp))
+            msg = (
+                f"🔥 *Metabolic Efficiency Alert*\n\n"
+                f"During your run '{activity_name}' on {date_str}, your Metabolic Cost was high ({hr_step} HR/Step).\n\n"
+                f"💡 *Nutrition Advice for Tomorrow:* You burned more glycogen than usual today. "
+                f"Prioritize complex carbohydrates in your breakfast tomorrow (oats, whole grains) to "
+                f"fully restock your energy stores."
+            )
+            if send_proactive_notification(user_id, msg):
+                _log_notification(user_id, activity_id, "metabolic", msg)
+
+
+def _check_health_pre_symptoms(user_id):
+    log.info(f"🩺 Checking for pre-symptom health markers for {user_id}...")
+    data = retrieve_biometric_data.invoke({"user_id": user_id})
+    hrv_history = data.get("hrv", [])
+    
+    if len(hrv_history) >= 2:
+        latest = hrv_history[0]
+        prev = hrv_history[1]
+        
+        hrv_drop = prev.get("avg_hrv", 0) - latest.get("avg_hrv", 0)
+        # Placeholder for RHR check - in a real scenario we would fetch RHR specifically
+        # For now, we use HRV trend which is a strong proxy.
+        if hrv_drop > 15: # Significant drop
+            msg = (
+                f"🩺 *Early Warning: Immune System Stress*\n\n"
+                f"Your HRV dropped significantly ({hrv_drop}ms) compared to yesterday.\n\n"
+                f"📅 *Plan for Tomorrow:* This often precedes a cold or overtraining. "
+                f"I have adjusted your plan to prioritize rest. Focus on hydration and extra sleep tonight."
+            )
+            if send_proactive_notification(user_id, msg):
+                _log_notification(user_id, "health", "pre_symptom", msg)
+
 
     except Exception as e:
         log.error(f"❌ Proactive analysis failed: {e}")
@@ -110,7 +186,7 @@ def _log_notification(user_id, entity_id, notification_type, message):
     client.insert_rows_json(table_id, rows_to_insert)
 
 
-def _analyze_hydration(user_id, activity_id):
+def _analyze_hydration(user_id, activity_id, activity_name, activity_timestamp):
     log.info(f"💧 Analyzing hydration for activity {activity_id}...")
     efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
 
@@ -119,15 +195,18 @@ def _analyze_hydration(user_id, activity_id):
         try:
             drift = float(drift_str)
             if drift > 5.0:
-                # Calculate rehydration needs: Basic formula for 77kg user
-                # 1.5L for 6% drift is roughly what we discussed.
-                liters = round(drift * 0.25, 1)  # 6% -> 1.5L
+                # Calculate rehydration needs: Conservative formula
+                # We cap it at 1.5L to avoid hyponatremia risk.
+                # Formula: 0.5L base + 0.1L per % above 5%, max 1.5L
+                liters = min(1.5, round(0.5 + (drift - 5.0) * 0.1, 1))
 
+                date_str = time.strftime("%A, %d %b", time.localtime(activity_timestamp))
                 msg = (
-                    f"🚨 *Silent Dehydration Detected*\n\n"
-                    f"Your efficiency dropped by {drift}% during your run today. "
-                    f"Your body is under cardiovascular stress even if you don't feel thirsty.\n\n"
-                    f"👉 *Mandatory Protocol:* Drink at least {liters}L of electrolytes in the next 2 hours."
+                    f"🚨 *Cardiovascular Drift Detected*\n\n"
+                    f"During your run '{activity_name}' on {date_str}, your efficiency dropped by {drift}%.\n\n"
+                    f"💡 *Preparation for Tomorrow:* Your body is slightly more dehydrated than usual. "
+                    f"In addition to what you drink tonight, make sure to start *tomorrow* with an extra 500ml of electrolytes to "
+                    f"fully restore your plasma volume and be ready for your next session."
                 )
 
                 if send_proactive_notification(user_id, msg):
@@ -156,16 +235,17 @@ def _analyze_hrv_status(user_id):
             if not _has_been_notified(client, dataset, user_id, date, "hrv_stress"):
                 baseline = f"{latest_hrv.get('baseline_low')}-{latest_hrv.get('baseline_high')}ms"
                 msg = (
-                    f"⚠️ *Recovery Alert: HRV {status}*\n\n"
-                    f"Your HRV today is {latest_hrv.get('avg_hrv')}ms, which is below your typical baseline of {baseline}.\n\n"
-                    f"Your nervous system is under stress. Today should be a *Rest Day* or very light Z1 recovery."
+                    f"⚠️ *Recovery Alert: HRV is {status}*\n\n"
+                    f"Based on your latest data ({latest_hrv.get('avg_hrv')}ms), your nervous system is under stress.\n\n"
+                    f"📅 *Advice for Tomorrow:* Treat tomorrow as a *Rest Day* or keep it very light (Zone 1). "
+                    f"Prioritize sleep and recovery tonight to bounce back."
                 )
                 if send_proactive_notification(user_id, msg):
                     _log_notification(user_id, date, "hrv_stress", msg)
                     log.info(f"✅ HRV stress alert sent for {date}")
 
 
-def _analyze_neuromuscular_fatigue(user_id, activity_id):
+def _analyze_neuromuscular_fatigue(user_id, activity_id, activity_name, activity_timestamp):
     log.info(f"🦵 Analyzing neuromuscular fatigue for activity {activity_id}...")
     efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
 
@@ -178,12 +258,13 @@ def _analyze_neuromuscular_fatigue(user_id, activity_id):
 
             # Threshold: > 4% increase in GCT indicates significant form breakdown
             if gct_drift > 4.0:
+                date_str = time.strftime("%A, %d %b", time.localtime(activity_timestamp))
                 msg = (
-                    f"🦵 *Form Breakdown Detected*\n\n"
-                    f"Your Ground Contact Time (GCT) increased by {round(gct_drift, 1)}% in the second half of your run. "
-                    f"This indicates neuromuscular fatigue and lost 'stiffness' in your stride.\n\n"
-                    f"👉 *Advice:* Your next session should include 4-6 recovery strides (20s fast/relaxed) "
-                    f"to reset your form and neuromuscular recruitment."
+                    f"🦵 *Neuromuscular Fatigue Detected*\n\n"
+                    f"In your run '{activity_name}' on {date_str}, your form showed breakdown (GCT increased by {round(gct_drift, 1)}%).\n\n"
+                    f"👉 *Action Plan for Tomorrow:* Your nervous system needs a 'reset'. "
+                    f"If you have a session tomorrow, include 4-6 recovery strides (20s fast/relaxed) at the end "
+                    f"to improve neuromuscular recruitment and 'stiffness'."
                 )
 
                 if send_proactive_notification(user_id, msg):
@@ -191,10 +272,10 @@ def _analyze_neuromuscular_fatigue(user_id, activity_id):
                     log.info(f"✅ Neuromuscular fatigue alert sent for {activity_id}")
 
 
-def _request_rpe(user_id, activity_id):
+def _request_rpe(user_id, activity_id, activity_name):
     log.info(f"🤔 Requesting RPE for activity {activity_id}...")
     msg = (
-        "🏃 *Activity Synced: Tigre Running*\n\n"
+        f"🏃 *Activity Synced: {activity_name}*\n\n"
         "Great job on your run! To calibrate your recovery model, "
         "how did you feel on a scale of 1-10? (1 = very easy, 10 = max effort)"
     )

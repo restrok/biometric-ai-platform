@@ -272,6 +272,7 @@ def run_etl(user_id=None):
     log.info(f"Checking for Activities since {start_date.date()} (user: {user_id})...")
 
     activities = provider.get_activities(start_date.date(), end_date.date())
+    newly_synced_ids = []
 
     if activities:
         # Deduplication logic: only keep activities we don't have
@@ -288,6 +289,7 @@ def run_etl(user_id=None):
 
             for act in new_activities:
                 log.info(f"Fetching telemetry for new activity: {act.name} ({act.id})")
+                newly_synced_ids.append(str(act.id))
                 telemetry = provider.get_telemetry(str(act.id))
 
                 avg_pwr = None
@@ -503,6 +505,7 @@ def run_etl(user_id=None):
         log.warning(f"Scheduled Workouts sync failed: {e}")
 
     log.info(f"Incremental Sync Complete for user {user_id}!")
+    return newly_synced_ids
 
 
 if __name__ == "__main__":
