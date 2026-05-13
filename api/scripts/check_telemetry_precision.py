@@ -8,6 +8,7 @@ from google.cloud import bigquery
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
+
 def check_precision(user_id="fsirio", activity_id=None):
     """
     Audits the new Hybrid Telemetry Architecture:
@@ -38,9 +39,10 @@ def check_precision(user_id="fsirio", activity_id=None):
         ORDER BY timestamp_ms ASC
     """
     df_raw = client.query(query_raw).to_dataframe()
-    
+
     def calc_metrics(df):
-        if len(df) < 2: return {"drift": 0, "avg_gct": 0, "avg_vo": 0, "hr_per_step": 0}
+        if len(df) < 2:
+            return {"drift": 0, "avg_gct": 0, "avg_vo": 0, "hr_per_step": 0}
         mid = len(df) // 2
         eff1 = df.iloc[:mid]["power_w"].mean() / df.iloc[:mid]["hr_bpm"].mean()
         eff2 = df.iloc[mid:]["power_w"].mean() / df.iloc[mid:]["hr_bpm"].mean()
@@ -49,7 +51,7 @@ def check_precision(user_id="fsirio", activity_id=None):
             "drift": drift,
             "avg_gct": df["gct"].mean(),
             "avg_vo": df["vo"].mean(),
-            "hr_per_step": (df["hr_bpm"] / df["cadence_spm"].replace(0, 1)).mean()
+            "hr_per_step": (df["hr_bpm"] / df["cadence_spm"].replace(0, 1)).mean(),
         }
 
     # 3. Calculations
@@ -57,22 +59,30 @@ def check_precision(user_id="fsirio", activity_id=None):
 
     # COACH VIEW 1: Global Metrics (Simulating pre-calculated BQ metrics)
     # This should match RAW exactly because BQ does it on all rows
-    m_coach_global = m_raw 
+    m_coach_global = m_raw
 
     # COACH VIEW 2: Segmented Metrics (5-min blocks)
     df_raw["minute_ts"] = pd.to_datetime(df_raw["timestamp_ms"] * 1000000).dt.floor("1min")
-    raw_minutes = df_raw.groupby("minute_ts").agg({"hr_bpm":"mean", "power_w":"mean", "cadence_spm":"mean", "gct":"mean", "vo":"mean"}).reset_index()
+    raw_minutes = (
+        df_raw.groupby("minute_ts")
+        .agg({"hr_bpm": "mean", "power_w": "mean", "cadence_spm": "mean", "gct": "mean", "vo": "mean"})
+        .reset_index()
+    )
     raw_minutes["time_block"] = (raw_minutes["minute_ts"].dt.minute // 5).astype(int)
     raw_minutes["is_new"] = (raw_minutes["time_block"] != raw_minutes["time_block"].shift(1)).astype(int)
     raw_minutes["segment_id"] = raw_minutes["is_new"].cumsum()
-    df_segmented = raw_minutes.groupby("segment_id").agg({"hr_bpm":"mean", "power_w":"mean", "cadence_spm":"mean", "gct":"mean", "vo":"mean"}).reset_index()
+    df_segmented = (
+        raw_minutes.groupby("segment_id")
+        .agg({"hr_bpm": "mean", "power_w": "mean", "cadence_spm": "mean", "gct": "mean", "vo": "mean"})
+        .reset_index()
+    )
     m_coach_segmented = calc_metrics(df_segmented)
 
     # 4. Reporting
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"{'METRIC':<20} | {'RAW (Truth)':<12} | {'COACH (Global)':<15} | {'COACH (Series)':<12}")
-    print(f"{'-'*70}")
-    
+    print(f"{'-' * 70}")
+
     metrics = [
         ("Cardiac Drift", "drift", "%"),
         ("Avg GCT", "avg_gct", "ms"),
@@ -81,12 +91,15 @@ def check_precision(user_id="fsirio", activity_id=None):
     ]
 
     for label, key, unit in metrics:
-        print(f"{label:<20} | {m_raw[key]:>10.2f}{unit} | {m_coach_global[key]:>13.2f}{unit} | {m_coach_segmented[key]:>10.2f}{unit}")
-    
-    print(f"{'-'*70}")
+        print(
+            f"{label:<20} | {m_raw[key]:>10.2f}{unit} | {m_coach_global[key]:>13.2f}{unit} | {m_coach_segmented[key]:>10.2f}{unit}"
+        )
+
+    print(f"{'-' * 70}")
     print(f"Data Points:         | {len(df_raw):<12} | {'1 (Pre-calc)':<15} | {len(df_segmented):<12}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print("✅ PREDICTION: The Coach will use GLOBAL for values and SERIES to find the exact 'Leak' point.")
+
 
 if __name__ == "__main__":
     check_precision()

@@ -68,7 +68,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         from langchain_core.messages import HumanMessage
 
         from src.agent.graph import graph
-        
+
         planning_prompt = (
             "SYSTEM INSTRUCTION: It is 11:00 PM. Analyze my data from today and my current recovery state. "
             "1. Clear my calendar for tomorrow. "
@@ -76,13 +76,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             "3. Schedule the optimal session (or Rest Day) for tomorrow on my watch. "
             "Explain your reasoning based on today's telemetry and my health status."
         )
-        
+
         log.info(f"📅 Triggering autonomous planner for {user_id}...")
-        graph.invoke({
-            "messages": [HumanMessage(content=planning_prompt)],
-            "user_id": user_id,
-            "loop_count": 0
-        })
+        graph.invoke({"messages": [HumanMessage(content=planning_prompt)], "user_id": user_id, "loop_count": 0})
 
     except Exception as e:
         log.error(f"❌ Proactive analysis/planning failed: {e}")
@@ -113,15 +109,15 @@ def _check_health_pre_symptoms(user_id):
     try:
         data = retrieve_biometric_data.invoke({"user_id": user_id})
         hrv_history = data.get("hrv", [])
-        
+
         if len(hrv_history) >= 2:
             latest = hrv_history[0]
             prev = hrv_history[1]
-            
+
             hrv_drop = prev.get("avg_hrv", 0) - latest.get("avg_hrv", 0)
             # Placeholder for RHR check - in a real scenario we would fetch RHR specifically
             # For now, we use HRV trend which is a strong proxy.
-            if hrv_drop > 15: # Significant drop
+            if hrv_drop > 15:  # Significant drop
                 msg = (
                     f"🩺 *Early Warning: Immune System Stress*\n\n"
                     f"Your HRV dropped significantly ({hrv_drop}ms) compared to yesterday.\n\n"

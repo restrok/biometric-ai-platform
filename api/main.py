@@ -80,14 +80,15 @@ async def lifespan(app: FastAPI):
             try:
                 # Calculate seconds until next 11:00 PM (23:00)
                 from datetime import datetime, timedelta
+
                 now = datetime.now()
                 next_run = now.replace(hour=23, minute=0, second=0, microsecond=0)
                 if next_run <= now:
                     next_run += timedelta(days=1)
-                
+
                 sleep_seconds = (next_run - now).total_seconds()
-                log.info(f"📅 Next proactive auto-sync scheduled for {next_run} (in {sleep_seconds/3600:.2f} hours)")
-                
+                log.info(f"📅 Next proactive auto-sync scheduled for {next_run} (in {sleep_seconds / 3600:.2f} hours)")
+
                 # Wait until 11:00 PM
                 await asyncio.sleep(sleep_seconds)
 
