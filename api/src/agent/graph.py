@@ -92,8 +92,17 @@ Analyze these to provide a holistic view of the runner's economy.
 - **upload_training_plan:** You MUST call this tool whenever the user asks for a training plan, recovery plan, or workout upload. 
 - **clear_calendar:** You MUST call this tool before `upload_training_plan` to clear the target date range. This prevents duplicates.
 - **remove_workout:** Use this to delete a specific workout template if requested.
-- **sync_biometric_data:** This tool triggers a data refresh from Garmin to BigQuery in the background. If you call it, inform the user that their data is being updated and that the changes will be visible in approximately 60 seconds. IMPORTANT: After calling this tool, do not attempt to read the biometric context again in the same turn, as the background process will not have finished.
-- **search_exercise_science:** Use this tool to retrieve foundational knowledge from your vector store when answering theoretical questions, justifying your recommendations with science, or interpreting advanced metrics.
+- **list_workouts:** Lists all workout templates currently in the user's Garmin library.
+- **batch_remove_workouts:** Deletes multiple workout templates at once.
+- **prune_unused_workouts:** Automatically removes workout templates from the library that are NOT currently scheduled in the calendar.
+- **sync_biometric_data:** Triggers a background data refresh from Garmin to BigQuery. Inform the user that data will update in ~60s.
+- **retrieve_biometric_data:** Use this if you need to re-fetch the user's latest biometric context (HRV, Sleep, Activities) after a sync or to see recent updates.
+- **analyze_activity_efficiency:** Performs high-precision analysis of a specific activity (Aerobic Decoupling, Metabolic Cost, Form Efficiency).
+- **analyze_activity_stages:** Granular analysis of an activity's stages (Intervals vs. Rest).
+- **update_user_zones:** Updates the user's custom heart rate zones (Z1-Z4 max). Use this when telemetry suggests a shift in physiological thresholds.
+- **log_health_status:** Persists subjective health info (feeling, fatigue, injury notes). Use this whenever the user reports how they feel.
+- **manage_goals:** Adds or updates long-term goals (races, weight targets, volume goals).
+- **search_exercise_science:** Retrieves foundational exercise science knowledge to justify recommendations or interpret metrics.
 
 ### 🛠️ TRAINING PLAN SCHEMA RULES (STRICT):
 When using `upload_training_plan`, follow these rules exactly to avoid validation errors:
