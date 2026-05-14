@@ -78,21 +78,22 @@ async def lifespan(app: FastAPI):
         await asyncio.sleep(10)
         while True:
             try:
-                # Calculate seconds until next 11:00 PM (23:00)
+                # Calculate seconds until next proactive run (default 02:00 UTC = 11:00 PM -03)
                 from datetime import datetime, timedelta
 
+                target_hour = int(os.getenv("PROACTIVE_HOUR_UTC", "2"))
                 now = datetime.now()
-                next_run = now.replace(hour=23, minute=0, second=0, microsecond=0)
+                next_run = now.replace(hour=target_hour, minute=0, second=0, microsecond=0)
                 if next_run <= now:
                     next_run += timedelta(days=1)
 
                 sleep_seconds = (next_run - now).total_seconds()
-                log.info(f"📅 Next proactive auto-sync scheduled for {next_run} (in {sleep_seconds / 3600:.2f} hours)")
+                log.info(f"📅 Next proactive auto-sync scheduled for {next_run} UTC (in {sleep_seconds / 3600:.2f} hours)")
 
-                # Wait until 11:00 PM
+                # Wait until target hour
                 await asyncio.sleep(sleep_seconds)
 
-                log.info("🕒 It is 11:00 PM. Starting daily proactive auto-sync ETL...")
+                log.info(f"🕒 It is {target_hour}:00 UTC. Starting daily proactive auto-sync ETL...")
                 user_ids = get_all_garmin_user_ids()
 
                 if not user_ids:
@@ -106,6 +107,9 @@ async def lifespan(app: FastAPI):
 
                     log.info(f"🧠 Running proactive analysis for user: {uid}")
                     await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
+                    
+                    # Sleep a bit between users to avoid spikes
+                    await asyncio.sleep(30)
 
                 log.info("✅ Daily proactive auto-sync cycle completed.")
             except Exception as e:

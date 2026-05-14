@@ -111,27 +111,28 @@ def _retrieve_biometric_data_cached(
             if activity_type:
                 where_clauses.append(f"type = '{activity_type}'")
 
-            # Helper to convert YYYY-MM-DD to nanoseconds
-            def to_nanos(date_str):
+            # Helper to convert YYYY-MM-DD to unix seconds
+            def to_unix_seconds(date_str):
                 dt = datetime.strptime(date_str, "%Y-%m-%d")
-                return int(dt.timestamp() * 1e9)
+                return int(dt.timestamp())
 
             if start_date:
-                where_clauses.append(f"date >= {to_nanos(start_date)}")
+                where_clauses.append(f"date >= {to_unix_seconds(start_date)}")
             if end_date:
                 # Add 1 day to end_date to include the full day
                 dt_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
-                end_nanos = int(dt_end.timestamp() * 1e9)
-                where_clauses.append(f"date < {end_nanos}")
+                end_seconds = int(dt_end.timestamp())
+                where_clauses.append(f"date < {end_seconds}")
 
             where_clause = ""
             if where_clauses:
                 where_clause = "WHERE " + " AND ".join(where_clauses)
 
-            # Convert nanoseconds to TIMESTAMP for readable output
+            # Use a helper to format the timestamp regardless of its precision (though now it should be seconds)
+            # We use TIMESTAMP_SECONDS for BigQuery since the data is now in seconds.
             query_act = f"""
                 SELECT id, 
-                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_MICROS(CAST(date / 1000 AS INT64))) as date, 
+                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date, 
                        type, distance_m, avg_hr, vo2max 
                 FROM `{project_id}.{dataset}.recent_activities` 
                 {where_clause}
@@ -225,11 +226,16 @@ def _retrieve_biometric_data_cached(
         t0 = time.time()
         try:
             # Only fetch health status from the last 3 days to avoid "zombie" context
+            where_clauses = ["date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)"]
+            if user_id:
+                where_clauses.append(f"user_id = '{user_id}'")
+            
+            where_str = "WHERE " + " AND ".join(where_clauses)
+
             query_health = f"""
                 SELECT date, feeling, notes, fatigue_level, injury_notes 
                 FROM `{project_id}.{dataset}.user_health_status` 
-                {user_where} 
-                AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
+                {where_str} 
                 ORDER BY date DESC 
                 LIMIT 1
             """
@@ -284,7 +290,8 @@ def _retrieve_biometric_data_cached(
 
             # Optimization: Add a date filter to the telemetry query to hit partitions
             # We assume telemetry for the last 3 activities is within the last 30 days.
-            thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp() * 1e6)
+            # Data in table is in milliseconds (13 digits)
+            thirty_days_ago_ms = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
 
             # Implementation of Dynamic Effort Segmentation (from telemetry-optimization-plan.md)
             query_tel_series = f"""
@@ -293,19 +300,19 @@ def _retrieve_biometric_data_cached(
                 SELECT 
                     activity_id,
                     activity_name,
-                    TIMESTAMP_TRUNC(TIMESTAMP_MICROS(CAST(timestamp_ms * 1000 AS INT64)), MINUTE) as minute,
+                    TIMESTAMP_TRUNC(TIMESTAMP_SECONDS(CAST(timestamp_ms / 1000 AS INT64)), MINUTE) as minute,
                     AVG(hr_bpm) as hr,
                     AVG(power_w) as pwr,
                     AVG(cadence_spm) as cad,
                     AVG(vertical_oscillation_cm) as osc,
                     AVG(ground_contact_time_ms) as gct,
                     -- Add a 5-minute counter for hybrid segmentation
-                    CAST(FLOOR(EXTRACT(MINUTE FROM TIMESTAMP_TRUNC(TIMESTAMP_MICROS(CAST(timestamp_ms * 1000 AS INT64)), MINUTE)) / 5) AS INT64) as time_block
+                    CAST(FLOOR(EXTRACT(MINUTE FROM TIMESTAMP_TRUNC(TIMESTAMP_SECONDS(CAST(timestamp_ms / 1000 AS INT64)), MINUTE)) / 5) AS INT64) as time_block
                 FROM `{project_id}.{dataset}.latest_activity_telemetry`
                 WHERE activity_id IN ({ids_str}) 
-                  AND timestamp_ms >= {thirty_days_ago}
+                  AND timestamp_ms >= {thirty_days_ago_ms}
                   {f" AND user_id = '{user_id}'" if user_id else ""}
-                GROUP BY 1, 2, 3
+                GROUP BY 1, 2, 3, 9
             ),
             deltas AS (
                 -- 2. Calculate deltas to find "shifts" in effort

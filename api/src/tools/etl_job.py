@@ -70,7 +70,13 @@ def upsert_to_bq(df, table_name, unique_key="date", user_id=None):
             if col in target_schema:
                 bqt = target_schema[col]
                 if bqt == "INTEGER":
-                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype("int64")
+                    if col == "date" or col.endswith("_at"):
+                        # Ensure we convert datetime to SECONDS, not nanoseconds
+                        df[col] = pd.to_datetime(df[col], errors="coerce").view("int64") // 10**9
+                        # Replace negative/very small values with 0
+                        df.loc[df[col] < 0, col] = 0
+                    else:
+                        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype("int64")
                 elif bqt == "FLOAT":
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif bqt == "STRING":
