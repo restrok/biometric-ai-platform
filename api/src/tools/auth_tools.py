@@ -67,17 +67,15 @@ def complete_garmin_auth(ticket_or_url: str, user_id: str) -> str:
     Completes the Garmin authentication process by exchanging an SSO ticket for OAuth tokens.
     Saves the tokens securely in Google Secret Manager for the specific user.
     """
-    # 1. Extract ticket
-    ticket = ticket_or_url
-    if "ticket=" in ticket_or_url:
-        m = re.search(r"ticket=(ST-[A-Za-z0-9\-]+)", ticket_or_url)
-        if m:
-            ticket = m.group(1)
-        else:
-            return "❌ Could not find a valid ticket in the URL provided. Please make sure it contains 'ticket=ST-...'"
+    # 1. Robust Ticket Extraction
+    # We look for the pattern ST- followed by alphanumeric and dashes
+    ticket_match = re.search(r"(ST-[A-Za-z0-9\-]+)", ticket_or_url)
+    
+    if not ticket_match:
+        return "❌ Could not find a valid ticket (ST-...) in your message. Please make sure to copy the full URL or the service ticket."
 
-    if not ticket.startswith("ST-"):
-        return "❌ Invalid ticket format. It should start with 'ST-'."
+    ticket = ticket_match.group(1)
+    log.info(f"🎫 Extracted ticket: {ticket[:10]}... for user: {user_id}")
 
     try:
         log.info(f"🔄 Exchanging ticket for tokens for user: {user_id}")
