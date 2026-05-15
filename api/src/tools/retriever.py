@@ -214,9 +214,9 @@ def _retrieve_biometric_data_cached(
             where_status = "WHERE (status IS NOT NULL OR acute_load IS NOT NULL)"
             if user_id:
                 where_status += f" AND user_id = '{user_id}'"
-
             query_status = f"""
-                SELECT status, acute_load, chronic_load, vo2max 
+                SELECT status, acute_load, training_load_balance, vo2max_precise, 
+                       primary_benefit, recovery_time_hours
                 FROM `{project_id}.{dataset}.training_status` 
                 {where_status}
                 ORDER BY date DESC LIMIT 1
@@ -234,9 +234,9 @@ def _retrieve_biometric_data_cached(
             where_sleep = "WHERE (duration_sec IS NOT NULL OR quality IS NOT NULL)"
             if user_id:
                 where_sleep += f" AND user_id = '{user_id}'"
-
             query_sleep = f"""
-                SELECT date, duration_sec, quality 
+                SELECT date, duration_sec, quality, deep_sleep_sec, light_sleep_sec, 
+                       rem_sleep_sec, awake_sec, sleep_score
                 FROM `{project_id}.{dataset}.sleep_history` 
                 {where_sleep}
                 ORDER BY date DESC LIMIT 1
@@ -253,7 +253,7 @@ def _retrieve_biometric_data_cached(
             t0 = time.time()
             query_hrv = f"""
                 SELECT date, avg_hrv, min_hrv, max_hrv, status, baseline_low, baseline_high
-                FROM `{project_id}.{dataset}.hrv_history`
+                FROM `{project_id}.{dataset}.hrv_history` 
                 {user_where}
                 ORDER BY date DESC LIMIT 7
             """
@@ -304,11 +304,10 @@ def _retrieve_biometric_data_cached(
             where_str = "WHERE " + " AND ".join(where_clauses)
 
             query_health = f"""
-                SELECT date, feeling, notes, fatigue_level, injury_notes 
-                FROM `{project_id}.{dataset}.user_health_status` 
-                {where_str} 
-                ORDER BY date DESC 
-                LIMIT 1
+                SELECT date, feeling, notes, fatigue_level, injury_notes
+                FROM `{project_id}.{dataset}.health_status` 
+                {where_str}
+                ORDER BY date DESC LIMIT 1
             """
             health_rows = list(client.query(query_health).result())
             log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
@@ -342,7 +341,6 @@ def _retrieve_biometric_data_cached(
             where_sched = f"WHERE date >= '{today}'"
             if user_id:
                 where_sched += f" AND user_id = '{user_id}'"
-
             query_sched = f"""
                 SELECT title, date, sport_type, duration_sec, distance_m 
                 FROM `{project_id}.{dataset}.scheduled_workouts` 
@@ -467,11 +465,11 @@ def _retrieve_biometric_data_cached(
 
                 metrics = [
                     f"DUR:{dur}",
-                    f"HR:{int(row.avg_hr)} (max {int(row.max_hr)})",
-                    f"PWR:{int(row.avg_pwr)}W (max {int(row.max_pwr)}W)",
-                    f"PACE:{mps_to_pace(row.avg_speed)} (GAP:{mps_to_pace(row.avg_gap)})",
-                    f"CAD:{round(row.avg_cad, 1)}spm",
-                    f"STRIDE:{round(row.avg_stride / 1000, 2)}m",
+                    f"HR:{int(row.avg_hr or 0)} (max {int(row.max_hr or 0)})",
+                    f"PWR:{int(row.avg_pwr or 0)}W (max {int(row.max_pwr or 0)}W)",
+                    f"PACE:{mps_to_pace(row.avg_speed or 0)} (GAP:{mps_to_pace(row.avg_gap or 0)})",
+                    f"CAD:{round(row.avg_cad or 0, 1)}spm",
+                    f"STRIDE:{round((row.avg_stride or 0) / 1000, 2)}m",
                     f"GCT:{int(row.avg_gct or 0)}ms",
                     f"VOSC:{round(row.avg_osc or 0, 1)}cm",
                     f"VRATIO:{round(row.avg_v_ratio or 0, 1)}%",
@@ -497,7 +495,10 @@ def _retrieve_biometric_data_cached(
             )
         except Exception as e:
             log.error(f"❌ Telemetry retrieval failed: {e}")
-            return "last_3_runs_timeseries_summary", f"Error retrieving telemetry: {e}"
+            return (
+                "last_3_runs_timeseries_summary",
+                f"Error retrieving telemetry: {e}",
+            )
 
     # Execute first queries in parallel
     with ThreadPoolExecutor(max_workers=7) as executor:
@@ -527,7 +528,8 @@ def _retrieve_biometric_data_cached(
             f_sched,
             f_telemetry,
         ]:
-            key, val = f.result()
+            res: tuple[str, Any] = f.result()  # type: ignore
+            key, val = res
             context[key] = val
 
     # Fill in info for missing fields
