@@ -35,7 +35,13 @@ module "storage" {
   region            = var.region
   bucket_name       = var.datalake_bucket_name
   state_bucket_name = "tf-state-${var.project_id}"
-  dataset_name      = var.dataset_name
+}
+
+module "bigquery" {
+  source       = "./modules/bigquery"
+  project_id   = var.project_id
+  region       = var.region
+  dataset_name = var.dataset_name
 }
 
 module "iam" {

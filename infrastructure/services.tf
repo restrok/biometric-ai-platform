@@ -9,6 +9,7 @@ locals {
     "secretmanager.googleapis.com",  # Gestión de llaves y tokens
     "billingbudgets.googleapis.com", # Necesario para las alertas de presupuesto
     "iam.googleapis.com",            # Gestión de identidades y permisos
+    "cloudquotas.googleapis.com",
   ]
 }
 
