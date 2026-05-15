@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -21,7 +22,9 @@ from src.tools.garmin_uploader import (
     remove_workout,
     upload_training_plan,
 )
+from src.tools.historical_biometrics import historical_biometrics_tool
 from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
+from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 
@@ -40,6 +43,8 @@ TOOLS = {
     "analyze_activity_efficiency": analyze_activity_efficiency,
     "search_exercise_science": search_exercise_science,
     "retrieve_biometric_data": retrieve_biometric_data,
+    "historical_biometrics_tool": historical_biometrics_tool,
+    "read_report_artifact": read_report_artifact,
 }
 
 
@@ -77,7 +82,21 @@ def call_tool(name):
 
         tool_obj = TOOLS.get(name)
         if tool_obj:
-            result = tool_obj.invoke(args)
+            # Handle both sync and async tools
+            # In LangChain, async tools typically have a coroutine function or specific flags
+            is_async = asyncio.iscoroutinefunction(tool_obj.func)
+            
+            if is_async:
+                result = asyncio.run(tool_obj.ainvoke(args))
+            else:
+                try:
+                    result = tool_obj.invoke(args)
+                except Exception as e:
+                    if "does not support sync invocation" in str(e):
+                        result = asyncio.run(tool_obj.ainvoke(args))
+                    else:
+                        raise e
+
             if not isinstance(result, (str, dict, list, int, float, bool, type(None))):
                 result = str(result)
             print(json.dumps(result))

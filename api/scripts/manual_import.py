@@ -15,14 +15,15 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def manual_import(start_date: date, end_date: date) -> None:
+def manual_import(start_date: date, end_date: date, user_id: str = "fsirio") -> None:
     """Manually fetches and imports activities for a given date range.
 
     Args:
         start_date: Start date for the import range.
         end_date: End date for the import range.
+        user_id: The ID of the user.
     """
-    provider = get_provider()
+    provider = get_provider(user_id=user_id)
 
     log.info(f"Fetching activities from {start_date} to {end_date}...")
     activities = provider.get_activities(start_date, end_date)
@@ -65,7 +66,7 @@ def manual_import(start_date: date, end_date: date) -> None:
             proj = os.getenv("GOOGLE_CLOUD_PROJECT")
             ds = os.getenv("DATASET_NAME", "biometric_data_dev")
             client.query(f"DELETE FROM `{proj}.{ds}.latest_activity_telemetry` WHERE activity_id = '{act.id}'").result()
-            upload_to_bq(df_t, "latest_activity_telemetry", "telemetry")
+            upload_to_bq(df_t, "latest_activity_telemetry", "telemetry", user_id=user_id)
 
             # Calculate avg/max power if available
             avg_pwr = None
@@ -134,7 +135,7 @@ def manual_import(start_date: date, end_date: date) -> None:
                 df_act[col] = pd.to_numeric(df_act[col], errors="coerce").astype(float)
 
         log.info(f"Upserting {len(df_act)} activity summaries...")
-        upsert_to_bq(df_act, "recent_activities", unique_key="id")
+        upsert_to_bq(df_act, "recent_activities", unique_key="id", user_id=user_id)
 
 
 if __name__ == "__main__":

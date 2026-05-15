@@ -305,16 +305,24 @@ def get_manual_weigh_ins(client: Any, start_date: str, end_date: str) -> list[di
     return weigh_ins
 
 
-def run_etl(user_id: str | None = None) -> list[str] | None:
-    """Runs the incremental ETL process for a given user.
+def run_etl(
+    user_id: str | None = None,
+    days_back: int | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[str] | None:
+    """Runs the incremental ETL process for a given user with safety constraints.
 
     Args:
         user_id: The ID of the user.
+        days_back: Number of days to look back from end_date.
+        start_date: Explicit start date (YYYY-MM-DD).
+        end_date: Explicit end date (YYYY-MM-DD), defaults to now.
 
     Returns:
         A list of IDs of newly synced activities, or None.
     """
-    log.info(f"Starting Incremental Biometric Sync for user: {user_id}...")
+    log.info(f"Starting Biometric Sync for user: {user_id}...")
 
     from src.utils.provider_factory import get_provider
 
@@ -325,16 +333,43 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
         log.error(f"Garmin authentication client not found in Provider for user {user_id}.")
         return None
 
-    end_date = datetime.now()
+    # Calculate effective date range
+    final_end = datetime.now()
+    if end_date:
+        try:
+            final_end = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            log.error(f"Invalid end_date format: {end_date}. Using now().")
+
+    final_start = None
+    if start_date:
+        try:
+            final_start = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            log.error(f"Invalid start_date format: {start_date}. Falling back to incremental logic.")
+
+    if not final_start:
+        if days_back:
+            final_start = final_end - timedelta(days=days_back)
+        else:
+            last_act_date = get_last_sync_date("recent_activities", user_id=user_id)
+            if last_act_date and last_act_date.year > 1990:
+                final_start = last_act_date - timedelta(days=1)
+            else:
+                # SAFETY CAP: Default to 3 days if no history found to avoid massive accidental downloads
+                final_start = final_end - timedelta(days=3)
+                log.warning(
+                    f"No valid previous sync date found for user {user_id}. "
+                    f"Applying safety cap: syncing only from {final_start.date()}."
+                )
+
+    log.info(f"Sync range: {final_start.date()} to {final_end.date()} (user: {user_id}).")
 
     # --- 1. Incremental Activities ---
-    last_act_date = get_last_sync_date("recent_activities", user_id=user_id)
-    start_date = (last_act_date - timedelta(days=1)) if last_act_date else (datetime.now() - timedelta(days=30))
-
-    log.info(f"Checking for Activities since {start_date.date()} (user: {user_id})...")
-
-    activities = provider.get_activities(start_date.date(), end_date.date())
+    activities = provider.get_activities(final_start.date(), final_end.date())
     newly_synced_ids = []
+    
+    last_act_date = get_last_sync_date("recent_activities", user_id=user_id)
 
     if activities:
         new_activities = [
@@ -394,11 +429,11 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
 
     # --- 3. Incremental Sleep ---
     last_sleep_date = get_last_sync_date("sleep_history", user_id=user_id)
-    start_sleep = (last_sleep_date - timedelta(days=3)) if last_sleep_date else (datetime.now() - timedelta(days=30))
+    start_sleep = (last_sleep_date - timedelta(days=3)) if last_sleep_date else (final_end - timedelta(days=7))
 
-    if start_sleep.date() <= end_date.date():
-        log.info(f"Syncing Sleep from {start_sleep.date()} to {end_date.date()} (user: {user_id})...")
-        sleep_data = provider.get_sleep_history(start_sleep.date(), end_date.date())
+    if start_sleep.date() <= final_end.date():
+        log.info(f"Syncing Sleep from {start_sleep.date()} to {final_end.date()} (user: {user_id})...")
+        sleep_data = provider.get_sleep_history(start_sleep.date(), final_end.date())
         log.info(f"Retrieved {len(sleep_data)} sleep records from Provider.")
         if sleep_data:
             df_sleep = pd.DataFrame([s.model_dump() for s in sleep_data])
@@ -423,11 +458,11 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
 
     # --- 3b. Incremental HRV ---
     last_hrv_date = get_last_sync_date("hrv_history", user_id=user_id)
-    start_hrv = (last_hrv_date - timedelta(days=3)) if last_hrv_date else (datetime.now() - timedelta(days=30))
+    start_hrv = (last_hrv_date - timedelta(days=3)) if last_hrv_date else (final_end - timedelta(days=7))
 
-    if start_hrv.date() <= end_date.date():
-        log.info(f"Syncing HRV from {start_hrv.date()} to {end_date.date()} (user: {user_id})...")
-        hrv_data = provider.get_hrv_history(start_hrv.date(), end_date.date())
+    if start_hrv.date() <= final_end.date():
+        log.info(f"Syncing HRV from {start_hrv.date()} to {final_end.date()} (user: {user_id})...")
+        hrv_data = provider.get_hrv_history(start_hrv.date(), final_end.date())
         log.info(f"Retrieved {len(hrv_data)} HRV records from Provider.")
         if hrv_data:
             df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
@@ -437,7 +472,7 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
                 log.error(f"HRV sync failed during upload: {e}")
 
     # --- 4. Training Status ---
-    status = get_training_status(client, end_date.strftime("%Y-%m-%d"))
+    status = get_training_status(client, final_end.strftime("%Y-%m-%d"))
     if status:
         if status.vo2max is None:
             try:
@@ -493,13 +528,13 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
     # --- 6. Body Composition ---
     try:
         last_body_date = get_last_sync_date("body_composition", user_id=user_id)
-        start_body = (last_body_date + timedelta(days=1)) if last_body_date else (datetime.now() - timedelta(days=30))
+        start_body = (last_body_date + timedelta(days=1)) if last_body_date else (final_end - timedelta(days=7))
 
-        if start_body.date() <= end_date.date():
+        if start_body.date() <= final_end.date():
             start_str = start_body.strftime("%Y-%m-%d")
-            end_str = end_date.strftime("%Y-%m-%d")
+            end_str = final_end.strftime("%Y-%m-%d")
 
-            log.info(f"Syncing Body Composition from {start_str} (user: {user_id})...")
+            log.info(f"Syncing Body Composition from {start_str} to {end_str} (user: {user_id})...")
             body_data = get_body_composition(client, start_str, end_str)
             df_body = pd.DataFrame([b.model_dump() for b in body_data]) if body_data else pd.DataFrame()
 

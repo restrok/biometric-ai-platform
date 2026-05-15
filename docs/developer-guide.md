@@ -106,6 +106,21 @@ On headless Linux systems, the browser-based authentication requires manual syst
 
 ---
 
-## 🚀 Deployment (Future)
-*   The API can be containerized using the provided `Dockerfile` (TBD) and deployed to **Google Cloud Run**.
-*   Infrastructure is managed via **Terraform** in the `/infrastructure` directory.
+## 🚀 Infrastructure & Deployment
+
+The infrastructure is managed via **Terraform** in the `/infrastructure` directory. It follows a modular architecture for better maintainability and reusability.
+
+### 1. Modular Architecture
+*   **`modules/storage`**: Manages the BigQuery datasets and Google Cloud Storage buckets (Data Lake and Terraform State).
+*   **`modules/iam`**: Handles Service Account creation and precise IAM role assignments (BigQuery Viewer/JobUser, Storage ObjectViewer).
+*   **`modules/secrets`**: Sets up Secret Manager secrets (e.g., `garmin-tokens`, `aistudio-api-key`).
+*   **`modules/billing`**: Configures budget alerts and safety caps to prevent unexpected costs.
+
+### 2. State Management
+We use a **GCS Backend** for state management, which enables team collaboration and state versioning. 
+*   **Partial Configuration**: Sensitive backend details (bucket name) are stored in `backend.tfvars` (local only).
+*   **Security**: All `*.tfvars` files are ignored by git. Use `terraform.tfvars.example` as a template.
+
+### 3. CI/CD (Future)
+*   The API can be containerized using the provided `Dockerfile` and deployed to **Google Cloud Run**.
+*   Workflows are being established in `.github/workflows/ci.yml` for automated testing.

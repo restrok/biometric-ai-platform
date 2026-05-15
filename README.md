@@ -89,8 +89,10 @@ We don't just look at your average heart rate. The platform analyzes your **Grou
 * **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin (and future brands) without altering the core agent logic.
 
 * **Persistent Bio-Profiles:** The agent autonomously discovers physiological thresholds (like your Aerobic Threshold) and updates your BigQuery profile automatically.
-* **Automated Calendar Management:** The AI can build complex interval sessions (e.g., 10x400m) and sync them directly to your device.
-* **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.
+*   **Automated Calendar Management:** The AI can build complex interval sessions (e.g., 10x400m) and sync them directly to your device.
+*   **Modular Infrastructure (Terraform):** Ready-to-deploy GCP infrastructure (BigQuery, GCS, IAM, Secrets, Budgets) managed with enterprise-grade modular Terraform.
+*   **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.
+
 
 ---
 
