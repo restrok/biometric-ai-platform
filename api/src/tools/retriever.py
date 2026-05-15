@@ -305,10 +305,11 @@ def _retrieve_biometric_data_cached(
 
             query_health = f"""
                 SELECT date, feeling, notes, fatigue_level, injury_notes
-                FROM `{project_id}.{dataset}.health_status` 
+                FROM `{project_id}.{dataset}.user_health_status`
                 {where_str}
                 ORDER BY date DESC LIMIT 1
             """
+
             health_rows = list(client.query(query_health).result())
             log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
             return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
