@@ -22,7 +22,7 @@ from src.tools.garmin_uploader import (
     remove_workout,
     upload_training_plan,
 )
-from src.tools.historical_biometrics import historical_biometrics_tool
+from src.tools.historical_biometrics import generate_historical_report
 from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
@@ -43,7 +43,7 @@ TOOLS = {
     "analyze_activity_efficiency": analyze_activity_efficiency,
     "search_exercise_science": search_exercise_science,
     "retrieve_biometric_data": retrieve_biometric_data,
-    "historical_biometrics_tool": historical_biometrics_tool,
+    "generate_historical_report": generate_historical_report,
     "read_report_artifact": read_report_artifact,
 }
 

@@ -194,6 +194,9 @@ async def generate_historical_report(
         # Procesamiento Fisiológico
         llm_summary, md_report = _calculate_physiology_metrics(df, user_id)
 
+        if llm_summary.get("status") == "no_data":
+            return json.dumps(llm_summary)
+
         # Persistir el artefacto detallado en GCS (Asíncrono real)
         file_name = llm_summary.pop("artifact_path")
         gcs_uri = await save_to_gcs(pid, bucket_name, file_name, md_report)
@@ -205,5 +208,5 @@ async def generate_historical_report(
         return json.dumps(llm_summary)
 
     except Exception as e:
-        log.error(f"❌ Error en historical_biometrics_tool: {e}")
+        log.error(f"❌ Error en generate_historical_report: {e}")
         return json.dumps({"status": "error", "message": str(e)})

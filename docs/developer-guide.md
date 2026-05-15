@@ -68,7 +68,7 @@ The platform's intelligence is modularized into **Skills**.
         *   `sync_biometric_data`: Triggers the ETL pipeline to refresh BigQuery.
         *   **update_user_zones**: Persists detected physiological thresholds to the user profile.
         *   **search_knowledge_base**: Native BigQuery vector search for exercise science.
-        *   **historical_biometrics_tool**: Computes long-term evolution and exports artifacts to GCS.
+        *   **generate_historical_report**: Computes long-term evolution and exports artifacts to GCS.
 
 ### 4. Historical Reporting Architecture
 To avoid overwhelming the LLM context with years of data, historical analysis is offloaded to a specialized tool:
