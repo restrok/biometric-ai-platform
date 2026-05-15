@@ -1,9 +1,12 @@
+"""Script to migrate the user_profile table by adding missing columns."""
+
 from google.cloud import bigquery
 
 from src.utils.config import get_config, setup_environment
 
 
-def migrate_profile_table():
+def migrate_profile_table() -> None:
+    """Adds custom heart rate zone columns to the user_profile table."""
     setup_environment()
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -27,5 +30,10 @@ def migrate_profile_table():
             print(f"Failed to execute {query}: {e}")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point."""
     migrate_profile_table()
+
+
+if __name__ == "__main__":
+    main()

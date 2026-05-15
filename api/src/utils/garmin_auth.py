@@ -20,12 +20,16 @@ def get_all_garmin_user_ids() -> list[str]:
 
     user_ids = set()
     for d in possible_dirs:
-        if d.exists():
-            for f in d.glob("garmin_tokens_*.json"):
-                # Extract 'fsirio' from 'garmin_tokens_fsirio.json'
-                user_id = f.name.replace("garmin_tokens_", "").replace(".json", "")
-                if user_id:
-                    user_ids.add(user_id)
+        try:
+            if d.exists():
+                for f in d.glob("garmin_tokens_*.json"):
+                    # Extract 'fsirio' from 'garmin_tokens_fsirio.json'
+                    user_id = f.name.replace("garmin_tokens_", "").replace(".json", "")
+                    if user_id:
+                        user_ids.add(user_id)
+        except PermissionError:
+            log.debug(f"Permission denied for directory: {d}")
+            continue
 
     return list(user_ids)
 
@@ -52,14 +56,18 @@ def refresh_garmin_tokens() -> bool:
     checked_dirs = set()
 
     for d in possible_dirs:
-        if d.exists() and d not in checked_dirs:
-            token_files.extend(list(d.glob("garmin_tokens*.json")))
-            # Also check for the legacy name if no user-specific ones found
-            if not token_files:
-                legacy = d / "garmin_tokens.json"
-                if legacy.exists():
-                    token_files.append(legacy)
-            checked_dirs.add(d)
+        try:
+            if d.exists() and d not in checked_dirs:
+                token_files.extend(list(d.glob("garmin_tokens*.json")))
+                # Also check for the legacy name if no user-specific ones found
+                if not token_files:
+                    legacy = d / "garmin_tokens.json"
+                    if legacy.exists():
+                        token_files.append(legacy)
+                checked_dirs.add(d)
+        except PermissionError:
+            log.debug(f"Permission denied for directory: {d}")
+            continue
 
     if not token_files:
         log.warning("No Garmin token files found to refresh.")

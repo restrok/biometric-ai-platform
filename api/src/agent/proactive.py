@@ -72,11 +72,22 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         from src.agent.graph import AgentState, graph
 
         planning_prompt = (
-            "SYSTEM INSTRUCTION: It is 11:00 PM. Analyze my data from today and my current recovery state. "
-            "1. Clear my calendar for tomorrow. "
-            "2. Prune my workout library. "
-            "3. Schedule the optimal session (or Rest Day) for tomorrow on my watch. "
-            "Explain your reasoning based on today's telemetry and my health status."
+            "SYSTEM INSTRUCTION: It is late evening. Analyze the user's data from today and their current recovery state. "
+            "1. Check `scheduled_workouts` for tomorrow. "
+            "2. If a workout is ALREADY scheduled: "
+            "   - Compare its intensity with the user's current HRV/Sleep status. "
+            "   - If they are compatible, DO NOTHING. "
+            "   - If the biometrics suggest the session is TOO RISKY (e.g., high-intensity planned but HRV is very low): "
+            "     DO NOT clear, replace, or modify the calendar. "
+            "     Instead, SEND A PROACTIVE NOTIFICATION explaining the physiological risk, "
+            "     recommending an alternative, and ASKING for permission to make the change. "
+            "3. If the calendar is EMPTY for tomorrow: "
+            "   - DO NOT schedule anything autonomously. "
+            "   - Instead, analyze the biometrics and recovery state, and SEND A PROACTIVE NOTIFICATION with a recommendation "
+            "     (e.g., 'Your recovery is optimal. I recommend an Interval session today. Should I schedule it for you?'). "
+            "4. IMPORTANT: NEVER schedule, replace, or clear workouts autonomously without explicit user confirmation via chat. "
+            "   Your role is to advise and wait for approval. "
+            "5. Explain your reasoning based on today's telemetry, health status, and existing plans."
         )
 
         log.info(f"📅 Triggering autonomous planner for {user_id}...")
@@ -97,6 +108,26 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         log.error(f"❌ Proactive analysis/planning failed: {e}")
 
 
+def _safe_localtime(ts):
+    """Handles timestamps in seconds, milliseconds, microseconds, or nanoseconds."""
+    if not isinstance(ts, (int, float)):
+        return time.localtime()
+
+    # Heuristic to detect precision
+    if ts > 1e18:  # Nanoseconds
+        ts /= 1e9
+    elif ts > 1e15:  # Microseconds
+        ts /= 1e6
+    elif ts > 1e12:  # Milliseconds
+        ts /= 1e3
+
+    try:
+        return time.localtime(ts)
+    except (OverflowError, OSError):
+        # Fallback to current time if still failing
+        return time.localtime()
+
+
 def _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_timestamp):
     log.info(f"🔥 Analyzing metabolic cost for activity {activity_id}...")
     efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
@@ -105,7 +136,7 @@ def _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_timest
         hr_step = efficiency["hr_per_step"]
         # Threshold: > 0.95 HR/Step often indicates metabolic inefficiency for most runners
         if hr_step > 0.95:
-            date_str = time.strftime("%A, %d %b", time.localtime(activity_timestamp))
+            date_str = time.strftime("%A, %d %b", _safe_localtime(activity_timestamp))
             msg = (
                 f"🔥 *Metabolic Efficiency Alert*\n\n"
                 f"During your run '{activity_name}' on {date_str}, your Metabolic Cost was high ({hr_step} HR/Step).\n\n"
@@ -209,7 +240,7 @@ def _analyze_hydration(user_id, activity_id, activity_name, activity_timestamp):
                 # Formula: 0.5L base + 0.1L per % above 5%, max 1.5L
                 liters = min(1.5, round(0.5 + (drift - 5.0) * 0.1, 1))
 
-                date_str = time.strftime("%A, %d %b", time.localtime(activity_timestamp))
+                date_str = time.strftime("%A, %d %b", _safe_localtime(activity_timestamp))
                 msg = (
                     f"🚨 *Cardiovascular Drift Detected*\n\n"
                     f"During your run '{activity_name}' on {date_str}, your efficiency dropped by {drift}%.\n\n"
@@ -267,7 +298,7 @@ def _analyze_neuromuscular_fatigue(user_id, activity_id, activity_name, activity
 
             # Threshold: > 4% increase in GCT indicates significant form breakdown
             if gct_drift > 4.0:
-                date_str = time.strftime("%A, %d %b", time.localtime(activity_timestamp))
+                date_str = time.strftime("%A, %d %b", _safe_localtime(activity_timestamp))
                 msg = (
                     f"🦵 *Neuromuscular Fatigue Detected*\n\n"
                     f"In your run '{activity_name}' on {date_str}, your form showed breakdown (GCT increased by {round(gct_drift, 1)}%).\n\n"

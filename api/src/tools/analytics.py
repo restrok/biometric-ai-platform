@@ -1,4 +1,7 @@
+"""Tools for performing physiological analysis on activity telemetry."""
+
 import logging
+from typing import Any
 
 import numpy as np
 from google.cloud import bigquery
@@ -7,20 +10,31 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 
+# Configure logging
 log = logging.getLogger(__name__)
 
 
 class ActivityID(BaseModel):
+    """Input schema for activity analysis tools."""
+
     activity_id: str = Field(..., description="The unique ID of the activity to analyze.")
     user_id: str | None = Field(None, description="The ID of the user.")
 
 
 @tool(args_schema=ActivityID)
-def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
-    """
-    Performs high-precision physiological analysis in BigQuery.
+def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) -> dict[str, Any] | str:
+    """Performs high-precision physiological analysis in BigQuery.
+
     Calculates Aerobic Decoupling, Form Efficiency, and Metabolic Cost (HR per Step).
-    Returns all available metrics (HR, Power, Cadence, etc.) for trend analysis.
+    Returns all available metrics (HR, Power, Cadence, BB, Vertical Dynamics)
+    for trend analysis.
+
+    Args:
+        activity_id: The unique ID of the activity to analyze.
+        user_id: The ID of the user.
+
+    Returns:
+        A dictionary containing the efficiency analysis results, or an error message.
     """
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -38,6 +52,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
             vertical_oscillation_cm as vo,
             stride_length_mm as sl,
             ground_contact_time_ms as gct,
+            vertical_ratio as vr,
+            vertical_speed as vs,
+            body_battery as bb,
+            gap_mps as gap,
             PERCENT_RANK() OVER(ORDER BY timestamp_ms) as total_progress
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
         WHERE activity_id = '{activity_id}'
@@ -46,10 +64,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
     ),
     telemetry_stats AS (
         SELECT 
-            *,
+            timestamp_ms, hr_bpm, power_w, cadence_spm, vo, sl, gct, vr, vs, bb, gap,
             PERCENT_RANK() OVER(ORDER BY timestamp_ms) as progress
         FROM telemetry_base
-        WHERE total_progress >= 0.15 -- Exclude first 15% (dynamic warmup/stabilization)
+        WHERE total_progress >= 0.15 -- Exclude first 15% (warmup)
     ),
     halves AS (
         SELECT
@@ -57,7 +75,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
             AVG(CASE WHEN progress >= 0.5 THEN power_w / NULLIF(hr_bpm, 0) END) as eff_second_half,
             AVG(CASE WHEN progress < 0.5 THEN gct END) as gct_first_half,
             AVG(CASE WHEN progress >= 0.5 THEN gct END) as gct_second_half,
-            AVG(vo / NULLIF(sl/10.0, 0)) as avg_oscillation_ratio,
+            MAX(bb) - MIN(bb) as total_battery_drain,
+            AVG(vr) as avg_vertical_ratio,
+            AVG(vs) as avg_vertical_speed,
+            AVG(gap) as avg_gap,
             AVG(hr_bpm / NULLIF(cadence_spm, 0)) as hr_per_step,
             AVG(hr_bpm) as avg_hr,
             AVG(power_w) as avg_power,
@@ -68,18 +89,9 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
         FROM telemetry_stats
     )
     SELECT 
-        eff_first_half, 
-        eff_second_half, 
-        gct_first_half,
-        gct_second_half,
-        avg_oscillation_ratio, 
-        hr_per_step, 
-        avg_hr, 
-        avg_power, 
-        avg_cadence, 
-        avg_vo, 
-        avg_sl, 
-        avg_gct 
+        eff_first_half, eff_second_half, gct_first_half, gct_second_half, 
+        total_battery_drain, avg_vertical_ratio, avg_vertical_speed, avg_gap, 
+        hr_per_step, avg_hr, avg_power, avg_cadence, avg_vo, avg_sl, avg_gct 
     FROM halves
     """
 
@@ -96,30 +108,22 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
             "avg_power": round(row.avg_power, 1) if row.avg_power is not None else None,
             "avg_cadence": round(row.avg_cadence, 1) if row.avg_cadence is not None else None,
             "hr_per_step": round(row.hr_per_step, 3) if row.hr_per_step is not None else None,
-            "aerobic_decoupling_pct": (
-                f"{round(row.decoupling_pct, 2)}%"
-                if hasattr(row, "decoupling_pct") and row.decoupling_pct is not None
-                else "N/A"
-            ),
+            "body_battery_drain": int(row.total_battery_drain) if row.total_battery_drain is not None else None,
+            "avg_vertical_ratio_pct": round(row.avg_vertical_ratio, 2) if row.avg_vertical_ratio is not None else None,
+            "avg_vertical_speed_mps": round(row.avg_vertical_speed, 3) if row.avg_vertical_speed is not None else None,
             "efficiency_score": (round(row.eff_first_half, 3) if row.eff_first_half is not None else None),
             "gct_first_half": (round(row.gct_first_half, 1) if row.gct_first_half is not None else None),
             "gct_second_half": (round(row.gct_second_half, 1) if row.gct_second_half is not None else None),
-            "oscillation_ratio": (
-                round(row.avg_oscillation_ratio, 2) if row.avg_oscillation_ratio is not None else None
-            ),
             "avg_gct_ms": round(row.avg_gct, 1) if row.avg_gct is not None else None,
             "avg_stride_length_mm": round(row.avg_sl, 0) if row.avg_sl is not None else None,
         }
 
-        # Manual decoupling calc if BQ output name differs or using SELECT *
         if row.eff_first_half and row.eff_second_half:
             dec = ((row.eff_first_half - row.eff_second_half) / row.eff_first_half) * 100
             summary["aerobic_decoupling_pct"] = f"{round(dec, 2)}%"
             summary["interpretation"] = (
                 "Stable" if dec < 5 else "Cardiac Drift Detected" if dec < 10 else "Significant Decoupling"
             )
-        else:
-            summary["interpretation"] = "Insufficient data for drift analysis"
 
         log.info(f"✅ Full Efficiency analysis complete for {activity_id}")
         return summary
@@ -129,10 +133,19 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None):
 
 
 @tool(args_schema=ActivityID)
-def analyze_activity_stages(activity_id: str, user_id: str | None = None):
-    """
-    Analyzes telemetry to split an activity into physiological stages (Intervals/Work vs. Rest).
-    Returns granular stats for each stage: HR, Power, Cadence, GCT, and HR per Step.
+def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> list[dict[str, Any]] | str:
+    """Analyzes telemetry to split an activity into physiological stages.
+
+    Splits by Intervals/Work vs. Rest. Returns granular stats for each stage
+    including HR, Power, Cadence, GCT, Vertical Dynamics, and Body Battery.
+
+    Args:
+        activity_id: The unique ID of the activity to analyze.
+        user_id: The ID of the user.
+
+    Returns:
+        A list of dictionaries containing the stage analysis results,
+        or an error message.
     """
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -142,14 +155,9 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None):
 
     query = f"""
         SELECT 
-            timestamp_ms, 
-            hr_bpm, 
-            power_w, 
-            cadence_spm,
-            stride_length_mm,
-            vertical_oscillation_cm,
-            ground_contact_time_ms,
-            temperature_c
+            timestamp_ms, hr_bpm, power_w, cadence_spm,
+            stride_length_mm, vertical_oscillation_cm, ground_contact_time_ms,
+            vertical_ratio, vertical_speed, body_battery, temperature_c, gap_mps
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` 
         WHERE activity_id = '{activity_id}' 
         {user_where}
@@ -161,14 +169,8 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None):
         if df.empty:
             return "No telemetry found for stage analysis."
 
-        # Dynamic Thresholding: Use 90% of the session's mean power as the 'work' baseline
-        # This adapts to recovery runs vs. interval sessions.
         session_avg_power = df[df["power_w"] > 0]["power_w"].mean()
-        threshold = session_avg_power * 0.9 if not np.isnan(session_avg_power) else 220
-
-        log.info(
-            f"📊 Activity {activity_id} analysis: Session Avg Power={session_avg_power:.1f}W, Dynamic Threshold={threshold:.1f}W"
-        )
+        threshold = session_avg_power * 0.9 if not np.isnan(session_avg_power) else 180
 
         # Smoothing & Thresholding
         df["power_smooth"] = df["power_w"].rolling(window=10, center=True).mean().fillna(df["power_w"])
@@ -181,35 +183,39 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None):
             is_work = group["is_work"].iloc[0]
             duration_sec = (group["timestamp_ms"].max() - group["timestamp_ms"].min()) / 1000
 
-            if duration_sec < 15:
+            if duration_sec < 10:
                 continue
 
             hr_step = (group["hr_bpm"] / group["cadence_spm"].replace(0, np.nan)).mean()
+            bb_drop = group["body_battery"].max() - group["body_battery"].min()
 
             stage_summary = {
                 "type": "Work" if is_work else "Rest/Warmup/Cooldown",
                 "duration_sec": round(duration_sec, 1),
-                "avg_hr": round(group["hr_bpm"].mean(), 1) if not group["hr_bpm"].empty else None,
-                "avg_power": round(group["power_w"].mean(), 1) if not group["power_w"].empty else None,
-                "avg_cadence": round(group["cadence_spm"].mean(), 1) if not group["cadence_spm"].empty else None,
+                "avg_hr": round(group["hr_bpm"].mean(), 1),
+                "max_hr": int(group["hr_bpm"].max()),
+                "avg_power": round(group["power_w"].mean(), 1),
+                "max_power": int(group["power_w"].max()),
+                "avg_cadence": round(group["cadence_spm"].mean(), 1),
                 "hr_per_step": round(hr_step, 3) if not np.isnan(hr_step) else None,
+                "bb_drop": int(bb_drop) if not np.isnan(bb_drop) else 0,
             }
 
-            # Optional metrics - only include if they have data
             metrics_map = {
                 "ground_contact_time_ms": "avg_gct_ms",
                 "stride_length_mm": "avg_stride_mm",
-                "vertical_oscillation_cm": "avg_oscillation_cm",
+                "vertical_oscillation_cm": "avg_vosc_cm",
+                "vertical_ratio": "avg_vratio_pct",
                 "temperature_c": "avg_temp_c",
+                "gap_mps": "avg_gap_mps",
             }
 
             for col, key in metrics_map.items():
                 if col in group and not group[col].isnull().all():
-                    stage_summary[key] = round(group[col].mean(), 1)
+                    stage_summary[key] = round(group[col].mean(), 2)
 
             stages.append(stage_summary)
 
-        log.info(f"✅ Full Stage analysis complete for {activity_id}")
         return stages
     except Exception as e:
         log.error(f"❌ Stage analysis failed: {e}")

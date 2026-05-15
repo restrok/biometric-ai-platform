@@ -126,7 +126,7 @@ dev = [
 requires-dist = [
     { name = "db-dtypes", specifier = ">=1.5.1" },
     { name = "fastapi", specifier = ">=0.136.0" },
-    { name = "garmin-training-toolkit-sdk", specifier = ">=0.7.0" },
+    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=main" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
     { name = "google-cloud-secret-manager", specifier = ">=2.27.0" },
@@ -484,7 +484,7 @@ http = [
 [[package]]
 name = "garmin-training-toolkit-sdk"
 version = "0.7.0"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=main#fd02b299ac1326e047666bd404ce70af3b3c8a91" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },
@@ -492,10 +492,6 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "requests-oauthlib" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/5d/55b72d6783a20fef6577ef21374932c69e63d80948b41da85f85bcbd4be2/garmin_training_toolkit_sdk-0.7.0.tar.gz", hash = "sha256:b26685c5dda173feb1d1dc846fc94d9b192adbaebe070ba7bdce511e82c395e0", size = 39113, upload-time = "2026-05-09T00:18:27.286Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0f/71/1509f83900ac0fdde8788c0ac980085491df80e19de6b3655243a2281117/garmin_training_toolkit_sdk-0.7.0-py3-none-any.whl", hash = "sha256:52071dc9caff74e5b6ffd7e525f1073a4c0d19ab37c983e8ea9b5bc22e6c3550", size = 50728, upload-time = "2026-05-09T00:18:28.227Z" },
 ]
 
 [[package]]

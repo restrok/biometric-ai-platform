@@ -1,3 +1,5 @@
+"""Script for manual activity import from Garmin to BigQuery."""
+
 import logging
 import os
 from datetime import date
@@ -8,11 +10,18 @@ from google.cloud import bigquery
 from src.tools.etl_job import upload_to_bq, upsert_to_bq
 from src.utils.provider_factory import get_provider
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def manual_import(start_date, end_date):
+def manual_import(start_date: date, end_date: date) -> None:
+    """Manually fetches and imports activities for a given date range.
+
+    Args:
+        start_date: Start date for the import range.
+        end_date: End date for the import range.
+    """
     provider = get_provider()
 
     log.info(f"Fetching activities from {start_date} to {end_date}...")
@@ -33,28 +42,44 @@ def manual_import(start_date, end_date):
             df_t["activity_id"] = str(act.id)
             df_t["activity_name"] = act.name
 
-            # Ensure types for BQ
-            if "run_walk_index" in df_t.columns:
-                df_t["run_walk_index"] = df_t["run_walk_index"].astype(float)
+            # Ensure types for BQ for any newly added fields
+            float_fields = [
+                "run_walk_index",
+                "body_battery",
+                "vertical_speed",
+                "vertical_ratio",
+                "performance_condition",
+                "gap_mps",
+                "fractional_cadence",
+                "stride_length_mm",
+                "vertical_oscillation_cm",
+                "ground_contact_time_ms",
+                "temperature_c",
+            ]
+            for field in float_fields:
+                if field in df_t.columns:
+                    df_t[field] = pd.to_numeric(df_t[field], errors="coerce").astype(float)
 
             log.info(f"Uploading {len(df_t)} telemetry ticks...")
-            # Use a simple upload for telemetry (or upsert if you prefer, but ID is string)
-            # To be safe and avoid duplicates if re-run:
             client = bigquery.Client()
             proj = os.getenv("GOOGLE_CLOUD_PROJECT")
             ds = os.getenv("DATASET_NAME", "biometric_data_dev")
             client.query(f"DELETE FROM `{proj}.{ds}.latest_activity_telemetry` WHERE activity_id = '{act.id}'").result()
             upload_to_bq(df_t, "latest_activity_telemetry", "telemetry")
 
-            # Calculate avg power if available
+            # Calculate avg/max power if available
             avg_pwr = None
+            max_pwr = None
             if "power_w" in df_t.columns:
                 valid_pwr = df_t[df_t["power_w"] > 0]["power_w"]
                 if not valid_pwr.empty:
                     avg_pwr = float(valid_pwr.mean())
+                    max_pwr = float(valid_pwr.max())
 
             summary = act.model_dump()
             summary["avg_power"] = avg_pwr
+            if max_pwr is not None:
+                summary["max_power"] = max_pwr
             activity_summaries.append(summary)
 
     if activity_summaries:
@@ -78,6 +103,11 @@ def manual_import(start_date, end_date):
             "elevation_gain",
             "vo2max",
             "avg_power",
+            "max_power",
+            "normalized_power",
+            "avg_cadence",
+            "max_cadence",
+            "user_id",
         ]
         # Only keep columns that are both in allowed_cols and the dataframe
         cols_to_keep = [c for c in allowed_cols if c in df_act.columns]
@@ -94,6 +124,10 @@ def manual_import(start_date, end_date):
             "elevation_gain",
             "vo2max",
             "avg_power",
+            "max_power",
+            "normalized_power",
+            "avg_cadence",
+            "max_cadence",
         ]
         for col in float_cols:
             if col in df_act.columns:

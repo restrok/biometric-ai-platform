@@ -25,6 +25,12 @@ def migrate_telemetry_schema():
         bigquery.SchemaField("ground_contact_time_ms", "FLOAT64", mode="NULLABLE"),
         bigquery.SchemaField("temperature_c", "FLOAT64", mode="NULLABLE"),
         bigquery.SchemaField("run_walk_index", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("body_battery", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("vertical_speed", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("vertical_ratio", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("performance_condition", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("gap_mps", "FLOAT64", mode="NULLABLE"),
+        bigquery.SchemaField("fractional_cadence", "FLOAT64", mode="NULLABLE"),
     ]
 
     # Only add fields that don't exist

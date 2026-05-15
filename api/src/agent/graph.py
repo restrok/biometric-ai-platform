@@ -1,11 +1,17 @@
+"""LangGraph definition for the Biometric AI Coach agent."""
+
+import json
+import logging
+import time
 from collections.abc import Sequence
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
+from typing_extensions import TypedDict
 
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.etl_tool import sync_biometric_data
@@ -22,11 +28,16 @@ from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 from src.utils.finops import log_llm_call
 
+# Configure logging
+log = logging.getLogger(__name__)
+
 
 class AgentState(TypedDict):
+    """Represents the state of the agent graph."""
+
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    biometric_context: dict
-    usage_stats: dict  # Track cumulative tokens/calls
+    biometric_context: dict[str, Any]
+    usage_stats: dict[str, Any]  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
     loop_count: int  # Prevent infinite self-healing
     user_id: str | None
@@ -82,18 +93,31 @@ Your goal is to provide personalized, research-backed training advice based on t
    - Build a solid aerobic base (4-8 weeks of Z2) before adding high intensity.
 
 ### DATA VARIABLES & BIOMETRICS:
-In addition to heart rate and pace, you have access to advanced biometric metrics when available:
-- **Efficiency:** Power (Watts), Vertical Oscillation, Ground Contact Time, Run Cadence, Stride Length.
-- **Environment:** Temperature.
-- **Form:** Run/Walk transitions and Elevation.
-Analyze these to provide a holistic view of the runner's economy.
+You have access to a massive stream of high-resolution biometric data (captured at 15s resolution with 0% drift on peaks). Every activity is automatically segmented into **WORK** (intensity blocks) and **REST** (recovery) phases, with a force-split every 5 minutes for long-duration trend analysis.
+
+Analyze the following metrics to provide a holistic view of the runner's economy:
+- **Performance:** Power (Avg/Max Watts), Pace (min/km), GAP (Grade Adjusted Pace), Elevation, Vertical Speed.
+- **Biomechanics:** Vertical Oscillation (cm), Ground Contact Time (ms), Vertical Ratio (%), Stride Length (m), Cadence (SPM with fractional precision).
+- **Physiological State:** Heart Rate (Avg/Max BPM), Body Battery (drenaje de energía), Performance Condition, Temperature, Run/Walk Index.
+
+**Analytical Command:** Use the `PACE` vs `GAP` difference to detect effort on inclines. Monitor `Body Battery` drop per segment to identify metabolic efficiency. Use `Vertical Ratio` to evaluate "bounce" vs "forward drive."
+
 
 ### TOOLS & ACTIONS:
 - **upload_training_plan:** You MUST call this tool whenever the user asks for a training plan, recovery plan, or workout upload. 
 - **clear_calendar:** You MUST call this tool before `upload_training_plan` to clear the target date range. This prevents duplicates.
 - **remove_workout:** Use this to delete a specific workout template if requested.
-- **sync_biometric_data:** This tool triggers a data refresh from Garmin to BigQuery in the background. If you call it, inform the user that their data is being updated and that the changes will be visible in approximately 60 seconds. IMPORTANT: After calling this tool, do not attempt to read the biometric context again in the same turn, as the background process will not have finished.
-- **search_exercise_science:** Use this tool to retrieve foundational knowledge from your vector store when answering theoretical questions, justifying your recommendations with science, or interpreting advanced metrics.
+- **list_workouts:** Lists all workout templates currently in the user's Garmin library.
+- **batch_remove_workouts:** Deletes multiple workout templates at once.
+- **prune_unused_workouts:** Automatically removes workout templates from the library that are NOT currently scheduled in the calendar.
+- **sync_biometric_data:** Triggers a background data refresh from Garmin to BigQuery. Inform the user that data will update in ~60s.
+- **retrieve_biometric_data:** Use this if you need to re-fetch the user's latest biometric context (HRV, Sleep, Activities) after a sync or to see recent updates.
+- **analyze_activity_efficiency:** Performs high-precision analysis of a specific activity (Aerobic Decoupling, Metabolic Cost, Form Efficiency).
+- **analyze_activity_stages:** Granular analysis of an activity's stages (Intervals vs. Rest).
+- **update_user_zones:** Updates the user's custom heart rate zones (Z1-Z4 max). Use this when telemetry suggests a shift in physiological thresholds.
+- **log_health_status:** Persists subjective health info (feeling, fatigue, injury notes). Use this whenever the user reports how they feel.
+- **manage_goals:** Adds or updates long-term goals (races, weight targets, volume goals).
+- **search_exercise_science:** Retrieves foundational exercise science knowledge to justify recommendations or interpret metrics.
 
 ### 🛠️ TRAINING PLAN SCHEMA RULES (STRICT):
 When using `upload_training_plan`, follow these rules exactly to avoid validation errors:
@@ -123,20 +147,23 @@ When using `upload_training_plan`, follow these rules exactly to avoid validatio
 """
 
 
-def node_router(state: AgentState) -> dict:
-    """Classifies user intent to decide which data to fetch."""
-    # Using the more stable 31B model for routing due to 500 errors on 26B
+def node_router(state: AgentState) -> dict[str, Any]:
+    """Classifies user intent to decide which data to fetch.
+
+    Args:
+        state: Current agent state.
+
+    Returns:
+        Updated state with classified intent.
+    """
     model_name = "gemma-4-31b-it"
     model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
-    # We only look at the last message for intent
     last_msg = state["messages"][-1].content
 
     log.info(f"🧠 Classifying intent for: {last_msg[:50]}...")
 
-    # Use structured output for fast, reliable routing
     try:
         structured_llm = model.with_structured_output(IntentClassifier)
-        # Note: In a real app, you'd handle the case where content is a list of blocks
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
         classification = structured_llm.invoke(
             f"Classify the following user query for biometric data retrieval needs: {content_to_classify}"
@@ -149,14 +176,21 @@ def node_router(state: AgentState) -> dict:
             intent = "full"
     except Exception as e:
         log.warning(f"⚠️ Intent classification failed ({e}). Falling back to 'full' data retrieval.")
-        intent = "full"  # Fallback to safe default
+        intent = "full"
 
     log.info(f"🔍 Intent Classified: {intent.upper()}")
     return {"intent": intent, "loop_count": 0}
 
 
-def node_retrieve_context(state: AgentState) -> dict:
-    """Retrieves data based on the classified intent."""
+def node_retrieve_context(state: AgentState) -> dict[str, Any]:
+    """Retrieves data based on the classified intent.
+
+    Args:
+        state: Current agent state.
+
+    Returns:
+        Updated state with retrieved biometric context.
+    """
     intent = state.get("intent", "full")
     user_id = state.get("user_id")
 
@@ -168,20 +202,20 @@ def node_retrieve_context(state: AgentState) -> dict:
     return {"biometric_context": context}
 
 
-import logging
-import time
+def node_analyze(state: AgentState) -> dict[str, Any]:
+    """Calls the LLM to generate the training plan or response.
 
-log = logging.getLogger(__name__)
+    Args:
+        state: Current agent state.
 
-
-def node_analyze(state: AgentState) -> dict:
-    """Calls the LLM to generate the training plan/response."""
+    Returns:
+        Updated state with LLM response and usage stats.
+    """
     t0 = time.time()
     model_name = "gemma-4-31b-it"
     # Disable AFC via model_kwargs to let LangGraph's should_continue manage the tool loop
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False})
 
-    # Bind tools to the LLM (ensure all tools are available)
     tools = [
         upload_training_plan,
         clear_calendar,
@@ -200,38 +234,33 @@ def node_analyze(state: AgentState) -> dict:
     ]
     llm_with_tools = llm.bind_tools(tools)
 
-    # 1. Start with the initial biometric context from state
     current_context = state.get("biometric_context", {})
 
-    # 2. Check if a recent tool call (like sync_biometric_data) provided an updated context
-    # We look at the last few messages to see if there's a ToolMessage with updated_biometric_context
+    # Check for updated context in ToolMessages
     for msg in reversed(state["messages"]):
-        if msg.type == "tool" and isinstance(msg.content, str):
-            try:
-                # Some tool results might be JSON strings
-                import json
-
-                data = json.loads(msg.content)
-                if isinstance(data, dict) and "updated_biometric_context" in data:
-                    current_context = data["updated_biometric_context"]
-                    log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
-                    break
-            except Exception:
-                pass
-        elif msg.type == "tool" and isinstance(msg.content, dict):
-            if "updated_biometric_context" in msg.content:
-                current_context = msg.content["updated_biometric_context"]
+        if msg.type == "tool":
+            content = msg.content
+            if isinstance(content, str):
+                try:
+                    data = json.loads(content)
+                    if isinstance(data, dict) and "updated_biometric_context" in data:
+                        current_context = data["updated_biometric_context"]
+                        log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
+                        break
+                except Exception:
+                    pass
+            elif isinstance(content, dict) and "updated_biometric_context" in content:
+                current_context = content["updated_biometric_context"]
                 log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
                 break
 
-    # Format the prompt
     context_str = f"\nUser Biometric Context:\n{current_context}"
     messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
 
     # DEBUG: Print full prompt sent to LLM
     log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
     for i, m in enumerate(messages):
-        log.debug(f"DEBUG: Message {i} ({m.type}): {m.content[:500]}...")  # Truncate for log readability if needed
+        log.debug(f"DEBUG: Message {i} ({m.type}): {m.content[:500]}...")
     log.debug("DEBUG: -------------------------------")
 
     response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
@@ -239,10 +268,8 @@ def node_analyze(state: AgentState) -> dict:
     latency_ms = (time.time() - t0) * 1000
     token_usage = getattr(response, "usage_metadata", {})
 
-    # Update cumulative usage (Agent State Tracking)
     usage = state.get("usage_stats", {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0})
 
-    # Log to BigQuery (FinOps)
     if token_usage:
         in_t = getattr(token_usage, "input_tokens", 0)
         out_t = getattr(token_usage, "output_tokens", 0)
@@ -253,37 +280,37 @@ def node_analyze(state: AgentState) -> dict:
 
     usage["calls"] += 1
 
-    return {"messages": [response], "usage_stats": usage, "loop_count": state.get("loop_count", 0) + 1}
+    return {
+        "messages": [response],
+        "usage_stats": usage,
+        "loop_count": state.get("loop_count", 0) + 1,
+    }
 
 
-# Define Custom Tool Node to inject user_id
-def tool_node(state: AgentState):
+def tool_node(state: AgentState) -> Any:
+    """Executes tool calls and automatically injects user_id from state.
+
+    Args:
+        state: Current agent state.
+
+    Returns:
+        The results of the tool execution.
     """
-    Executes tool calls and automatically injects user_id from state
-    to ensure data isolation.
-    """
-
     messages = state["messages"]
     last_message = messages[-1]
     user_id = state.get("user_id")
 
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        # Create a new list of tool calls to ensure mutations are preserved
         new_tool_calls = []
         for tc in last_message.tool_calls:
             new_tc = tc.copy()
-            # We don't know for sure if the tool expects user_id without inspecting schemas,
-            # but our multi-user tools all support it.
-            # If the tool doesn't expect it, it will just be ignored by the function.
             if "user_id" not in new_tc["args"] or new_tc["args"]["user_id"] is None:
                 new_tc["args"]["user_id"] = user_id
                 log.info(f"💉 Injected user_id '{user_id}' into tool '{new_tc['name']}'")
             new_tool_calls.append(new_tc)
 
-        # Replace the tool_calls on the message
         last_message.tool_calls = new_tool_calls
 
-    # Now execute using the updated state/message
     tn = ToolNode(
         [
             upload_training_plan,
@@ -305,26 +332,25 @@ def tool_node(state: AgentState):
     return tn.invoke(state)
 
 
-def should_continue(state: AgentState):
-    """Determines if the graph should continue to tools, self-heal, or end."""
+def should_continue(state: AgentState) -> str | Literal["__end__"]:
+    """Determines if the graph should continue to tools or end.
+
+    Args:
+        state: Current agent state.
+
+    Returns:
+        'tools' if tools are requested, otherwise END.
+    """
     messages = state["messages"]
     last_message = messages[-1]
 
-    # Check if we've exceeded the safety loop limit to preserve quota
     loop_count = state.get("loop_count", 0)
     if loop_count > 4:
         log.warning(f"⚠️ Loop count ({loop_count}) exceeded. Stopping to preserve API quota.")
         return END
 
-    # 1. If LLM requested tools, go to tools node
     if getattr(last_message, "tool_calls", None):
         return "tools"
-
-    # 2. Self-Healing Logic: Check if the previous tool result contained an error
-    # If the last message was an AIMessage but it followed a ToolMessage with an error,
-    # and the LLM didn't request a fix (no new tool_calls), we might want to check why.
-    # However, LangGraph's standard pattern is to let the LLM decide what to do.
-    # We'll remove the redundant "analyzer" jump and rely on the tool_calls check.
 
     return END
 
@@ -340,10 +366,8 @@ builder.add_edge(START, "router")
 builder.add_edge("router", "retriever")
 builder.add_edge("retriever", "analyzer")
 
-# Conditional edge from analyzer to tools or end
-builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", "analyzer": "analyzer", END: END})
+builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", END: END})
 
-# After tools, we go back to analyzer.
 builder.add_edge("tools", "analyzer")
 
 # Compile
