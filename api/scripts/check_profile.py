@@ -1,9 +1,14 @@
+"""Script to check the user profile in BigQuery."""
+
+from typing import Any
+
 from google.cloud import bigquery
 
 from src.utils.config import get_config, setup_environment
 
 
-def check_profile():
+def check_profile() -> None:
+    """Queries and prints the user profile from BigQuery."""
     setup_environment()
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -18,8 +23,14 @@ def check_profile():
     results = list(client.query(query).result())
     print(f"Found {len(results)} rows in user_profile.")
     if results:
-        print(dict(results[0]))
+        profile_dict: dict[str, Any] = dict(results[0])
+        print(profile_dict)
+
+
+def main() -> None:
+    """Main entry point."""
+    check_profile()
 
 
 if __name__ == "__main__":
-    check_profile()
+    main()

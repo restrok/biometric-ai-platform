@@ -1,16 +1,20 @@
+"""Script to debug activity date types and conversion."""
+
+import datetime
 import logging
+import time
+from typing import Any
 
 from google.cloud import bigquery
 
-from src.utils.config import get_config
+from src.utils.config import get_config, setup_environment
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def debug_proactive_date():
-    from src.utils.config import setup_environment
-
+def debug_proactive_date() -> None:
+    """Queries latest activity and prints date information."""
     setup_environment()
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -35,10 +39,7 @@ def debug_proactive_date():
     print(f"Date Type: {type(activity.date)}")
 
     try:
-        import datetime
-        import time
-
-        val = activity.date
+        val: Any = activity.date
         if isinstance(val, (int, float)):
             print(f"localtime result: {time.localtime(val)}")
         elif isinstance(val, datetime.datetime):
@@ -47,5 +48,10 @@ def debug_proactive_date():
         print(f"Error calling localtime: {e}")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point."""
     debug_proactive_date()
+
+
+if __name__ == "__main__":
+    main()

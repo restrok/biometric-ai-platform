@@ -1,9 +1,12 @@
+"""Script to check the schema of the user_profile table in BigQuery."""
+
 from google.cloud import bigquery
 
 from src.utils.config import get_config, setup_environment
 
 
-def check_schema():
+def check_schema() -> None:
+    """Fetches and prints the schema for the user_profile table."""
     setup_environment()
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -14,5 +17,10 @@ def check_schema():
         print(f"{field.name}: {field.field_type}")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point."""
     check_schema()
+
+
+if __name__ == "__main__":
+    main()

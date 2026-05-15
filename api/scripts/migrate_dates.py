@@ -1,3 +1,5 @@
+"""Script to migrate historical activity dates from nanoseconds to seconds."""
+
 import logging
 
 from google.cloud import bigquery
@@ -8,7 +10,8 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def migrate_historical_dates():
+def migrate_historical_dates() -> None:
+    """Updates recent_activities table to fix timestamp precision."""
     setup_environment()
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -38,5 +41,10 @@ def migrate_historical_dates():
             log.info(f"✅ {table} looks good (Date example: {res[0].date})")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point."""
     migrate_historical_dates()
+
+
+if __name__ == "__main__":
+    main()
