@@ -134,6 +134,7 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
   - **5-10%:** Cardiac Drift (Indicates fatigue, thermal stress, or under-fueling).
   - **> 10%:** Significant Decoupling (High fatigue or cardiovascular strain).
 - **Body Battery Drain:** Monitor the drop in `BBAT` per segment. A drop > 1 point per 5 mins at Zone 2 indicates high systemic stress.
+- **HR per Step:** `HR_BPM / Cadence_SPM`. A lower value indicates higher efficiency per stride.
 - **Vertical Ratio:** `Vertical_Oscillation / Stride_Length`. Values < 7% indicate elite efficiency; 7-10% is good for advanced runners.
 - **PACE vs GAP:** Use `GAP` (Grade Adjusted Pace) to evaluate effort on hills. If `GAP` is significantly faster than `PACE`, the runner is overcoming gravity.
 
