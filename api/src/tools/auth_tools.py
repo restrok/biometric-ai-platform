@@ -37,9 +37,10 @@ class AuthUrlInput(BaseModel):
 @tool(args_schema=AuthUrlInput)
 def get_garmin_auth_url(user_id: str) -> str:
     """
-    Returns the secure Garmin SSO login URL.
+    Returns the secure Garmin SSO login URL. MANDATORY for any Garmin connection or login request.
+    There is NO 'Connect Button' in the UI; you MUST use this tool to provide the link.
     The user must open this link in their browser, log in, and then
-    provide the 'ticket' from the resulting URL to complete the connection.
+    provide the 'ticket' or full URL from the resulting page to complete the connection.
     """
     return (
         f"To connect your account for user '{user_id}', please open this link in your browser:\n\n"
