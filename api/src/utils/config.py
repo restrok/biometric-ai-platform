@@ -42,15 +42,30 @@ def set_secret(secret_id: str, payload: str) -> bool:
         return False
 
     try:
+        from google.api_core import exceptions
         from google.cloud import secretmanager
 
         client = secretmanager.SecretManagerServiceClient()
-        parent = f"projects/{project_id}/secrets/{secret_id}"
+        parent_project = f"projects/{project_id}"
+        secret_path = f"{parent_project}/secrets/{secret_id}"
 
-        # Add the secret version
+        # 1. Check if secret exists, if not create it
+        try:
+            client.get_secret(request={"name": secret_path})
+        except exceptions.NotFound:
+            log.info(f"Creating missing secret: {secret_id}")
+            client.create_secret(
+                request={
+                    "parent": parent_project,
+                    "secret_id": secret_id,
+                    "secret": {"replication": {"automatic": {}}},
+                }
+            )
+
+        # 2. Add the secret version
         response = client.add_secret_version(
             request={
-                "parent": parent,
+                "parent": secret_path,
                 "payload": {"data": payload.encode("UTF-8")},
             }
         )
