@@ -13,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 
 from src.tools.analytics import analyze_activity_efficiency
+from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
     batch_remove_workouts,
@@ -45,6 +46,8 @@ TOOLS = {
     "retrieve_biometric_data": retrieve_biometric_data,
     "generate_historical_report": generate_historical_report,
     "read_report_artifact": read_report_artifact,
+    "get_garmin_auth_url": get_garmin_auth_url,
+    "complete_garmin_auth": complete_garmin_auth,
 }
 
 

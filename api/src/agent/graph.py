@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
+from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
     batch_remove_workouts,
@@ -123,6 +124,8 @@ Analyze the following metrics to provide a holistic view of the runner's economy
 - **log_health_status:** Persists subjective health info (feeling, fatigue, injury notes). Use this whenever the user reports how they feel.
 - **manage_goals:** Adds or updates long-term goals (races, weight targets, volume goals).
 - **search_exercise_science:** Retrieves foundational exercise science knowledge to justify recommendations or interpret metrics.
+- **get_garmin_auth_url:** Call this when a user wants to connect their Garmin account or re-authenticate. It provides a login link.
+- **complete_garmin_auth:** Call this after the user provides the ticket or URL from the Garmin login. It completes the connection and saves tokens.
 
 ### 🛠️ TRAINING PLAN SCHEMA RULES (STRICT):
 When using `upload_training_plan`, follow these rules exactly to avoid validation errors:
@@ -238,6 +241,8 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         manage_goals,
         list_workouts,
         batch_remove_workouts,
+        get_garmin_auth_url,
+        complete_garmin_auth,
     ]
     llm_with_tools = llm.bind_tools(tools)
 
@@ -334,6 +339,8 @@ def tool_node(state: AgentState) -> Any:
             manage_goals,
             list_workouts,
             batch_remove_workouts,
+            get_garmin_auth_url,
+            complete_garmin_auth,
         ]
     )
     return tn.invoke(state)

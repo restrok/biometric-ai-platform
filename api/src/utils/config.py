@@ -31,6 +31,52 @@ def get_secret(secret_id: str, default: str | None = None) -> str | None:
     return os.getenv(env_name) or os.getenv(secret_id) or default
 
 
+def set_secret(secret_id: str, payload: str) -> bool:
+    """
+    Updates a secret in GCP Secret Manager by adding a new version.
+    If the secret doesn't exist, it attempts to create it (if permissions allow).
+    """
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not project_id:
+        log.warning(f"GOOGLE_CLOUD_PROJECT not set. Cannot update secret {secret_id}.")
+        return False
+
+    try:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        parent = f"projects/{project_id}/secrets/{secret_id}"
+
+        # Add the secret version
+        response = client.add_secret_version(
+            request={
+                "parent": parent,
+                "payload": {"data": payload.encode("UTF-8")},
+            }
+        )
+
+        log.info(f"✅ Successfully updated secret version: {response.name}")
+
+        # CLEANUP: Only keep a limited number of versions to stay in free tier
+        # We try to disable/destroy older versions if possible
+        try:
+            versions = client.list_secret_versions(request={"parent": parent})
+            # Sort by create_time or name (higher index is newer)
+            active_versions = [v for v in versions if v.state.name == "ENABLED"]
+            if len(active_versions) > 5:
+                # Destroy oldest enabled version
+                oldest = sorted(active_versions, key=lambda v: v.name)[0]
+                client.destroy_secret_version(request={"name": oldest.name})
+                log.info(f"🧹 Destroyed old secret version to save quota: {oldest.name}")
+        except Exception as e:
+            log.debug(f"Secret version cleanup failed (non-critical): {e}")
+
+        return True
+    except Exception as e:
+        log.error(f"❌ Failed to update secret {secret_id} in Secret Manager: {e}")
+        return False
+
+
 def setup_environment():
     """
     Loads environment variables and decodes the AI Studio API Key if necessary.
