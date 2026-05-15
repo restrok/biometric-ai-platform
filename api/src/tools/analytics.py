@@ -186,6 +186,7 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
             if duration_sec < 10:
                 continue
 
+            hr_step = (group["hr_bpm"] / group["cadence_spm"].replace(0, np.nan)).mean()
             bb_drop = group["body_battery"].max() - group["body_battery"].min()
 
             stage_summary = {
@@ -196,6 +197,7 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
                 "avg_power": round(group["power_w"].mean(), 1),
                 "max_power": int(group["power_w"].max()),
                 "avg_cadence": round(group["cadence_spm"].mean(), 1),
+                "hr_per_step": round(hr_step, 3) if not np.isnan(hr_step) else None,
                 "bb_drop": int(bb_drop) if not np.isnan(bb_drop) else 0,
             }
 
