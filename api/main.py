@@ -88,7 +88,9 @@ async def lifespan(app: FastAPI):
                     next_run += timedelta(days=1)
 
                 sleep_seconds = (next_run - now).total_seconds()
-                log.info(f"📅 Next proactive auto-sync scheduled for {next_run} UTC (in {sleep_seconds / 3600:.2f} hours)")
+                log.info(
+                    f"📅 Next proactive auto-sync scheduled for {next_run} UTC (in {sleep_seconds / 3600:.2f} hours)"
+                )
 
                 # Wait until target hour
                 await asyncio.sleep(sleep_seconds)
@@ -110,7 +112,7 @@ async def lifespan(app: FastAPI):
                         await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
                     else:
                         log.info(f"⏸️ Proactive analysis disabled via ENABLE_PROACTIVE for user: {uid}")
-                    
+
                     # Sleep a bit between users to avoid spikes
                     await asyncio.sleep(30)
 

@@ -90,7 +90,6 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             "5. Explain your reasoning based on today's telemetry, health status, and existing plans."
         )
 
-
         log.info(f"📅 Triggering autonomous planner for {user_id}...")
         initial_state = cast(
             AgentState,
@@ -113,7 +112,7 @@ def _safe_localtime(ts):
     """Handles timestamps in seconds, milliseconds, microseconds, or nanoseconds."""
     if not isinstance(ts, (int, float)):
         return time.localtime()
-    
+
     # Heuristic to detect precision
     if ts > 1e18:  # Nanoseconds
         ts /= 1e9
@@ -121,7 +120,7 @@ def _safe_localtime(ts):
         ts /= 1e6
     elif ts > 1e12:  # Milliseconds
         ts /= 1e3
-    
+
     try:
         return time.localtime(ts)
     except (OverflowError, OSError):

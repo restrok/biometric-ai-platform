@@ -27,15 +27,10 @@ BUCKET_NAME = os.getenv("DATALAKE_BUCKET")
 DATASET_NAME = os.getenv("DATASET_NAME", "biometric_data_dev")
 
 if not PROJECT_ID or not BUCKET_NAME:
-    raise ValueError(
-        "GOOGLE_CLOUD_PROJECT and DATALAKE_BUCKET environment variables "
-        "must be set."
-    )
+    raise ValueError("GOOGLE_CLOUD_PROJECT and DATALAKE_BUCKET environment variables must be set.")
 
 
-def get_last_sync_date(
-    table_name: str, user_id: str | None = None
-) -> pd.Timestamp | None:
+def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timestamp | None:
     """Queries BigQuery to find the latest date stored in a table.
 
     Args:
@@ -55,10 +50,7 @@ def get_last_sync_date(
         if row.last_date:
             return pd.to_datetime(row.last_date)
     except Exception:
-        log.info(
-            f"Table {table_name} not found or empty (user: {user_id}). "
-            "Starting from scratch."
-        )
+        log.info(f"Table {table_name} not found or empty (user: {user_id}). Starting from scratch.")
     return None
 
 
@@ -99,69 +91,49 @@ def upsert_to_bq(
                 if bqt == "INTEGER":
                     if col == "date" or col.endswith("_at"):
                         # Ensure we convert datetime to SECONDS, not nanoseconds
-                        df[col] = (
-                            pd.to_datetime(df[col], errors="coerce").view("int64")
-                            // 10**9
-                        )
+                        df[col] = pd.to_datetime(df[col], errors="coerce").view("int64") // 10**9
                         # Replace negative/very small values with 0
                         df.loc[df[col] < 0, col] = 0
                     else:
-                        df[col] = (
-                            pd.to_numeric(df[col], errors="coerce")
-                            .fillna(0)
-                            .astype("int64")
-                        )
+                        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype("int64")
                 elif bqt == "FLOAT":
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif bqt == "STRING":
-                    df[col] = (
-                        df[col].astype(str).replace("None", None).replace("nan", None)
-                    )
+                    df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
                 elif bqt in ["DATETIME", "TIMESTAMP"]:
                     df[col] = pd.to_datetime(df[col], errors="coerce")
                 elif bqt == "BOOLEAN":
                     df[col] = df[col].astype(bool)
     except Exception as e:
-        log.warning(
-            f"Could not align types for {table_name} (might be a new table): {e}"
-        )
+        log.warning(f"Could not align types for {table_name} (might be a new table): {e}")
 
     staging_table_name = f"{table_name}_staging_{int(datetime.now().timestamp())}"
     staging_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{staging_table_name}"
 
     # 1. Load data to staging table
     job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-    client.load_table_from_dataframe(
-        df, staging_table_id, job_config=job_config
-    ).result()
+    client.load_table_from_dataframe(df, staging_table_id, job_config=job_config).result()
 
     # 2. Sync Schema (Add missing columns to target table)
     staging_table = client.get_table(staging_table_id)
     try:
         target_table = client.get_table(target_table_id)
         target_fields = {f.name for f in target_table.schema}
-        missing_fields = [
-            f for f in staging_table.schema if f.name not in target_fields
-        ]
+        missing_fields = [f for f in staging_table.schema if f.name not in target_fields]
 
         if missing_fields:
             log.info(
-                f"Updating schema for {table_name}: adding fields "
-                f"{[f.name for f in missing_fields]} (user: {user_id})."
+                f"Updating schema for {table_name}: adding fields {[f.name for f in missing_fields]} (user: {user_id})."
             )
             new_schema = list(target_table.schema) + missing_fields
             target_table.schema = new_schema
             client.update_table(target_table, ["schema"])
     except Exception as e:
-        log.warning(
-            f"Schema sync for {table_name} failed: {e}. Attempting MERGE anyway."
-        )
+        log.warning(f"Schema sync for {table_name} failed: {e}. Attempting MERGE anyway.")
 
     # 3. Perform MERGE
     cols = [field.name for field in staging_table.schema]
-    update_set = ", ".join(
-        [f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]]
-    )
+    update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]])
     insert_cols = ", ".join([f"`{c}`" for c in cols])
     insert_values = ", ".join([f"S.`{c}`" for c in cols])
 
@@ -181,10 +153,7 @@ def upsert_to_bq(
 
     try:
         client.query(merge_query).result()
-        log.info(
-            f"Successfully merged {len(df)} rows into {table_name} using "
-            f"key '{unique_key}' (user: {user_id})."
-        )
+        log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}' (user: {user_id}).")
     finally:
         client.delete_table(staging_table_id, not_found_ok=True)
 
@@ -244,9 +213,7 @@ def upload_to_bq(
     log.info(f"Synced {len(df)} rows to {table_id} ({mode}) (user: {user_id}).")
 
 
-def get_current_user_metrics(
-    user_id: str | None = None
-) -> tuple[int | None, int | None]:
+def get_current_user_metrics(user_id: str | None = None) -> tuple[int | None, int | None]:
     """Queries BigQuery to find the current max_hr and resting_hr.
 
     Args:
@@ -307,9 +274,7 @@ def get_wellness_stats(client: Any, days: int = 7) -> tuple[int | None, int | No
     return avg_rhr, peak_mhr
 
 
-def get_manual_weigh_ins(
-    client: Any, start_date: str, end_date: str
-) -> list[dict[str, Any]]:
+def get_manual_weigh_ins(client: Any, start_date: str, end_date: str) -> list[dict[str, Any]]:
     """Fetches manual weight entries that might not appear in body composition.
 
     Args:
@@ -329,16 +294,10 @@ def get_manual_weigh_ins(
                     weigh_ins.append(
                         {
                             "date": m.get("calendarDate"),
-                            "weight_kg": (
-                                m.get("weight") / 1000.0 if m.get("weight") else None
-                            ),
+                            "weight_kg": (m.get("weight") / 1000.0 if m.get("weight") else None),
                             "bmi": m.get("bmi"),
                             "fat_percentage": m.get("bodyFat"),
-                            "muscle_mass_kg": (
-                                m.get("muscleMass") / 1000.0
-                                if m.get("muscleMass")
-                                else None
-                            ),
+                            "muscle_mass_kg": (m.get("muscleMass") / 1000.0 if m.get("muscleMass") else None),
                         }
                     )
     except Exception as e:
@@ -363,20 +322,14 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
     client = getattr(provider, "client", None)
 
     if not client:
-        log.error(
-            f"Garmin authentication client not found in Provider for user {user_id}."
-        )
+        log.error(f"Garmin authentication client not found in Provider for user {user_id}.")
         return None
 
     end_date = datetime.now()
 
     # --- 1. Incremental Activities ---
     last_act_date = get_last_sync_date("recent_activities", user_id=user_id)
-    start_date = (
-        (last_act_date - timedelta(days=1))
-        if last_act_date
-        else (datetime.now() - timedelta(days=30))
-    )
+    start_date = (last_act_date - timedelta(days=1)) if last_act_date else (datetime.now() - timedelta(days=30))
 
     log.info(f"Checking for Activities since {start_date.date()} (user: {user_id})...")
 
@@ -387,8 +340,7 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
         new_activities = [
             a
             for a in activities
-            if not last_act_date
-            or pd.to_datetime(a.date).tz_localize(None) > last_act_date.tz_localize(None)
+            if not last_act_date or pd.to_datetime(a.date).tz_localize(None) > last_act_date.tz_localize(None)
         ]
 
         if new_activities:
@@ -429,9 +381,7 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
             if all_telemetry:
                 df_telemetry = pd.concat(all_telemetry)
                 if "run_walk_index" in df_telemetry.columns:
-                    df_telemetry["run_walk_index"] = (
-                        df_telemetry["run_walk_index"].astype(float)
-                    )
+                    df_telemetry["run_walk_index"] = df_telemetry["run_walk_index"].astype(float)
                 upload_to_bq(
                     df_telemetry,
                     "latest_activity_telemetry",
@@ -444,17 +394,10 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
 
     # --- 3. Incremental Sleep ---
     last_sleep_date = get_last_sync_date("sleep_history", user_id=user_id)
-    start_sleep = (
-        (last_sleep_date - timedelta(days=3))
-        if last_sleep_date
-        else (datetime.now() - timedelta(days=30))
-    )
+    start_sleep = (last_sleep_date - timedelta(days=3)) if last_sleep_date else (datetime.now() - timedelta(days=30))
 
     if start_sleep.date() <= end_date.date():
-        log.info(
-            f"Syncing Sleep from {start_sleep.date()} to {end_date.date()} "
-            f"(user: {user_id})..."
-        )
+        log.info(f"Syncing Sleep from {start_sleep.date()} to {end_date.date()} (user: {user_id})...")
         sleep_data = provider.get_sleep_history(start_sleep.date(), end_date.date())
         log.info(f"Retrieved {len(sleep_data)} sleep records from Provider.")
         if sleep_data:
@@ -480,17 +423,10 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
 
     # --- 3b. Incremental HRV ---
     last_hrv_date = get_last_sync_date("hrv_history", user_id=user_id)
-    start_hrv = (
-        (last_hrv_date - timedelta(days=3))
-        if last_hrv_date
-        else (datetime.now() - timedelta(days=30))
-    )
+    start_hrv = (last_hrv_date - timedelta(days=3)) if last_hrv_date else (datetime.now() - timedelta(days=30))
 
     if start_hrv.date() <= end_date.date():
-        log.info(
-            f"Syncing HRV from {start_hrv.date()} to {end_date.date()} "
-            f"(user: {user_id})..."
-        )
+        log.info(f"Syncing HRV from {start_hrv.date()} to {end_date.date()} (user: {user_id})...")
         hrv_data = provider.get_hrv_history(start_hrv.date(), end_date.date())
         log.info(f"Retrieved {len(hrv_data)} HRV records from Provider.")
         if hrv_data:
@@ -550,20 +486,14 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
                     log.info(f"Patched Resting HR with fallback: {fallback_rest}")
 
             df_profile["updated_at"] = datetime.utcnow()
-            upsert_to_bq(
-                df_profile, "user_profile", unique_key="user_id", user_id=user_id
-            )
+            upsert_to_bq(df_profile, "user_profile", unique_key="user_id", user_id=user_id)
     except Exception as e:
         log.warning(f"User Profile sync failed: {e}")
 
     # --- 6. Body Composition ---
     try:
         last_body_date = get_last_sync_date("body_composition", user_id=user_id)
-        start_body = (
-            (last_body_date + timedelta(days=1))
-            if last_body_date
-            else (datetime.now() - timedelta(days=30))
-        )
+        start_body = (last_body_date + timedelta(days=1)) if last_body_date else (datetime.now() - timedelta(days=30))
 
         if start_body.date() <= end_date.date():
             start_str = start_body.strftime("%Y-%m-%d")
@@ -571,19 +501,12 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
 
             log.info(f"Syncing Body Composition from {start_str} (user: {user_id})...")
             body_data = get_body_composition(client, start_str, end_str)
-            df_body = (
-                pd.DataFrame([b.model_dump() for b in body_data])
-                if body_data
-                else pd.DataFrame()
-            )
+            df_body = pd.DataFrame([b.model_dump() for b in body_data]) if body_data else pd.DataFrame()
 
             manual_data = get_manual_weigh_ins(client, start_str, end_str)
             if manual_data:
                 df_manual = pd.DataFrame(manual_data)
-                df_body = (
-                    pd.concat([df_body, df_manual])
-                    .drop_duplicates(subset=["date"], keep="first")
-                )
+                df_body = pd.concat([df_body, df_manual]).drop_duplicates(subset=["date"], keep="first")
 
             if not df_body.empty:
                 df_body["date"] = pd.to_datetime(df_body["date"])
@@ -593,11 +516,7 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
                 if profile and profile.height_cm:
                     height_m = profile.height_cm / 100.0
                     df_body["bmi"] = df_body.apply(
-                        lambda row: (
-                            round(row["weight_kg"] / (height_m**2), 1)
-                            if pd.isna(row["bmi"])
-                            else row["bmi"]
-                        ),
+                        lambda row: round(row["weight_kg"] / (height_m**2), 1) if pd.isna(row["bmi"]) else row["bmi"],
                         axis=1,
                     )
 
@@ -614,9 +533,7 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
         now = datetime.now()
         end_window = now + timedelta(days=14)
 
-        all_calendar_items = provider.get_calendar_range(
-            now.date(), end_window.date()
-        )
+        all_calendar_items = provider.get_calendar_range(now.date(), end_window.date())
 
         bq_client = bigquery.Client(project=PROJECT_ID)
         delete_query = f"""
@@ -636,9 +553,7 @@ def run_etl(user_id: str | None = None) -> list[str] | None:
 
             if not df_cal.empty:
                 if "calendarItemId" in df_cal.columns:
-                    df_cal["id"] = df_cal["calendarItemId"].fillna(
-                        df_cal.get("id", pd.NA)
-                    )
+                    df_cal["id"] = df_cal["calendarItemId"].fillna(df_cal.get("id", pd.NA))
                 elif "id" in df_cal.columns:
                     df_cal["id"] = df_cal["id"]
                 else:

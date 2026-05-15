@@ -166,8 +166,7 @@ def node_router(state: AgentState) -> dict[str, Any]:
         structured_llm = model.with_structured_output(IntentClassifier)
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
         classification = structured_llm.invoke(
-            f"Classify the following user query for biometric data retrieval "
-            f"needs: {content_to_classify}"
+            f"Classify the following user query for biometric data retrieval needs: {content_to_classify}"
         )
         if isinstance(classification, IntentClassifier):
             intent = classification.intent
@@ -176,10 +175,7 @@ def node_router(state: AgentState) -> dict[str, Any]:
         else:
             intent = "full"
     except Exception as e:
-        log.warning(
-            f"⚠️ Intent classification failed ({e}). "
-            "Falling back to 'full' data retrieval."
-        )
+        log.warning(f"⚠️ Intent classification failed ({e}). Falling back to 'full' data retrieval.")
         intent = "full"
 
     log.info(f"🔍 Intent Classified: {intent.upper()}")
@@ -199,11 +195,7 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
     user_id = state.get("user_id")
 
     if intent == "none":
-        return {
-            "biometric_context": {
-                "info": "No user data retrieved for this query type."
-            }
-        }
+        return {"biometric_context": {"info": "No user data retrieved for this query type."}}
 
     # Pass the user_id to the retriever tool
     context = retrieve_biometric_data.invoke({"user_id": user_id})
@@ -222,9 +214,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     t0 = time.time()
     model_name = "gemma-4-31b-it"
     # Disable AFC via model_kwargs to let LangGraph's should_continue manage the tool loop
-    llm = ChatGoogleGenerativeAI(
-        model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False}
-    )
+    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False})
 
     tools = [
         upload_training_plan,
@@ -255,25 +245,17 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
                     data = json.loads(content)
                     if isinstance(data, dict) and "updated_biometric_context" in data:
                         current_context = data["updated_biometric_context"]
-                        log.info(
-                            "🔄 Found updated biometric context in tool results. "
-                            "Using it for analysis."
-                        )
+                        log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
                         break
                 except Exception:
                     pass
             elif isinstance(content, dict) and "updated_biometric_context" in content:
                 current_context = content["updated_biometric_context"]
-                log.info(
-                    "🔄 Found updated biometric context in tool results. "
-                    "Using it for analysis."
-                )
+                log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
                 break
 
     context_str = f"\nUser Biometric Context:\n{current_context}"
-    messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(
-        state["messages"]
-    )
+    messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
 
     # DEBUG: Print full prompt sent to LLM
     log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
@@ -286,16 +268,12 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     latency_ms = (time.time() - t0) * 1000
     token_usage = getattr(response, "usage_metadata", {})
 
-    usage = state.get(
-        "usage_stats", {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0}
-    )
+    usage = state.get("usage_stats", {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0})
 
     if token_usage:
         in_t = getattr(token_usage, "input_tokens", 0)
         out_t = getattr(token_usage, "output_tokens", 0)
-        finops_row = log_llm_call(
-            model_name, in_t, out_t, latency_ms, node_name="analyzer"
-        )
+        finops_row = log_llm_call(model_name, in_t, out_t, latency_ms, node_name="analyzer")
 
         usage["total_tokens"] += in_t + out_t
         usage["total_cost_usd"] += finops_row["cost_usd"]
@@ -368,9 +346,7 @@ def should_continue(state: AgentState) -> str | Literal["__end__"]:
 
     loop_count = state.get("loop_count", 0)
     if loop_count > 4:
-        log.warning(
-            f"⚠️ Loop count ({loop_count}) exceeded. Stopping to preserve API quota."
-        )
+        log.warning(f"⚠️ Loop count ({loop_count}) exceeded. Stopping to preserve API quota.")
         return END
 
     if getattr(last_message, "tool_calls", None):
@@ -390,9 +366,7 @@ builder.add_edge(START, "router")
 builder.add_edge("router", "retriever")
 builder.add_edge("retriever", "analyzer")
 
-builder.add_conditional_edges(
-    "analyzer", should_continue, {"tools": "tools", END: END}
-)
+builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", END: END})
 
 builder.add_edge("tools", "analyzer")
 

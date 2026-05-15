@@ -55,18 +55,10 @@ class RetrieverInput(BaseModel):
     dataset: str | None = Field(None, description="BigQuery Dataset ID")
     limit: int = Field(20, description="Max number of activities to retrieve.")
     offset: int = Field(0, description="Number of activities to skip (for paging).")
-    activity_type: str | None = Field(
-        None, description="Filter by type (e.g. 'running', 'walking')."
-    )
-    start_date: str | None = Field(
-        None, description="Start date for activity filtering (YYYY-MM-DD)."
-    )
-    end_date: str | None = Field(
-        None, description="End date for activity filtering (YYYY-MM-DD)."
-    )
-    user_id: str | None = Field(
-        None, description="The internal ID of the user (e.g., 'fsirio')."
-    )
+    activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
+    start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
+    end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
+    user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
 
 
 def _get_cache_key(user_id: str | None) -> str:
@@ -159,15 +151,10 @@ def _retrieve_biometric_data_cached(
         dataset = config["dataset_id"]
 
     if not project_id:
-        log.warning(
-            "GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if "
-            "not using mock data."
-        )
+        log.warning("GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data.")
 
     start_total = time.time()
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv(
-        "GOOGLE_CLOUD_PROJECT"
-    ):
+    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv("GOOGLE_CLOUD_PROJECT"):
         return _get_mock_data()
 
     client = get_bq_client(project_id)
@@ -214,10 +201,7 @@ def _retrieve_biometric_data_cached(
             """
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
-            log.info(
-                f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s "
-                f"({len(act_rows)} rows)"
-            )
+            log.info(f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
             return "recent_activities", act_rows
         except Exception as e:
             log.warning(f"❌ Activities retrieval failed: {e}")
@@ -238,9 +222,7 @@ def _retrieve_biometric_data_cached(
                 ORDER BY date DESC LIMIT 1
             """
             status_rows = list(client.query(query_status).result())
-            log.info(
-                f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s"
-            )
+            log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
             return "training_status", (dict(status_rows[0]) if status_rows else None)
         except Exception:
             return "training_status", None
@@ -306,12 +288,8 @@ def _retrieve_biometric_data_cached(
                 f"ORDER BY date DESC LIMIT 1"
             )
             body_rows = list(client.query(query_body).result())
-            log.info(
-                f"⏱️ BigQuery: Body composition retrieved in {time.time() - t0:.2f}s"
-            )
-            return "latest_body_composition", (
-                dict(body_rows[0]) if body_rows else None
-            )
+            log.info(f"⏱️ BigQuery: Body composition retrieved in {time.time() - t0:.2f}s")
+            return "latest_body_composition", (dict(body_rows[0]) if body_rows else None)
         except Exception:
             return "latest_body_composition", None
 
@@ -373,9 +351,7 @@ def _retrieve_biometric_data_cached(
                 LIMIT 5
             """
             sched_rows = [dict(row) for row in client.query(query_sched).result()]
-            log.info(
-                f"⏱️ BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s"
-            )
+            log.info(f"⏱️ BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s")
             return "scheduled_workouts", sched_rows
         except Exception as e:
             log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
@@ -388,9 +364,7 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             ids_str = ", ".join([f"'{i}'" for i in activity_ids])
-            thirty_days_ago_ms = int(
-                (datetime.now() - timedelta(days=30)).timestamp() * 1000
-            )
+            thirty_days_ago_ms = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
 
             # Implementation of Event-Based Aggregation (V3 - Unabridged)
             query_tel_series = f"""
@@ -497,7 +471,7 @@ def _retrieve_biometric_data_cached(
                     f"PWR:{int(row.avg_pwr)}W (max {int(row.max_pwr)}W)",
                     f"PACE:{mps_to_pace(row.avg_speed)} (GAP:{mps_to_pace(row.avg_gap)})",
                     f"CAD:{round(row.avg_cad, 1)}spm",
-                    f"STRIDE:{round(row.avg_stride/1000, 2)}m",
+                    f"STRIDE:{round(row.avg_stride / 1000, 2)}m",
                     f"GCT:{int(row.avg_gct or 0)}ms",
                     f"VOSC:{round(row.avg_osc or 0, 1)}cm",
                     f"VRATIO:{round(row.avg_v_ratio or 0, 1)}%",
@@ -516,13 +490,10 @@ def _retrieve_biometric_data_cached(
                 compact_series.append(f"{activity_label}: {' '.join(segments_list)}")
 
             log.info(
-                f"⏱️ BigQuery: Telemetry event segments retrieved in "
-                f"{time.time() - t0:.2f}s ({len(rows)} segments)"
+                f"⏱️ BigQuery: Telemetry event segments retrieved in {time.time() - t0:.2f}s ({len(rows)} segments)"
             )
             return "last_3_runs_timeseries_summary", (
-                "\n".join(compact_series)
-                if compact_series
-                else "No detailed telemetry found."
+                "\n".join(compact_series) if compact_series else "No detailed telemetry found."
             )
         except Exception as e:
             log.error(f"❌ Telemetry retrieval failed: {e}")
@@ -561,15 +532,11 @@ def _retrieve_biometric_data_cached(
 
     # Fill in info for missing fields
     if not context.get("recent_activities"):
-        context["recent_activities"] = [
-            {"info": "No activity history found in Data Lake."}
-        ]
+        context["recent_activities"] = [{"info": "No activity history found in Data Lake."}]
     if not context.get("training_status"):
         context["training_status"] = {"info": "No training status available."}
     if not context.get("sleep"):
-        context["sleep"] = {
-            "info": "Sleep data not found (normal if watch not worn during sleep)."
-        }
+        context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}
     if not context.get("hrv"):
         context["hrv"] = [{"info": "HRV baseline not yet established."}]
 

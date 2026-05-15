@@ -58,18 +58,13 @@ def manual_import(start_date: date, end_date: date) -> None:
             ]
             for field in float_fields:
                 if field in df_t.columns:
-                    df_t[field] = pd.to_numeric(df_t[field], errors="coerce").astype(
-                        float
-                    )
+                    df_t[field] = pd.to_numeric(df_t[field], errors="coerce").astype(float)
 
             log.info(f"Uploading {len(df_t)} telemetry ticks...")
             client = bigquery.Client()
             proj = os.getenv("GOOGLE_CLOUD_PROJECT")
             ds = os.getenv("DATASET_NAME", "biometric_data_dev")
-            client.query(
-                f"DELETE FROM `{proj}.{ds}.latest_activity_telemetry` "
-                f"WHERE activity_id = '{act.id}'"
-            ).result()
+            client.query(f"DELETE FROM `{proj}.{ds}.latest_activity_telemetry` WHERE activity_id = '{act.id}'").result()
             upload_to_bq(df_t, "latest_activity_telemetry", "telemetry")
 
             # Calculate avg/max power if available

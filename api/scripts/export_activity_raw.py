@@ -7,7 +7,7 @@ from src.utils.provider_factory import get_provider
 
 def export_telemetry(activity_id=None, user_id="fsirio"):
     provider = get_provider(user_id=user_id)
-    
+
     if not activity_id:
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=7)
@@ -22,18 +22,19 @@ def export_telemetry(activity_id=None, user_id="fsirio"):
         name = f"Activity {activity_id}"
 
     print(f"Fetching telemetry for: {name} (ID: {activity_id})")
-    
+
     telemetry = provider.get_telemetry(str(activity_id))
     if not telemetry or not telemetry.ticks:
         print("No telemetry found for this activity.")
         return
-        
+
     data = [t.model_dump() for t in telemetry.ticks]
     output_path = f"/app/activity_{activity_id}_raw.json"
     with open(output_path, "w") as f:
         json.dump(data, f)
-    
+
     print(f"Saved {len(data)} ticks to {output_path}")
+
 
 if __name__ == "__main__":
     act_id = sys.argv[1] if len(sys.argv) > 1 else None

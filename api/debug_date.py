@@ -1,4 +1,3 @@
-
 import logging
 
 from google.cloud import bigquery
@@ -8,8 +7,10 @@ from src.utils.config import get_config
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+
 def debug_proactive_date():
     from src.utils.config import setup_environment
+
     setup_environment()
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
@@ -32,10 +33,11 @@ def debug_proactive_date():
     print(f"ID: {activity.id}")
     print(f"Date: {activity.date}")
     print(f"Date Type: {type(activity.date)}")
-    
+
     try:
         import datetime
         import time
+
         val = activity.date
         if isinstance(val, (int, float)):
             print(f"localtime result: {time.localtime(val)}")
@@ -43,6 +45,7 @@ def debug_proactive_date():
             print(f"localtime on timestamp: {time.localtime(val.timestamp())}")
     except Exception as e:
         print(f"Error calling localtime: {e}")
+
 
 if __name__ == "__main__":
     debug_proactive_date()
