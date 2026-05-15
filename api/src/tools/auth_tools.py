@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-from typing import Any
 
 from garmin_training_toolkit_sdk.auth import (
     exchange_oauth2,
@@ -98,8 +97,7 @@ def complete_garmin_auth(ticket_or_url: str, user_id: str) -> str:
                 f"Your Garmin account is now linked to user ID '{user_id}'. "
                 "I am now ready to analyze your activities and health metrics."
             )
-        else:
-            return "❌ Authentication succeeded, but I failed to save the tokens to Secret Manager. Please check logs."
+        return "❌ Authentication succeeded, but I failed to save the tokens to Secret Manager. Please check logs."
 
     except Exception as e:
         log.error(f"❌ Auth exchange failed: {e}")

@@ -75,7 +75,7 @@ def set_secret(secret_id: str, payload: str) -> bool:
         # CLEANUP: Only keep a limited number of versions to stay in free tier
         # We try to disable/destroy older versions if possible
         try:
-            versions = client.list_secret_versions(request={"parent": parent})
+            versions = client.list_secret_versions(request={"parent": secret_path})
             # Sort by create_time or name (higher index is newer)
             active_versions = [v for v in versions if v.state.name == "ENABLED"]
             if len(active_versions) > 5:

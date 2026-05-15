@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 from google.cloud import bigquery, storage
@@ -62,7 +62,7 @@ class HistoricalBiometricsInput(BaseModel):
     project_id: str | None = Field(None, description="GCP Project ID.")
     dataset: str | None = Field(None, description="BigQuery Dataset ID.")
 
-def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[Dict[str, Any], str]:
+def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[str, Any], str]:
     """
     Núcleo Fisiológico: Calcula Medias Móviles (Aguda/Crónica) y Z-Scores.
     """

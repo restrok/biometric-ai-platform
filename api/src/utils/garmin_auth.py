@@ -3,7 +3,7 @@ import logging
 import os
 from pathlib import Path
 
-from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS, find_token_file
+from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS
 from garminconnect import Garmin
 
 from src.utils.config import get_config, get_secret, set_secret

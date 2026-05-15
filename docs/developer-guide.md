@@ -77,7 +77,33 @@ To avoid overwhelming the LLM context with years of data, historical analysis is
 3.  **Secure Access**: The tool returns a **Signed URL** (valid for 1 hour) and a high-level summary.
 4.  **Lean Context**: The agent only sees the summary, keeping the conversation fast and token-efficient.
 
-### 5. Intelligence Implementation (Safety & Stability)
+### 5. Dynamic SSO Authentication Flow
+The platform implements a Zero-CLI authentication model, allowing users to link their Garmin accounts directly through the chat interface.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Agent
+    participant GarminSSO as Garmin SSO Portal
+    participant SM as Google Secret Manager
+    
+    User->>Agent: "Coach, connect my Garmin"
+    Agent->>Agent: get_garmin_auth_url()
+    Agent-->>User: Provides secure SSO link
+    User->>GarminSSO: Logs in & resolves MFA
+    GarminSSO-->>User: Redirects to ticket page
+    User->>Agent: Pastes redirect URL/Ticket
+    Agent->>Agent: complete_garmin_auth(ticket)
+    Agent->>SM: Persists OAuth Tokens (per-user)
+    Agent-->>User: "Connection Successful ✅"
+```
+
+### 6. Secret Management & Token Persistence
+*   **Encrypted Storage:** All Garmin OAuth tokens are stored in **Google Secret Manager** using the naming convention `garmin-tokens-{user_id}`.
+*   **Automated Lifecycle:** A background loop in `api/main.py` refreshes all active user sessions every 2 hours, rotating `di_client_id` to ensure high availability and pushing updated tokens back to the cloud.
+*   **Zero-State Architecture:** The API is designed to be stateless; it can be restarted or redeployed without losing user sessions as long as GCP Secret Manager is accessible.
+
+### 7. Intelligence Implementation (Safety & Stability)
 
         *   **Noise Reduction (Windowing):** The `analyzer` node is prompted to look for reproducibility. It must compare multiple telemetry segments from the `retriever` before suggesting a profile update.
         *   **Cold Start Logic:** If `biometric_context['recent_activities']` is empty or only contains info messages, the `analyzer` is programmed to switch to "Calibration Mode." It will refuse to call `upload_training_plan` with high-intensity workouts and instead recommend a 2-week baseline-gathering phase.

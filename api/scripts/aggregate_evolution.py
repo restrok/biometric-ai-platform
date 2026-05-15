@@ -1,6 +1,8 @@
 import os
+
 import pandas as pd
 from google.cloud import bigquery
+
 
 def aggregate_history():
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
