@@ -158,6 +158,7 @@ async def historical_biometrics_tool(
     dataset: str | None = None
 ) -> str:
     """
+    MANDATORY for 'Historical Reports', 'Evolution', or 'Monthly Analysis'.
     Analiza la evolución fisiológica histórica del usuario (Carga aguda/crónica y Z-Scores).
     Devuelve un JSON ultra-ligero para no saturar el contexto del agente e indica la URI
     del artefacto detallado en GCS.

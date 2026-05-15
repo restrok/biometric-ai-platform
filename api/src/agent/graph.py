@@ -113,9 +113,9 @@ Analyze the following metrics to provide a holistic view of the runner's economy
 - **batch_remove_workouts:** Deletes multiple workout templates at once.
 - **prune_unused_workouts:** Automatically removes workout templates from the library that are NOT currently scheduled in the calendar.
 - **sync_biometric_data:** Triggers a background data refresh from Garmin to BigQuery. Inform the user that data will update in ~60s.
-- **historical_biometrics_tool:** Use this for long-term trends, physical evolution over months, or why performance is shifting. It returns a summary and a URL.
+- **historical_biometrics_tool:** MANDATORY for 'Historical Reports', 'Evolución', or long-term trends. Do NOT synthesize these reports yourself from current context. It returns a summary and a Signed URL for a full analysis artifact in GCS.
 - **read_report_artifact:** ONLY use this if the user explicitly asks to "read the full report" or "give more details from the artifact" after you've provided the link.
-- **retrieve_biometric_data:** Use this if you need to re-fetch the user's latest biometric context (HRV, Sleep, Activities) after a sync or to see recent updates.
+- **retrieve_biometric_data:** Use this for a quick look at the latest context (last 5-20 activities). This is NOT a historical report.
 - **analyze_activity_efficiency:** Performs high-precision analysis of a specific activity (Aerobic Decoupling, Metabolic Cost, Form Efficiency).
 - **analyze_activity_stages:** Granular analysis of an activity's stages (Intervals vs. Rest).
 - **update_user_zones:** Updates the user's custom heart rate zones (Z1-Z4 max). Use this when telemetry suggests a shift in physiological thresholds.
