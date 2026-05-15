@@ -23,7 +23,9 @@ from src.tools.garmin_uploader import (
     remove_workout,
     upload_training_plan,
 )
+from src.tools.historical_biometrics import historical_biometrics_tool
 from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
+from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
 from src.utils.finops import log_llm_call
@@ -111,6 +113,8 @@ Analyze the following metrics to provide a holistic view of the runner's economy
 - **batch_remove_workouts:** Deletes multiple workout templates at once.
 - **prune_unused_workouts:** Automatically removes workout templates from the library that are NOT currently scheduled in the calendar.
 - **sync_biometric_data:** Triggers a background data refresh from Garmin to BigQuery. Inform the user that data will update in ~60s.
+- **historical_biometrics_tool:** Use this for long-term trends, physical evolution over months, or why performance is shifting. It returns a summary and a URL.
+- **read_report_artifact:** ONLY use this if the user explicitly asks to "read the full report" or "give more details from the artifact" after you've provided the link.
 - **retrieve_biometric_data:** Use this if you need to re-fetch the user's latest biometric context (HRV, Sleep, Activities) after a sync or to see recent updates.
 - **analyze_activity_efficiency:** Performs high-precision analysis of a specific activity (Aerobic Decoupling, Metabolic Cost, Form Efficiency).
 - **analyze_activity_stages:** Granular analysis of an activity's stages (Intervals vs. Rest).
@@ -223,6 +227,8 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         search_exercise_science,
         update_user_zones,
         sync_biometric_data,
+        historical_biometrics_tool,
+        read_report_artifact,
         analyze_activity_efficiency,
         analyze_activity_stages,
         retrieve_biometric_data,
