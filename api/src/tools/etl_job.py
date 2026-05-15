@@ -5,7 +5,7 @@ import os
 import statistics
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage
@@ -34,8 +34,8 @@ if not PROJECT_ID or not BUCKET_NAME:
 
 
 def get_last_sync_date(
-    table_name: str, user_id: Optional[str] = None
-) -> Optional[pd.Timestamp]:
+    table_name: str, user_id: str | None = None
+) -> pd.Timestamp | None:
     """Queries BigQuery to find the latest date stored in a table.
 
     Args:
@@ -66,7 +66,7 @@ def upsert_to_bq(
     df: pd.DataFrame,
     table_name: str,
     unique_key: str = "date",
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
 ) -> None:
     """Performs an atomic UPSERT in BigQuery.
 
@@ -194,7 +194,7 @@ def upload_to_bq(
     table_name: str,
     folder_name: str,
     mode: str = "WRITE_APPEND",
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
 ) -> None:
     """Uploads data to a native BigQuery table.
 
@@ -245,8 +245,8 @@ def upload_to_bq(
 
 
 def get_current_user_metrics(
-    user_id: Optional[str] = None
-) -> Tuple[Optional[int], Optional[int]]:
+    user_id: str | None = None
+) -> tuple[int | None, int | None]:
     """Queries BigQuery to find the current max_hr and resting_hr.
 
     Args:
@@ -267,7 +267,7 @@ def get_current_user_metrics(
         return None, None
 
 
-def get_wellness_stats(client: Any, days: int = 7) -> Tuple[Optional[int], Optional[int]]:
+def get_wellness_stats(client: Any, days: int = 7) -> tuple[int | None, int | None]:
     """Retrieves heart rate statistics from wellness data for the last N days.
 
     Args:
@@ -309,7 +309,7 @@ def get_wellness_stats(client: Any, days: int = 7) -> Tuple[Optional[int], Optio
 
 def get_manual_weigh_ins(
     client: Any, start_date: str, end_date: str
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetches manual weight entries that might not appear in body composition.
 
     Args:
@@ -346,7 +346,7 @@ def get_manual_weigh_ins(
     return weigh_ins
 
 
-def run_etl(user_id: Optional[str] = None) -> Optional[List[str]]:
+def run_etl(user_id: str | None = None) -> list[str] | None:
     """Runs the incremental ETL process for a given user.
 
     Args:

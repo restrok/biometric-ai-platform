@@ -4,8 +4,6 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,9 +17,9 @@ log = logging.getLogger(__name__)
 
 
 def audit_telemetry_precision(
-    activity_id: Optional[str] = None,
+    activity_id: str | None = None,
     user_id: str = "fsirio",
-    json_path: Optional[str] = None,
+    json_path: str | None = None,
 ) -> None:
     """Audits the current Event-Based Telemetry Architecture.
 
@@ -35,7 +33,7 @@ def audit_telemetry_precision(
     """
     if json_path:
         log.info(f"Loading raw data from local JSON: {json_path}")
-        with open(json_path, "r") as f:
+        with open(json_path) as f:
             raw_data = json.load(f)
         df_raw = pd.DataFrame(raw_data)
         activity_name = f"JSON:{os.path.basename(json_path)}"
@@ -158,7 +156,7 @@ def audit_telemetry_precision(
     ).dt.total_seconds() + 15
 
     log.info(f"### 📊 AUDIT FOR: {activity_name}")
-    log.info(f"Format: [Coach Aggregated] | [Real Raw Mean] | Delta %")
+    log.info("Format: [Coach Aggregated] | [Real Raw Mean] | Delta %")
     log.info("-" * 120)
 
     for _, seg in final_segments[final_segments["dur"] >= 10].iterrows():

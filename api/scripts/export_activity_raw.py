@@ -1,8 +1,9 @@
-from src.utils.provider_factory import get_provider
-from datetime import datetime, timedelta
 import json
-import os
 import sys
+from datetime import datetime, timedelta
+
+from src.utils.provider_factory import get_provider
+
 
 def export_telemetry(activity_id=None, user_id="fsirio"):
     provider = get_provider(user_id=user_id)

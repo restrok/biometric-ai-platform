@@ -1,7 +1,7 @@
 """Tools for performing physiological analysis on activity telemetry."""
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 from google.cloud import bigquery
@@ -20,13 +20,13 @@ class ActivityID(BaseModel):
     activity_id: str = Field(
         ..., description="The unique ID of the activity to analyze."
     )
-    user_id: Optional[str] = Field(None, description="The ID of the user.")
+    user_id: str | None = Field(None, description="The ID of the user.")
 
 
 @tool(args_schema=ActivityID)
 def analyze_activity_efficiency(
-    activity_id: str, user_id: Optional[str] = None
-) -> Union[Dict[str, Any], str]:
+    activity_id: str, user_id: str | None = None
+) -> dict[str, Any] | str:
     """Performs high-precision physiological analysis in BigQuery.
 
     Calculates Aerobic Decoupling, Form Efficiency, and Metabolic Cost (HR per Step).
@@ -162,8 +162,8 @@ def analyze_activity_efficiency(
 
 @tool(args_schema=ActivityID)
 def analyze_activity_stages(
-    activity_id: str, user_id: Optional[str] = None
-) -> Union[List[Dict[str, Any]], str]:
+    activity_id: str, user_id: str | None = None
+) -> list[dict[str, Any]] | str:
     """Analyzes telemetry to split an activity into physiological stages.
 
     Splits by Intervals/Work vs. Rest. Returns granular stats for each stage
@@ -220,7 +220,6 @@ def analyze_activity_stages(
             if duration_sec < 10:
                 continue
 
-            hr_step = (group["hr_bpm"] / group["cadence_spm"].replace(0, np.nan)).mean()
             bb_drop = group["body_battery"].max() - group["body_battery"].min()
 
             stage_summary = {

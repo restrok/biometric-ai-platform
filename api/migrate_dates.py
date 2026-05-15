@@ -1,7 +1,8 @@
 import logging
-import os
+
 from google.cloud import bigquery
-from src.utils.config import setup_environment, get_config
+
+from src.utils.config import get_config, setup_environment
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)

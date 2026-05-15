@@ -1,7 +1,8 @@
 
 import logging
-import sys
+
 from google.cloud import bigquery
+
 from src.utils.config import get_config
 
 logging.basicConfig(level=logging.INFO)
@@ -33,8 +34,8 @@ def debug_proactive_date():
     print(f"Date Type: {type(activity.date)}")
     
     try:
-        import time
         import datetime
+        import time
         val = activity.date
         if isinstance(val, (int, float)):
             print(f"localtime result: {time.localtime(val)}")

@@ -3,7 +3,8 @@
 import json
 import logging
 import time
-from typing import Annotated, Any, Dict, List, Literal, Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Annotated, Any, Literal
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -35,11 +36,11 @@ class AgentState(TypedDict):
     """Represents the state of the agent graph."""
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    biometric_context: Dict[str, Any]
-    usage_stats: Dict[str, Any]  # Track cumulative tokens/calls
+    biometric_context: dict[str, Any]
+    usage_stats: dict[str, Any]  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
     loop_count: int  # Prevent infinite self-healing
-    user_id: Optional[str]
+    user_id: str | None
 
 
 class IntentClassifier(BaseModel):
@@ -146,7 +147,7 @@ When using `upload_training_plan`, follow these rules exactly to avoid validatio
 """
 
 
-def node_router(state: AgentState) -> Dict[str, Any]:
+def node_router(state: AgentState) -> dict[str, Any]:
     """Classifies user intent to decide which data to fetch.
 
     Args:
@@ -185,7 +186,7 @@ def node_router(state: AgentState) -> Dict[str, Any]:
     return {"intent": intent, "loop_count": 0}
 
 
-def node_retrieve_context(state: AgentState) -> Dict[str, Any]:
+def node_retrieve_context(state: AgentState) -> dict[str, Any]:
     """Retrieves data based on the classified intent.
 
     Args:
@@ -209,7 +210,7 @@ def node_retrieve_context(state: AgentState) -> Dict[str, Any]:
     return {"biometric_context": context}
 
 
-def node_analyze(state: AgentState) -> Dict[str, Any]:
+def node_analyze(state: AgentState) -> dict[str, Any]:
     """Calls the LLM to generate the training plan or response.
 
     Args:
@@ -353,7 +354,7 @@ def tool_node(state: AgentState) -> Any:
     return tn.invoke(state)
 
 
-def should_continue(state: AgentState) -> Union[str, Literal["__end__"]]:
+def should_continue(state: AgentState) -> str | Literal["__end__"]:
     """Determines if the graph should continue to tools or end.
 
     Args:

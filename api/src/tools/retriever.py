@@ -6,7 +6,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from google.cloud import bigquery
 from langchain_core.tools import tool
@@ -30,7 +30,7 @@ _ensure_env()
 config = get_config()
 
 # Cache clients per project to reduce initialization overhead
-_bq_clients: Dict[str, bigquery.Client] = {}
+_bq_clients: dict[str, bigquery.Client] = {}
 
 
 def get_bq_client(project_id: str) -> bigquery.Client:
@@ -51,25 +51,25 @@ def get_bq_client(project_id: str) -> bigquery.Client:
 class RetrieverInput(BaseModel):
     """Input schema for the biometric data retriever tool."""
 
-    project_id: Optional[str] = Field(None, description="GCP Project ID")
-    dataset: Optional[str] = Field(None, description="BigQuery Dataset ID")
+    project_id: str | None = Field(None, description="GCP Project ID")
+    dataset: str | None = Field(None, description="BigQuery Dataset ID")
     limit: int = Field(20, description="Max number of activities to retrieve.")
     offset: int = Field(0, description="Number of activities to skip (for paging).")
-    activity_type: Optional[str] = Field(
+    activity_type: str | None = Field(
         None, description="Filter by type (e.g. 'running', 'walking')."
     )
-    start_date: Optional[str] = Field(
+    start_date: str | None = Field(
         None, description="Start date for activity filtering (YYYY-MM-DD)."
     )
-    end_date: Optional[str] = Field(
+    end_date: str | None = Field(
         None, description="End date for activity filtering (YYYY-MM-DD)."
     )
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         None, description="The internal ID of the user (e.g., 'fsirio')."
     )
 
 
-def _get_cache_key(user_id: Optional[str]) -> str:
+def _get_cache_key(user_id: str | None) -> str:
     """Generates a cache key for retrieve_biometric_data.
 
     TTL is approximately 5 minutes (300 seconds).
@@ -85,15 +85,15 @@ def _get_cache_key(user_id: Optional[str]) -> str:
 
 @tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(
-    project_id: Optional[str] = None,
-    dataset: Optional[str] = None,
+    project_id: str | None = None,
+    dataset: str | None = None,
     limit: int = 20,
     offset: int = 0,
-    activity_type: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    user_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    activity_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, Any]:
     """Retrieves the user's latest biometric context from BigQuery in parallel.
 
     Supports pagination and filtering for activities.
@@ -127,16 +127,16 @@ def retrieve_biometric_data(
 
 @functools.lru_cache(maxsize=32)
 def _retrieve_biometric_data_cached(
-    project_id: Optional[str],
-    dataset: Optional[str],
+    project_id: str | None,
+    dataset: str | None,
     limit: int,
     offset: int,
-    activity_type: Optional[str],
-    start_date: Optional[str],
-    end_date: Optional[str],
-    user_id: Optional[str],
+    activity_type: str | None,
+    start_date: str | None,
+    end_date: str | None,
+    user_id: str | None,
     cache_key: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Cached implementation of biometric data retrieval.
 
     Args:
@@ -171,13 +171,13 @@ def _retrieve_biometric_data_cached(
         return _get_mock_data()
 
     client = get_bq_client(project_id)
-    context: Dict[str, Any] = {}
-    top_3_ids: List[str] = []
+    context: dict[str, Any] = {}
+    top_3_ids: list[str] = []
 
     # Common WHERE clause helper for user_id
     user_where = f"WHERE user_id = '{user_id}'" if user_id else ""
 
-    def fetch_activities() -> Tuple[str, List[Dict[str, Any]]]:
+    def fetch_activities() -> tuple[str, list[dict[str, Any]]]:
         """Fetches recent activities from BigQuery."""
         nonlocal top_3_ids
         try:
@@ -223,7 +223,7 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Activities retrieval failed: {e}")
             return "recent_activities", []
 
-    def fetch_training_status() -> Tuple[str, Optional[Dict[str, Any]]]:
+    def fetch_training_status() -> tuple[str, dict[str, Any] | None]:
         """Fetches the latest training status."""
         try:
             t0 = time.time()
@@ -245,7 +245,7 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "training_status", None
 
-    def fetch_sleep_history() -> Tuple[str, Optional[Dict[str, Any]]]:
+    def fetch_sleep_history() -> tuple[str, dict[str, Any] | None]:
         """Fetches the latest sleep record."""
         try:
             t0 = time.time()
@@ -265,7 +265,7 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "sleep", None
 
-    def fetch_hrv_history() -> Tuple[str, List[Dict[str, Any]]]:
+    def fetch_hrv_history() -> tuple[str, list[dict[str, Any]]]:
         """Fetches recent HRV history."""
         try:
             t0 = time.time()
@@ -281,7 +281,7 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "hrv", []
 
-    def fetch_user_profile() -> Tuple[str, Optional[Dict[str, Any]]]:
+    def fetch_user_profile() -> tuple[str, dict[str, Any] | None]:
         """Fetches user profile information."""
         try:
             t0 = time.time()
@@ -296,7 +296,7 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "user_profile", None
 
-    def fetch_body_composition() -> Tuple[str, Optional[Dict[str, Any]]]:
+    def fetch_body_composition() -> tuple[str, dict[str, Any] | None]:
         """Fetches the latest body composition data."""
         try:
             t0 = time.time()
@@ -315,7 +315,7 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "latest_body_composition", None
 
-    def fetch_health_status() -> Tuple[str, Optional[Dict[str, Any]]]:
+    def fetch_health_status() -> tuple[str, dict[str, Any] | None]:
         """Fetches the latest health status from the last 3 days."""
         t0 = time.time()
         try:
@@ -339,7 +339,7 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Health status retrieval failed: {e}")
             return "latest_health_status", None
 
-    def fetch_user_goals() -> Tuple[str, List[Dict[str, Any]]]:
+    def fetch_user_goals() -> tuple[str, list[dict[str, Any]]]:
         """Fetches active user goals."""
         try:
             t0 = time.time()
@@ -356,7 +356,7 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Goals retrieval failed: {e}")
             return "active_goals", []
 
-    def fetch_scheduled_workouts() -> Tuple[str, List[Dict[str, Any]]]:
+    def fetch_scheduled_workouts() -> tuple[str, list[dict[str, Any]]]:
         """Fetches scheduled workouts from today onwards."""
         try:
             t0 = time.time()
@@ -381,7 +381,7 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
             return "scheduled_workouts", []
 
-    def fetch_telemetry(activity_ids: List[str]) -> Tuple[str, str]:
+    def fetch_telemetry(activity_ids: list[str]) -> tuple[str, str]:
         """Fetches and aggregates telemetry for the last 3 activities."""
         if not activity_ids:
             return "last_3_runs_timeseries_summary", "No detailed telemetry found."
@@ -476,7 +476,7 @@ def _retrieve_biometric_data_cached(
             """
             rows = list(client.query(query_tel_series).result())
 
-            series_data: Dict[str, List[str]] = {}
+            series_data: dict[str, list[str]] = {}
             for row in rows:
                 key = f"{row.activity_name} (ID: {row.activity_id})"
                 if key not in series_data:
@@ -588,7 +588,7 @@ def _retrieve_biometric_data_cached(
     return serialize_dates(context)
 
 
-def _get_mock_data() -> Dict[str, Any]:
+def _get_mock_data() -> dict[str, Any]:
     """Returns mock data when GCP environment is not available."""
     return {
         "recent_activities": [
