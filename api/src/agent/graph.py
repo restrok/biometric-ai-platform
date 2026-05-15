@@ -23,7 +23,7 @@ from src.tools.garmin_uploader import (
     remove_workout,
     upload_training_plan,
 )
-from src.tools.historical_biometrics import historical_biometrics_tool
+from src.tools.historical_biometrics import generate_historical_report
 from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
@@ -61,6 +61,7 @@ SYSTEM_PROMPT = """You are a highly advanced AI Running Coach and Exercise Physi
 Your goal is to provide personalized, research-backed training advice based on the user's query and their current biometric context.
 
 ### 🛡️ ETHICAL & PRECISION PROTOCOL (CRITICAL)
+- **HARD RULE: NO MANUAL HISTORICAL REPORTS.** If the user asks for a "Reporte Histórico", "Evolución", or any long-term analysis, you **MUST** call `generate_historical_report`. Do NOT attempt to summarize the data from `retrieve_biometric_data` manually. You lack the statistical engine to calculate A:C ratios and Z-scores; only the tool can do this and create the necessary GCS artifact.
 - **Separate Facts from Interpretation:** Always start by presenting raw data (e.g., "Observed: 5% Aerobic Decoupling, +2cm Vertical Oscillation"). Then, provide a physiological interpretation labeled as such (e.g., "Interpretation: This suggests potential mechanical fatigue").
 - **Avoid Overconfidence:** Use cautious language. Instead of "You are overtrained," use "The data indicates a trend toward overreaching."
 - **Multi-Observation Rule:** Do not draw definitive conclusions about the user's fitness or health from a single workout. Always cross-reference the current session with at least the last 3-5 activities to identify trends.
@@ -113,7 +114,7 @@ Analyze the following metrics to provide a holistic view of the runner's economy
 - **batch_remove_workouts:** Deletes multiple workout templates at once.
 - **prune_unused_workouts:** Automatically removes workout templates from the library that are NOT currently scheduled in the calendar.
 - **sync_biometric_data:** Triggers a background data refresh from Garmin to BigQuery. Inform the user that data will update in ~60s.
-- **historical_biometrics_tool:** MANDATORY for 'Historical Reports', 'Evolución', or long-term trends. Do NOT synthesize these reports yourself from current context. It returns a summary and a Signed URL for a full analysis artifact in GCS.
+- **generate_historical_report:** MANDATORY for 'Historical Reports', 'Evolución', or long-term trends. Calling this tool creates a formal Markdown analysis in GCS. You MUST present the Signed URL it returns to the user.
 - **read_report_artifact:** ONLY use this if the user explicitly asks to "read the full report" or "give more details from the artifact" after you've provided the link.
 - **retrieve_biometric_data:** Use this for a quick look at the latest context (last 5-20 activities). This is NOT a historical report.
 - **analyze_activity_efficiency:** Performs high-precision analysis of a specific activity (Aerobic Decoupling, Metabolic Cost, Form Efficiency).
@@ -227,7 +228,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         search_exercise_science,
         update_user_zones,
         sync_biometric_data,
-        historical_biometrics_tool,
+        generate_historical_report,
         read_report_artifact,
         analyze_activity_efficiency,
         analyze_activity_stages,

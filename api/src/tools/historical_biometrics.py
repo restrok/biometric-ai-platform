@@ -152,16 +152,16 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[Dict[
     return llm_summary, md_report
 
 @tool(args_schema=HistoricalBiometricsInput)
-async def historical_biometrics_tool(
+async def generate_historical_report(
     user_id: str,
     project_id: str | None = None,
     dataset: str | None = None
 ) -> str:
     """
-    MANDATORY for 'Historical Reports', 'Evolution', or 'Monthly Analysis'.
-    Analiza la evolución fisiológica histórica del usuario (Carga aguda/crónica y Z-Scores).
-    Devuelve un JSON ultra-ligero para no saturar el contexto del agente e indica la URI
-    del artefacto detallado en GCS.
+    MANDATORY to call when the user asks for a 'Historical Report', 'Evolution', or 'Monthly Analysis'.
+    This tool performs deep physiological analysis (Acute/Chronic Load, Z-Scores) and GENERATES 
+    a formal Markdown artifact in GCS. It returns a summary and a Signed URL for the user.
+    DO NOT synthesize these reports manually; you MUST call this tool to create the artifact.
     """
     config = get_config()
     pid = project_id or config.get("project_id")
