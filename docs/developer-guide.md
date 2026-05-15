@@ -6,6 +6,36 @@ This guide explains the internal architecture and development workflows for the 
 
 The platform is designed as an **Agentic RAG** system, decoupled into several specialized layers.
 
+```mermaid
+graph TD
+    User([User Query]) --> Router{Intent Classifier}
+    Router -- "full/profile" --> Retriever[Context Retriever]
+    Router -- "none" --> Analyzer
+    
+    subgraph "Data Layer"
+        Retriever --> BQ[(BigQuery Lakehouse)]
+        BQ --> Activities[(Recent Activities)]
+        BQ --> Health[(Health Status)]
+        BQ --> RAG[(Vector Knowledge Base)]
+    end
+    
+    Retriever --> Analyzer[AI Coach / Analyzer]
+    Analyzer --> Skills{{Biometric Coach Skill}}
+    
+    subgraph "Tool Execution"
+        Analyzer -- "Evolution/Trends" --> HistTool[Historical Biometrics Tool]
+        HistTool --> BQ
+        HistTool --> GCS[[GCS Report Bucket]]
+        GCS --> Artifact[Signed URL Report]
+        Artifact --> User
+        
+        Analyzer -- "Plan/Workouts" --> SyncTool[Device Sync Tool]
+        SyncTool --> Garmin((Garmin Connect))
+    end
+    
+    Analyzer --> Response([Final Response])
+```
+
 ### 1. Data Layer (BigQuery Lakehouse)
 *   **Native Tables:** All biometric data is stored in Native BigQuery tables for sub-second retrieval.
 *   **Schema Consistency:** The `etl_job.py` enforces schema rules (e.g., casting `run_walk_index` to float) to prevent load failures.
@@ -38,9 +68,16 @@ The platform's intelligence is modularized into **Skills**.
         *   `sync_biometric_data`: Triggers the ETL pipeline to refresh BigQuery.
         *   **update_user_zones**: Persists detected physiological thresholds to the user profile.
         *   **search_knowledge_base**: Native BigQuery vector search for exercise science.
+        *   **historical_biometrics_tool**: Computes long-term evolution and exports artifacts to GCS.
 
-        ### 4. Intelligence Implementation (Safety & Stability)
-        The agent's reasoning loop is governed by several core logic patterns to ensure reliability:
+### 4. Historical Reporting Architecture
+To avoid overwhelming the LLM context with years of data, historical analysis is offloaded to a specialized tool:
+1.  **Computation**: The tool queries BigQuery for the full user history and calculates physiological metrics (Acute/Chronic Load, Efficiency Z-Scores).
+2.  **Artifact Generation**: A detailed Markdown report is generated and uploaded to a private GCS bucket.
+3.  **Secure Access**: The tool returns a **Signed URL** (valid for 1 hour) and a high-level summary.
+4.  **Lean Context**: The agent only sees the summary, keeping the conversation fast and token-efficient.
+
+### 5. Intelligence Implementation (Safety & Stability)
 
         *   **Noise Reduction (Windowing):** The `analyzer` node is prompted to look for reproducibility. It must compare multiple telemetry segments from the `retriever` before suggesting a profile update.
         *   **Cold Start Logic:** If `biometric_context['recent_activities']` is empty or only contains info messages, the `analyzer` is programmed to switch to "Calibration Mode." It will refuse to call `upload_training_plan` with high-intensity workouts and instead recommend a 2-week baseline-gathering phase.
