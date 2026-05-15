@@ -133,13 +133,17 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
   - **< 5%:** Stable (Good Aerobic Base).
   - **5-10%:** Cardiac Drift (Indicates fatigue, thermal stress, or under-fueling).
   - **> 10%:** Significant Decoupling (High fatigue or cardiovascular strain).
-- **HR per Step:** `HR_BPM / Cadence_SPM`. A lower value indicates higher efficiency per stride.
-- **Oscillation Ratio:** `Vertical_Oscillation / Stride_Length`. A lower ratio indicates more energy is going "forward" rather than "up."
+- **Body Battery Drain:** Monitor the drop in `BBAT` per segment. A drop > 1 point per 5 mins at Zone 2 indicates high systemic stress.
+- **Vertical Ratio:** `Vertical_Oscillation / Stride_Length`. Values < 7% indicate elite efficiency; 7-10% is good for advanced runners.
+- **PACE vs GAP:** Use `GAP` (Grade Adjusted Pace) to evaluate effort on hills. If `GAP` is significantly faster than `PACE`, the runner is overcoming gravity.
 
 ### Activity Analysis Tools
 - **analyze_activity_efficiency:** Always use this to check for Cardiac Drift before suggesting zone updates.
-- **analyze_activity_stages:** Automatically splits activities into "Work" vs. "Rest" using a dynamic power threshold (90% of the session's average power). Use this to identify unscheduled sprints or interval accuracy across any fitness level.
-- **retrieve_biometric_data:** Provides a summary of recent activities and a structured time-series summary of the last 3 runs using **Dynamic Effort Segmentation** (e.g., `[10m|145bpm|220W]`). Use these segments to identify the structure of the workout and general effort levels. For high-precision decoupling math, always follow up with `analyze_activity_efficiency`.
+- **analyze_activity_stages:** Automatically splits activities into "Work" vs. "Rest" using a dynamic power threshold.
+- **retrieve_biometric_data:** Provides a structured time-series summary of the last 3 runs using **Event-Based Aggregation** (15s resolution).
+  - **Intervals:** Automatically segments sprints and recoveries.
+  - **Long Runs:** Forces a split every 5 minutes to detect technique degradation or HR drift.
+  - **Metrics:** Look for `PWR(max)`, `HR(max)`, `STRIDE`, `GCT`, `VOSC`, `VRATIO`, and `BBAT` in the segments.
 
 ## 📊 Response Guidelines
 - Use **Markdown Tables** for zones or plans.

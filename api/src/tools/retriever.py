@@ -1,17 +1,24 @@
+"""Tools for retrieving biometric data from BigQuery."""
+
+import functools
 import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from google.cloud import bigquery
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 
+# Configure logging
 log = logging.getLogger(__name__)
 
 
-def _ensure_env():
+def _ensure_env() -> None:
     """Ensures environment variables are loaded."""
     if not os.getenv("GOOGLE_CLOUD_PROJECT"):
         from src.utils.config import setup_environment
@@ -23,85 +30,155 @@ _ensure_env()
 config = get_config()
 
 # Cache clients per project to reduce initialization overhead
-_bq_clients = {}
+_bq_clients: Dict[str, bigquery.Client] = {}
 
 
-def get_bq_client(project_id):
+def get_bq_client(project_id: str) -> bigquery.Client:
+    """Gets or creates a BigQuery client for the given project ID.
+
+    Args:
+        project_id: The GCP Project ID.
+
+    Returns:
+        A BigQuery client instance.
+    """
     global _bq_clients
     if project_id not in _bq_clients:
         _bq_clients[project_id] = bigquery.Client(project=project_id)
     return _bq_clients[project_id]
 
 
-from langchain_core.tools import tool
-from pydantic import BaseModel, Field
-
-
 class RetrieverInput(BaseModel):
-    project_id: str | None = Field(None, description="GCP Project ID")
-    dataset: str | None = Field(None, description="BigQuery Dataset ID")
+    """Input schema for the biometric data retriever tool."""
+
+    project_id: Optional[str] = Field(None, description="GCP Project ID")
+    dataset: Optional[str] = Field(None, description="BigQuery Dataset ID")
     limit: int = Field(20, description="Max number of activities to retrieve.")
     offset: int = Field(0, description="Number of activities to skip (for paging).")
-    activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
-    start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
-    end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
-    user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
+    activity_type: Optional[str] = Field(
+        None, description="Filter by type (e.g. 'running', 'walking')."
+    )
+    start_date: Optional[str] = Field(
+        None, description="Start date for activity filtering (YYYY-MM-DD)."
+    )
+    end_date: Optional[str] = Field(
+        None, description="End date for activity filtering (YYYY-MM-DD)."
+    )
+    user_id: Optional[str] = Field(
+        None, description="The internal ID of the user (e.g., 'fsirio')."
+    )
 
 
-import functools
+def _get_cache_key(user_id: Optional[str]) -> str:
+    """Generates a cache key for retrieve_biometric_data.
 
+    TTL is approximately 5 minutes (300 seconds).
 
-# Cache for retrieve_biometric_data to avoid redundant BQ calls in short intervals
-# TTL: 5 minutes (300 seconds)
-def _get_cache_key(user_id):
+    Args:
+        user_id: The internal ID of the user.
+
+    Returns:
+        A string representing the cache key.
+    """
     return f"{user_id}_{int(time.time() / 300)}"
 
 
 @tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(
-    project_id: str | None = None,
-    dataset: str | None = None,
+    project_id: Optional[str] = None,
+    dataset: Optional[str] = None,
     limit: int = 20,
     offset: int = 0,
-    activity_type: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    user_id: str | None = None,
-) -> dict:
-    """
-    Retrieves the user's latest biometric context from BigQuery in parallel.
+    activity_type: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Retrieves the user's latest biometric context from BigQuery in parallel.
+
     Supports pagination and filtering for activities.
+
+    Args:
+        project_id: GCP Project ID.
+        dataset: BigQuery Dataset ID.
+        limit: Max number of activities to retrieve.
+        offset: Number of activities to skip.
+        activity_type: Filter by activity type.
+        start_date: Start date for filtering (YYYY-MM-DD).
+        end_date: End date for filtering (YYYY-MM-DD).
+        user_id: Internal user ID.
+
+    Returns:
+        A dictionary containing the user's biometric context.
     """
     cache_key = _get_cache_key(user_id)
     return _retrieve_biometric_data_cached(
-        project_id, dataset, limit, offset, activity_type, start_date, end_date, user_id, cache_key
+        project_id,
+        dataset,
+        limit,
+        offset,
+        activity_type,
+        start_date,
+        end_date,
+        user_id,
+        cache_key,
     )
 
 
 @functools.lru_cache(maxsize=32)
 def _retrieve_biometric_data_cached(
-    project_id, dataset, limit, offset, activity_type, start_date, end_date, user_id, cache_key
-):
+    project_id: Optional[str],
+    dataset: Optional[str],
+    limit: int,
+    offset: int,
+    activity_type: Optional[str],
+    start_date: Optional[str],
+    end_date: Optional[str],
+    user_id: Optional[str],
+    cache_key: str,
+) -> Dict[str, Any]:
+    """Cached implementation of biometric data retrieval.
+
+    Args:
+        project_id: GCP Project ID.
+        dataset: BigQuery Dataset ID.
+        limit: Max number of activities to retrieve.
+        offset: Number of activities to skip.
+        activity_type: Filter by activity type.
+        start_date: Start date for filtering (YYYY-MM-DD).
+        end_date: End date for filtering (YYYY-MM-DD).
+        user_id: Internal user ID.
+        cache_key: Unique cache key (includes TTL).
+
+    Returns:
+        A dictionary containing the user's biometric context.
+    """
     if not project_id:
         project_id = config["project_id"]
     if not dataset:
         dataset = config["dataset_id"]
 
     if not project_id:
-        log.warning("GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data.")
+        log.warning(
+            "GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if "
+            "not using mock data."
+        )
 
     start_total = time.time()
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv("GOOGLE_CLOUD_PROJECT"):
+    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv(
+        "GOOGLE_CLOUD_PROJECT"
+    ):
         return _get_mock_data()
 
     client = get_bq_client(project_id)
-    context = {}
-    top_3_ids = []
+    context: Dict[str, Any] = {}
+    top_3_ids: List[str] = []
 
     # Common WHERE clause helper for user_id
     user_where = f"WHERE user_id = '{user_id}'" if user_id else ""
 
-    def fetch_activities():
+    def fetch_activities() -> Tuple[str, List[Dict[str, Any]]]:
+        """Fetches recent activities from BigQuery."""
         nonlocal top_3_ids
         try:
             t0 = time.time()
@@ -111,15 +188,13 @@ def _retrieve_biometric_data_cached(
             if activity_type:
                 where_clauses.append(f"type = '{activity_type}'")
 
-            # Helper to convert YYYY-MM-DD to unix seconds
-            def to_unix_seconds(date_str):
+            def to_unix_seconds(date_str: str) -> int:
                 dt = datetime.strptime(date_str, "%Y-%m-%d")
                 return int(dt.timestamp())
 
             if start_date:
                 where_clauses.append(f"date >= {to_unix_seconds(start_date)}")
             if end_date:
-                # Add 1 day to end_date to include the full day
                 dt_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
                 end_seconds = int(dt_end.timestamp())
                 where_clauses.append(f"date < {end_seconds}")
@@ -128,11 +203,9 @@ def _retrieve_biometric_data_cached(
             if where_clauses:
                 where_clause = "WHERE " + " AND ".join(where_clauses)
 
-            # Use a helper to format the timestamp regardless of its precision (though now it should be seconds)
-            # We use TIMESTAMP_SECONDS for BigQuery since the data is now in seconds.
             query_act = f"""
                 SELECT id, 
-                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date, 
+                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_MICROS(CAST(date / 1000 AS INT64))) as date, 
                        type, distance_m, avg_hr, vo2max 
                 FROM `{project_id}.{dataset}.recent_activities` 
                 {where_clause}
@@ -141,16 +214,19 @@ def _retrieve_biometric_data_cached(
             """
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
-            log.info(f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
+            log.info(
+                f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s "
+                f"({len(act_rows)} rows)"
+            )
             return "recent_activities", act_rows
         except Exception as e:
             log.warning(f"❌ Activities retrieval failed: {e}")
             return "recent_activities", []
 
-    def fetch_training_status():
+    def fetch_training_status() -> Tuple[str, Optional[Dict[str, Any]]]:
+        """Fetches the latest training status."""
         try:
             t0 = time.time()
-            # Filter for records that actually have a status or load
             where_status = "WHERE (status IS NOT NULL OR acute_load IS NOT NULL)"
             if user_id:
                 where_status += f" AND user_id = '{user_id}'"
@@ -162,15 +238,17 @@ def _retrieve_biometric_data_cached(
                 ORDER BY date DESC LIMIT 1
             """
             status_rows = list(client.query(query_status).result())
-            log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
+            log.info(
+                f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s"
+            )
             return "training_status", (dict(status_rows[0]) if status_rows else None)
         except Exception:
             return "training_status", None
 
-    def fetch_sleep_history():
+    def fetch_sleep_history() -> Tuple[str, Optional[Dict[str, Any]]]:
+        """Fetches the latest sleep record."""
         try:
             t0 = time.time()
-            # Filter for records that actually have a duration or quality
             where_sleep = "WHERE (duration_sec IS NOT NULL OR quality IS NOT NULL)"
             if user_id:
                 where_sleep += f" AND user_id = '{user_id}'"
@@ -187,7 +265,8 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "sleep", None
 
-    def fetch_hrv_history():
+    def fetch_hrv_history() -> Tuple[str, List[Dict[str, Any]]]:
+        """Fetches recent HRV history."""
         try:
             t0 = time.time()
             query_hrv = f"""
@@ -202,34 +281,48 @@ def _retrieve_biometric_data_cached(
         except Exception:
             return "hrv", []
 
-    def fetch_user_profile():
+    def fetch_user_profile() -> Tuple[str, Optional[Dict[str, Any]]]:
+        """Fetches user profile information."""
         try:
             t0 = time.time()
-            query_profile = f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max FROM `{project_id}.{dataset}.user_profile` {user_where} LIMIT 1"
+            query_profile = (
+                f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, "
+                f"custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max "
+                f"FROM `{project_id}.{dataset}.user_profile` {user_where} LIMIT 1"
+            )
             profile_rows = list(client.query(query_profile).result())
             log.info(f"⏱️ BigQuery: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", (dict(profile_rows[0]) if profile_rows else None)
         except Exception:
             return "user_profile", None
 
-    def fetch_body_composition():
+    def fetch_body_composition() -> Tuple[str, Optional[Dict[str, Any]]]:
+        """Fetches the latest body composition data."""
         try:
             t0 = time.time()
-            query_body = f"SELECT date, weight_kg, bmi, fat_percentage, muscle_mass_kg FROM `{project_id}.{dataset}.body_composition` {user_where} ORDER BY date DESC LIMIT 1"
+            query_body = (
+                f"SELECT date, weight_kg, bmi, fat_percentage, muscle_mass_kg "
+                f"FROM `{project_id}.{dataset}.body_composition` {user_where} "
+                f"ORDER BY date DESC LIMIT 1"
+            )
             body_rows = list(client.query(query_body).result())
-            log.info(f"⏱️ BigQuery: Body composition retrieved in {time.time() - t0:.2f}s")
-            return "latest_body_composition", (dict(body_rows[0]) if body_rows else None)
+            log.info(
+                f"⏱️ BigQuery: Body composition retrieved in {time.time() - t0:.2f}s"
+            )
+            return "latest_body_composition", (
+                dict(body_rows[0]) if body_rows else None
+            )
         except Exception:
             return "latest_body_composition", None
 
-    def fetch_health_status():
+    def fetch_health_status() -> Tuple[str, Optional[Dict[str, Any]]]:
+        """Fetches the latest health status from the last 3 days."""
         t0 = time.time()
         try:
-            # Only fetch health status from the last 3 days to avoid "zombie" context
             where_clauses = ["date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)"]
             if user_id:
                 where_clauses.append(f"user_id = '{user_id}'")
-            
+
             where_str = "WHERE " + " AND ".join(where_clauses)
 
             query_health = f"""
@@ -246,11 +339,16 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Health status retrieval failed: {e}")
             return "latest_health_status", None
 
-    def fetch_user_goals():
+    def fetch_user_goals() -> Tuple[str, List[Dict[str, Any]]]:
+        """Fetches active user goals."""
         try:
             t0 = time.time()
             user_filter = f" AND user_id = '{user_id}'" if user_id else ""
-            query_goals = f"SELECT target_date, goal_type, target_value, description FROM `{project_id}.{dataset}.user_goals` WHERE status = 'active'{user_filter} ORDER BY target_date ASC"
+            query_goals = (
+                f"SELECT target_date, goal_type, target_value, description "
+                f"FROM `{project_id}.{dataset}.user_goals` "
+                f"WHERE status = 'active'{user_filter} ORDER BY target_date ASC"
+            )
             goal_rows = [dict(row) for row in client.query(query_goals).result()]
             log.info(f"⏱️ BigQuery: Active goals retrieved in {time.time() - t0:.2f}s")
             return "active_goals", goal_rows
@@ -258,10 +356,10 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Goals retrieval failed: {e}")
             return "active_goals", []
 
-    def fetch_scheduled_workouts():
+    def fetch_scheduled_workouts() -> Tuple[str, List[Dict[str, Any]]]:
+        """Fetches scheduled workouts from today onwards."""
         try:
             t0 = time.time()
-            # Fetch workouts from today onwards
             today = date.today().isoformat()
             where_sched = f"WHERE date >= '{today}'"
             if user_id:
@@ -275,115 +373,156 @@ def _retrieve_biometric_data_cached(
                 LIMIT 5
             """
             sched_rows = [dict(row) for row in client.query(query_sched).result()]
-            log.info(f"⏱️ BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s")
+            log.info(
+                f"⏱️ BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s"
+            )
             return "scheduled_workouts", sched_rows
         except Exception as e:
             log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
             return "scheduled_workouts", []
 
-    def fetch_telemetry(activity_ids):
+    def fetch_telemetry(activity_ids: List[str]) -> Tuple[str, str]:
+        """Fetches and aggregates telemetry for the last 3 activities."""
         if not activity_ids:
             return "last_3_runs_timeseries_summary", "No detailed telemetry found."
         try:
             t0 = time.time()
             ids_str = ", ".join([f"'{i}'" for i in activity_ids])
+            thirty_days_ago_ms = int(
+                (datetime.now() - timedelta(days=30)).timestamp() * 1000
+            )
 
-            # Optimization: Add a date filter to the telemetry query to hit partitions
-            # We assume telemetry for the last 3 activities is within the last 30 days.
-            # Data in table is in milliseconds (13 digits)
-            thirty_days_ago_ms = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
-
-            # Implementation of Dynamic Effort Segmentation (from telemetry-optimization-plan.md)
+            # Implementation of Event-Based Aggregation (V3 - Unabridged)
             query_tel_series = f"""
-            WITH raw_minutes AS (
-                -- 1. Aggregate to 1-minute blocks for baseline smoothing
+            WITH raw_15s AS (
                 SELECT 
                     activity_id,
                     activity_name,
-                    TIMESTAMP_TRUNC(TIMESTAMP_SECONDS(CAST(timestamp_ms / 1000 AS INT64)), MINUTE) as minute,
+                    TIMESTAMP_SECONDS(CAST(FLOOR(timestamp_ms / 15000) * 15 AS INT64)) as time_block,
                     AVG(hr_bpm) as hr,
+                    MAX(hr_bpm) as max_hr,
                     AVG(power_w) as pwr,
-                    AVG(cadence_spm) as cad,
+                    MAX(power_w) as max_pwr,
+                    AVG(cadence_spm + IFNULL(fractional_cadence, 0)) as cad,
+                    AVG(stride_length_mm) as stride,
                     AVG(vertical_oscillation_cm) as osc,
                     AVG(ground_contact_time_ms) as gct,
-                    -- Add a 5-minute counter for hybrid segmentation
-                    CAST(FLOOR(EXTRACT(MINUTE FROM TIMESTAMP_TRUNC(TIMESTAMP_SECONDS(CAST(timestamp_ms / 1000 AS INT64)), MINUTE)) / 5) AS INT64) as time_block
+                    AVG(vertical_ratio) as v_ratio,
+                    AVG(vertical_speed) as v_speed,
+                    AVG(body_battery) as battery,
+                    AVG(temperature_c) as temp,
+                    AVG(elevation_m) as elev,
+                    AVG(speed_mps) as speed,
+                    AVG(gap_mps) as gap,
+                    AVG(performance_condition) as perf,
+                    AVG(run_walk_index) as rw_idx
                 FROM `{project_id}.{dataset}.latest_activity_telemetry`
                 WHERE activity_id IN ({ids_str}) 
                   AND timestamp_ms >= {thirty_days_ago_ms}
                   {f" AND user_id = '{user_id}'" if user_id else ""}
-                GROUP BY 1, 2, 3, 9
+                GROUP BY 1, 2, 3
             ),
-            deltas AS (
-                -- 2. Calculate deltas to find "shifts" in effort
+            classified AS (
                 SELECT 
-                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct, time_block,
-                    LAG(hr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_hr,
-                    LAG(pwr) OVER(PARTITION BY activity_id ORDER BY minute) as prev_pwr,
-                    LAG(time_block) OVER(PARTITION BY activity_id ORDER BY minute) as prev_time_block
-                FROM raw_minutes
+                    activity_id, activity_name, time_block, hr, max_hr, pwr, max_pwr, cad, 
+                    stride, osc, gct, v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx,
+                    CASE WHEN pwr > 180 OR cad > 145 THEN 1 ELSE 0 END as is_work,
+                    CAST(FLOOR(UNIX_SECONDS(time_block) / 300) AS INT64) as time_bucket
+                FROM raw_15s
+            ),
+            state_changes AS (
+                SELECT 
+                    activity_id, activity_name, time_block, hr, max_hr, pwr, max_pwr, cad, 
+                    stride, osc, gct, v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx,
+                    is_work, time_bucket,
+                    CASE 
+                        WHEN is_work != LAG(is_work) OVER(PARTITION BY activity_id ORDER BY time_block) THEN 1 
+                        WHEN time_bucket != LAG(time_bucket) OVER(PARTITION BY activity_id ORDER BY time_block) THEN 1
+                        ELSE 0 
+                    END as state_change
+                FROM classified
             ),
             segments AS (
-                -- 3. Mark the start of a new segment if HR/Power changes OR every 5 minutes
                 SELECT 
-                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
-                    CASE 
-                        WHEN prev_hr IS NULL THEN 1
-                        WHEN ABS(hr - prev_hr) > 7 OR ABS(pwr - prev_pwr) > 25 THEN 1 
-                        WHEN time_block != prev_time_block THEN 1 -- Force new segment every 5 mins
-                        ELSE 0 
-                    END as is_new_segment
-                FROM deltas
-            ),
-            segmented_data AS (
-                -- 4. Assign segment IDs
-                SELECT 
-                    activity_id, activity_name, minute, hr, pwr, cad, osc, gct,
-                    SUM(is_new_segment) OVER(PARTITION BY activity_id ORDER BY minute) as segment_id
-                FROM segments
+                    activity_id, activity_name, time_block, hr, max_hr, pwr, max_pwr, cad, 
+                    stride, osc, gct, v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx,
+                    is_work,
+                    SUM(state_change) OVER(PARTITION BY activity_id ORDER BY time_block) as segment_id
+                FROM state_changes
             )
-            -- 5. Final aggregation of segments
             SELECT 
-                activity_id,
-                activity_name,
-                MIN(minute) as start_time,
-                COUNT(*) as duration_mins,
-                AVG(hr) as avg_hr,
-                AVG(pwr) as avg_pwr,
+                activity_id, activity_name, is_work,
+                MIN(time_block) as start_time,
+                COUNT(*) * 15 as duration_sec,
+                AVG(hr) as avg_hr, MAX(max_hr) as max_hr,
+                AVG(pwr) as avg_pwr, MAX(max_pwr) as max_pwr,
                 AVG(cad) as avg_cad,
+                AVG(stride) as avg_stride,
                 AVG(osc) as avg_osc,
-                AVG(gct) as avg_gct
-            FROM segmented_data
-            GROUP BY 1, 2, segment_id
+                AVG(gct) as avg_gct,
+                AVG(v_ratio) as avg_v_ratio,
+                AVG(v_speed) as avg_v_speed,
+                AVG(battery) as avg_battery,
+                AVG(temp) as avg_temp,
+                AVG(elev) as avg_elev,
+                AVG(speed) as avg_speed,
+                AVG(gap) as avg_gap,
+                AVG(perf) as avg_perf,
+                AVG(rw_idx) as avg_rw_idx
+            FROM segments
+            GROUP BY 1, 2, 3, segment_id
+            HAVING duration_sec >= 10
             ORDER BY activity_id, start_time ASC
             """
             rows = list(client.query(query_tel_series).result())
 
-            series_data: dict[str, list[str]] = {}
+            series_data: Dict[str, List[str]] = {}
             for row in rows:
                 key = f"{row.activity_name} (ID: {row.activity_id})"
                 if key not in series_data:
                     series_data[key] = []
 
-                metrics = [f"{int(row.duration_mins)}m", f"{int(row.avg_hr)}bpm"]
-                if row.avg_pwr and row.avg_pwr > 0:
-                    metrics.append(f"{int(row.avg_pwr)}W")
-                if row.avg_osc:
-                    metrics.append(f"{round(row.avg_osc, 1)}cm_osc")
-                if row.avg_gct:
-                    metrics.append(f"{int(row.avg_gct)}ms_gct")
+                label = "WORK" if row.is_work else "REST"
+                dur = f"{int(row.duration_sec)}s"
 
-                series_data[key].append(f"[{'|'.join(metrics)}]")
+                def mps_to_pace(mps: float) -> str:
+                    if not mps or mps < 0.5:
+                        return "N/A"
+                    total_seconds = 1000 / mps
+                    return f"{int(total_seconds // 60)}:{int(total_seconds % 60):02d}"
+
+                metrics = [
+                    f"DUR:{dur}",
+                    f"HR:{int(row.avg_hr)} (max {int(row.max_hr)})",
+                    f"PWR:{int(row.avg_pwr)}W (max {int(row.max_pwr)}W)",
+                    f"PACE:{mps_to_pace(row.avg_speed)} (GAP:{mps_to_pace(row.avg_gap)})",
+                    f"CAD:{round(row.avg_cad, 1)}spm",
+                    f"STRIDE:{round(row.avg_stride/1000, 2)}m",
+                    f"GCT:{int(row.avg_gct or 0)}ms",
+                    f"VOSC:{round(row.avg_osc or 0, 1)}cm",
+                    f"VRATIO:{round(row.avg_v_ratio or 0, 1)}%",
+                    f"VSPD:{round(row.avg_v_speed or 0, 2)}m/s",
+                    f"ELEV:{round(row.avg_elev or 0, 1)}m",
+                    f"BBAT:{int(row.avg_battery or 0)}",
+                    f"TEMP:{int(row.avg_temp or 0)}C",
+                    f"PERF:{int(row.avg_perf or 0)}",
+                    f"RW:{int(row.avg_rw_idx or 0)}",
+                ]
+
+                series_data[key].append(f"{label}[{'|'.join(metrics)}]")
 
             compact_series = []
             for activity_label, segments_list in series_data.items():
                 compact_series.append(f"{activity_label}: {' '.join(segments_list)}")
 
             log.info(
-                f"⏱️ BigQuery: Telemetry dynamic segments retrieved in {time.time() - t0:.2f}s ({len(rows)} segments)"
+                f"⏱️ BigQuery: Telemetry event segments retrieved in "
+                f"{time.time() - t0:.2f}s ({len(rows)} segments)"
             )
             return "last_3_runs_timeseries_summary", (
-                "\n".join(compact_series) if compact_series else "No detailed telemetry found."
+                "\n".join(compact_series)
+                if compact_series
+                else "No detailed telemetry found."
             )
         except Exception as e:
             log.error(f"❌ Telemetry retrieval failed: {e}")
@@ -391,8 +530,6 @@ def _retrieve_biometric_data_cached(
 
     # Execute first queries in parallel
     with ThreadPoolExecutor(max_workers=7) as executor:
-        # We need to run fetch_activities first or concurrently, but we need its result for telemetry
-        # To maximize parallelism, we start 1-6.
         f_act = executor.submit(fetch_activities)
         f_status = executor.submit(fetch_training_status)
         f_sleep = executor.submit(fetch_sleep_history)
@@ -403,32 +540,43 @@ def _retrieve_biometric_data_cached(
         f_goals = executor.submit(fetch_user_goals)
         f_sched = executor.submit(fetch_scheduled_workouts)
 
-        # Wait for activities to finish to start telemetry
         act_key, act_val = f_act.result()
         context[act_key] = act_val
 
-        # Now start telemetry (can run while others are still finishing)
         f_telemetry = executor.submit(fetch_telemetry, top_3_ids)
 
-        # Collect results from others
-        for f in [f_status, f_sleep, f_hrv, f_profile, f_body, f_health, f_goals, f_sched, f_telemetry]:
+        for f in [
+            f_status,
+            f_sleep,
+            f_hrv,
+            f_profile,
+            f_body,
+            f_health,
+            f_goals,
+            f_sched,
+            f_telemetry,
+        ]:
             key, val = f.result()
             context[key] = val
 
-    # Fill in info for missing fields so the Agent knows what's up
+    # Fill in info for missing fields
     if not context.get("recent_activities"):
-        context["recent_activities"] = [{"info": "No activity history found in Data Lake."}]
+        context["recent_activities"] = [
+            {"info": "No activity history found in Data Lake."}
+        ]
     if not context.get("training_status"):
         context["training_status"] = {"info": "No training status available."}
     if not context.get("sleep"):
-        context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}
+        context["sleep"] = {
+            "info": "Sleep data not found (normal if watch not worn during sleep)."
+        }
     if not context.get("hrv"):
         context["hrv"] = [{"info": "HRV baseline not yet established."}]
 
     log.info(f"✅ Total context retrieval time: {time.time() - start_total:.2f}s")
 
-    # Final deep serialization for JSON compliance
-    def serialize_dates(obj):
+    def serialize_dates(obj: Any) -> Any:
+        """Serializes dates and datetimes to ISO format."""
         if isinstance(obj, dict):
             return {k: serialize_dates(v) for k, v in obj.items()}
         if isinstance(obj, list):
@@ -440,11 +588,28 @@ def _retrieve_biometric_data_cached(
     return serialize_dates(context)
 
 
-def _get_mock_data() -> dict:
+def _get_mock_data() -> Dict[str, Any]:
+    """Returns mock data when GCP environment is not available."""
     return {
         "recent_activities": [
-            {"date": "2024-10-01", "type": "running", "distance_km": 10.5, "avg_hr": 145, "zone": "Z3"},
-            {"date": "2024-10-03", "type": "running", "distance_km": 5.0, "avg_hr": 125, "zone": "Z2"},
+            {
+                "date": "2024-10-01",
+                "type": "running",
+                "distance_km": 10.5,
+                "avg_hr": 145,
+                "zone": "Z3",
+            },
+            {
+                "date": "2024-10-03",
+                "type": "running",
+                "distance_km": 5.0,
+                "avg_hr": 125,
+                "zone": "Z2",
+            },
         ],
-        "readiness": {"sleep_score": 58, "hrv_status": "unbalanced", "recovery_time_hours": 36},
+        "readiness": {
+            "sleep_score": 58,
+            "hrv_status": "unbalanced",
+            "recovery_time_hours": 36,
+        },
     }

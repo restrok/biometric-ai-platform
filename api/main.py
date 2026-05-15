@@ -105,8 +105,11 @@ async def lifespan(app: FastAPI):
                     # run_etl is synchronous, run in executor
                     new_ids = await loop.run_in_executor(None, run_etl, uid)
 
-                    log.info(f"🧠 Running proactive analysis for user: {uid}")
-                    await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
+                    if os.getenv("ENABLE_PROACTIVE", "false").lower() == "true":
+                        log.info(f"🧠 Running proactive analysis for user: {uid}")
+                        await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
+                    else:
+                        log.info(f"⏸️ Proactive analysis disabled via ENABLE_PROACTIVE for user: {uid}")
                     
                     # Sleep a bit between users to avoid spikes
                     await asyncio.sleep(30)
