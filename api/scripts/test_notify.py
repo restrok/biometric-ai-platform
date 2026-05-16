@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from src.utils.notifications import send_proactive_notification
 
 
-async def test_notification() -> None:
+def test_notification() -> None:
     """Sends a test proactive notification to a specific user."""
     # Load .env from the current directory (api/)
     load_dotenv()
@@ -21,7 +21,7 @@ async def test_notification() -> None:
     message = "Test notification from Gemini CLI! The proactive infrastructure is now live. 🚀"
 
     print(f"Sending test notification to {user_id}...")
-    success = await send_proactive_notification(user_id, message)
+    success = send_proactive_notification(user_id, message)
 
     if success:
         print("✅ Success!")
@@ -31,7 +31,7 @@ async def test_notification() -> None:
 
 def main() -> None:
     """Main entry point."""
-    asyncio.run(test_notification())
+    test_notification()
 
 
 if __name__ == "__main__":

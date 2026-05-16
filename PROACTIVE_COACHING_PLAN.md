@@ -30,8 +30,8 @@ We will implement a **Decoupled Notification Flow**:
     - Function: Map `user_id` to Telegram `chat_id` and push the message.
 
 2.  **Biometric Platform (`biometric-ai-platform`):**
-    - **Background Worker:** Implement a non-blocking loop in `main.py` (FastAPI) that triggers `run_etl()` every 2-4 hours.
-    - **Proactive Analyzer:** After sync, if certain thresholds are met (e.g., HRV < Baseline or Drift > 5%), the platform generates a summary and `POST`s it to the Orchestrator's notify endpoint.
+    - **Background Worker:** A non-blocking loop in `main.py` (FastAPI) triggers `run_etl()` every 6 hours (configurable via `PROACTIVE_INTERVAL_HOURS`).
+    - **Proactive Analyzer:** After sync (enabled via `ENABLE_PROACTIVE=true`), if certain thresholds are met (e.g., HRV < Baseline or Drift > 5%), the platform generates a summary and `POST`s it to the Orchestrator's notify endpoint.
 
 ---
 
