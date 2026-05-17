@@ -1,6 +1,5 @@
 """Script to test proactive notification delivery."""
 
-import asyncio
 import os
 
 from dotenv import load_dotenv

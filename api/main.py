@@ -88,12 +88,12 @@ async def lifespan(app: FastAPI):
                     # Align to the next interval (e.g., if 6h, run at 00, 06, 12, 18)
                     current_hour = now.hour
                     next_interval_hour = ((current_hour // interval_hours) + 1) * interval_hours
-                    
+
                     if next_interval_hour >= 24:
                         next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
                     else:
                         next_run = now.replace(hour=next_interval_hour, minute=0, second=0, microsecond=0)
-                    
+
                     log.info(f"📅 Proactive auto-sync interval set to {interval_hours} hours (Local Time).")
                 else:
                     # Fallback to daily specific hour (default 02:00 Local)
@@ -110,7 +110,9 @@ async def lifespan(app: FastAPI):
                 # Wait until target hour
                 await asyncio.sleep(sleep_seconds)
 
-                log.info(f"🕒 Starting proactive auto-sync ETL at {datetime.now().strftime('%H:%M:%S')} (Local Time)...")
+                log.info(
+                    f"🕒 Starting proactive auto-sync ETL at {datetime.now().strftime('%H:%M:%S')} (Local Time)..."
+                )
                 user_ids = get_all_garmin_user_ids()
 
                 if not user_ids:

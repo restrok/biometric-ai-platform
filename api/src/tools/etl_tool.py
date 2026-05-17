@@ -19,7 +19,7 @@ def sync_biometric_data(
     Triggers a synchronization of biometric data from the provider (e.g., Garmin) to BigQuery.
     Use this if the user mentions they just finished a workout, if data seems stale,
     or if they explicitly ask to 'sync' or 'update'.
-    
+
     Args:
         user_id: Internal ID of the user (defaults to 'fsirio').
         days_back: Number of days to look back (safety default is applied in the engine).

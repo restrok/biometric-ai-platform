@@ -87,8 +87,9 @@ def call_tool(name):
         if tool_obj:
             # Handle both sync and async tools
             # In LangChain, async tools typically have a coroutine function or specific flags
-            is_async = asyncio.iscoroutinefunction(tool_obj.func)
-            
+            func = getattr(tool_obj, "func", None)
+            is_async = asyncio.iscoroutinefunction(func) if func else False
+
             if is_async:
                 result = asyncio.run(tool_obj.ainvoke(args))
             else:

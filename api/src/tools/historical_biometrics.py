@@ -18,12 +18,14 @@ log = logging.getLogger(__name__)
 _bq_clients: dict[str, bigquery.Client] = {}
 _storage_clients: dict[str, storage.Client] = {}
 
+
 def get_bq_client(project_id: str) -> bigquery.Client:
     """Gets or creates a BigQuery client for the given project ID."""
     global _bq_clients
     if project_id not in _bq_clients:
         _bq_clients[project_id] = bigquery.Client(project=project_id)
     return _bq_clients[project_id]
+
 
 def get_storage_client(project_id: str) -> storage.Client:
     """Gets or creates a Storage client for the given project ID."""
@@ -32,22 +34,21 @@ def get_storage_client(project_id: str) -> storage.Client:
         _storage_clients[project_id] = storage.Client(project=project_id)
     return _storage_clients[project_id]
 
+
 async def save_to_gcs(project_id: str, bucket_name: str, file_name: str, content: str) -> str:
     """Sube el reporte a un bucket de GCS de forma asíncrona y genera una Signed URL."""
+
     def _upload():
         from datetime import timedelta
+
         client = get_storage_client(project_id)
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(file_name)
-        blob.upload_from_string(content, content_type='text/markdown')
-        
+        blob.upload_from_string(content, content_type="text/markdown")
+
         # Generar Signed URL válida por 1 hora
         try:
-            url = blob.generate_signed_url(
-                version="v4",
-                expiration=timedelta(hours=1),
-                method="GET"
-            )
+            url = blob.generate_signed_url(version="v4", expiration=timedelta(hours=1), method="GET")
         except Exception as e:
             log.warning(f"Could not generate Signed URL: {e}. Falling back to Authenticated URL.")
             # Fallback to Authenticated URL (requires browser login)
@@ -56,11 +57,14 @@ async def save_to_gcs(project_id: str, bucket_name: str, file_name: str, content
 
     return await asyncio.to_thread(_upload)
 
+
 class HistoricalBiometricsInput(BaseModel):
     """Input schema for analyzing historical biometric evolution."""
+
     user_id: str = Field(..., description="El ID interno del usuario (ej., 'fsirio').")
     project_id: str | None = Field(None, description="GCP Project ID.")
     dataset: str | None = Field(None, description="BigQuery Dataset ID.")
+
 
 def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[str, Any], str]:
     """
@@ -69,37 +73,36 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
     if df.empty:
         return {"status": "no_data"}, "No data available."
 
-    df['date'] = pd.to_datetime(df['date_str'])
-    df = df.sort_values('date').set_index('date')
+    df["date"] = pd.to_datetime(df["date_str"])
+    df = df.sort_values("date").set_index("date")
 
-    if 'avg_power' in df.columns and 'avg_hr' in df.columns:
-        df['efficiency_index'] = df['avg_power'] / df['avg_hr'].replace(0, pd.NA)
+    if "avg_power" in df.columns and "avg_hr" in df.columns:
+        df["efficiency_index"] = df["avg_power"] / df["avg_hr"].replace(0, pd.NA)
     else:
-        df['efficiency_index'] = 1.0
+        df["efficiency_index"] = 1.0
 
     # Llenar días vacíos para que las medias móviles de tiempo (7d/28d) sean precisas
-    df_daily = df.resample('D').agg({
-        'distance_km': 'sum',
-        'vo2max': 'mean',
-        'avg_hr': 'mean',
-        'efficiency_index': 'mean'
-    }).fillna(0)
+    df_daily = (
+        df.resample("D")
+        .agg({"distance_km": "sum", "vo2max": "mean", "avg_hr": "mean", "efficiency_index": "mean"})
+        .fillna(0)
+    )
 
     # 1. Carga Aguda (7 días) y Crónica (28 días)
-    df_daily['acute_load_7d_km'] = df_daily['distance_km'].rolling(window=7, min_periods=1).sum()
-    df_daily['chronic_load_28d_km'] = df_daily['distance_km'].rolling(window=28, min_periods=1).sum() / 4
-    
+    df_daily["acute_load_7d_km"] = df_daily["distance_km"].rolling(window=7, min_periods=1).sum()
+    df_daily["chronic_load_28d_km"] = df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
+
     # Suavizado de métricas de eficiencia (Ignorando los días sin correr para la base)
-    df_valid = df_daily[df_daily['distance_km'] > 0].copy()
-    df_valid['eff_baseline_60d'] = df_valid['efficiency_index'].rolling(window=60, min_periods=5).mean()
-    df_valid['eff_std_60d'] = df_valid['efficiency_index'].rolling(window=60, min_periods=5).std()
+    df_valid = df_daily[df_daily["distance_km"] > 0].copy()
+    df_valid["eff_baseline_60d"] = df_valid["efficiency_index"].rolling(window=60, min_periods=5).mean()
+    df_valid["eff_std_60d"] = df_valid["efficiency_index"].rolling(window=60, min_periods=5).std()
 
     # 2. Detección de Anomalías (Z-Score de los últimos 7 días contra la base de 60 días)
-    last_7_days = df_valid.last('7D')
-    if not last_7_days.empty and not pd.isna(last_7_days['eff_std_60d'].iloc[-1]):
-        current_eff = last_7_days['efficiency_index'].mean()
-        baseline_eff = df_valid['eff_baseline_60d'].iloc[-1]
-        std_eff = df_valid['eff_std_60d'].iloc[-1]
+    last_7_days = df_valid.last("7D")
+    if not last_7_days.empty and not pd.isna(last_7_days["eff_std_60d"].iloc[-1]):
+        current_eff = last_7_days["efficiency_index"].mean()
+        baseline_eff = df_valid["eff_baseline_60d"].iloc[-1]
+        std_eff = df_valid["eff_std_60d"].iloc[-1]
         z_score = (current_eff - baseline_eff) / std_eff if std_eff > 0 else 0
     else:
         current_eff = baseline_eff = z_score = 0
@@ -111,12 +114,14 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
     elif z_score > 1.5:
         warnings.append("NOTA: Salto positivo anómalo en eficiencia (Z-Score > 1.5). Pico de forma detectado.")
 
-    current_acute = round(df_daily['acute_load_7d_km'].iloc[-1], 1)
-    current_chronic = round(df_daily['chronic_load_28d_km'].iloc[-1], 1)
+    current_acute = round(df_daily["acute_load_7d_km"].iloc[-1], 1)
+    current_chronic = round(df_daily["chronic_load_28d_km"].iloc[-1], 1)
     ac_ratio = round(current_acute / current_chronic, 2) if current_chronic > 0 else 0
 
     if ac_ratio > 1.5:
-        warnings.append(f"ALERTA DE LESIÓN: Ratio Agudo/Crónico en {ac_ratio} (Umbral seguro < 1.3). Sobrecarga de volumen.")
+        warnings.append(
+            f"ALERTA DE LESIÓN: Ratio Agudo/Crónico en {ac_ratio} (Umbral seguro < 1.3). Sobrecarga de volumen."
+        )
 
     # Generación de metadatos del reporte
     timestamp = int(time.time())
@@ -129,7 +134,7 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
         "acute_chronic_ratio": ac_ratio,
         "efficiency_z_score": round(z_score, 2),
         "warnings": warnings,
-        "artifact_path": file_name
+        "artifact_path": file_name,
     }
 
     md_report = f"""# Reporte de Evolución Biométrica e Histórica
@@ -146,20 +151,17 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 - **Desviación Estándar (Z-Score):** {round(z_score, 2)}
 
 ## 3. Advertencias del Sistema
-{chr(10).join(['- ⚠️ ' + w for w in warnings]) if warnings else '- ✅ Todos los parámetros están dentro de rangos normales y seguros.'}
+{chr(10).join(["- ⚠️ " + w for w in warnings]) if warnings else "- ✅ Todos los parámetros están dentro de rangos normales y seguros."}
     """
 
     return llm_summary, md_report
 
+
 @tool(args_schema=HistoricalBiometricsInput)
-async def generate_historical_report(
-    user_id: str,
-    project_id: str | None = None,
-    dataset: str | None = None
-) -> str:
+async def generate_historical_report(user_id: str, project_id: str | None = None, dataset: str | None = None) -> str:
     """
     MANDATORY to call when the user asks for a 'Historical Report', 'Evolution', or 'Monthly Analysis'.
-    This tool performs deep physiological analysis (Acute/Chronic Load, Z-Scores) and GENERATES 
+    This tool performs deep physiological analysis (Acute/Chronic Load, Z-Scores) and GENERATES
     a formal Markdown artifact in GCS. It returns a summary and a Signed URL for the user.
     DO NOT synthesize these reports manually; you MUST call this tool to create the artifact.
     """
@@ -200,7 +202,7 @@ async def generate_historical_report(
         # Persistir el artefacto detallado en GCS (Asíncrono real)
         file_name = llm_summary.pop("artifact_path")
         gcs_uri = await save_to_gcs(pid, bucket_name, file_name, md_report)
-        
+
         # Actualizar el JSON de retorno para el LLM
         llm_summary["artifact_uri"] = gcs_uri
         log.info(f"✅ Reporte biométrico detallado guardado en: {gcs_uri}")

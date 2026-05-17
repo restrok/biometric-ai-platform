@@ -125,7 +125,9 @@ def log_health_status(
 
 class ProactiveConfigInput(BaseModel):
     enabled: bool | None = Field(None, description="Whether to enable proactive coaching alerts and auto-sync.")
-    interval_hours: int | None = Field(None, description="Frequency of auto-sync in hours (e.g., 6). Set to 0 to use a specific daily hour.")
+    interval_hours: int | None = Field(
+        None, description="Frequency of auto-sync in hours (e.g., 6). Set to 0 to use a specific daily hour."
+    )
     target_hour: int | None = Field(None, description="Specific daily hour (0-23) for sync if interval_hours is 0.")
     user_id: str | None = Field(None, description="The ID of the user.")
 
@@ -139,14 +141,14 @@ def configure_proactive_coaching(
 ):
     """
     Configures the proactive coaching engine settings.
-    Use this tool when the user wants to enable/disable the proactive coach, 
+    Use this tool when the user wants to enable/disable the proactive coach,
     change how often it syncs (interval), or set a specific time for the daily sync.
     """
     # Note: In a production multi-tenant environment, these would be in a DB per user.
     # For now, we update the environment/env file which affects the global background loop.
     env_path = ".env"
     try:
-        with open(env_path, "r") as f:
+        with open(env_path) as f:
             lines = f.readlines()
 
         new_lines = []
@@ -180,6 +182,7 @@ def configure_proactive_coaching(
         # Also update os.environ for immediate effect in the current process
         for k, v in updates.items():
             import os
+
             os.environ[k] = v
 
         log.info(f"✅ Proactive configuration updated: {updates}")
@@ -252,5 +255,3 @@ def manage_goals(
     except Exception as e:
         log.error(f"❌ Failed to manage goal: {e}")
         return f"Error managing goal: {e}"
-
-

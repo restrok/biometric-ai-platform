@@ -233,11 +233,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     t0 = time.time()
     model_name = "gemma-4-31b-it"
     # Disable AFC via enable_auto_call to let LangGraph's should_continue manage the tool loop
-    llm = ChatGoogleGenerativeAI(
-        model=model_name, 
-        temperature=0.2,
-        enable_auto_call=False
-    )
+    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, enable_auto_call=False)
 
     tools = [
         upload_training_plan,
@@ -283,7 +279,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
                 break
 
     context_str = f"\nUser Biometric Context:\n{current_context}"
-    
+
     # STRICT USER ISOLATION: Add a dedicated system instruction for the current user ID
     user_id = state.get("user_id", "unknown")
     isolation_prompt = f"\n\n### 🛡️ MULTI-TENANT ISOLATION (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** You are EXCLUSIVELY acting for user '{user_id}'. You MUST use this ID for all tool calls (e.g., `user_id='{user_id}'`). NEVER use 'fsirio' or any other ID unless the user ID is explicitly '{user_id}'."
@@ -346,7 +342,9 @@ def tool_node(state: AgentState) -> Any:
                 actual_user = user_id
                 requested_user = new_tc["args"].get("user_id")
                 if requested_user != actual_user:
-                    log.warning(f"🛡️ Security Override: Tool '{new_tc['name']}' requested user '{requested_user}', forcing '{actual_user}'")
+                    log.warning(
+                        f"🛡️ Security Override: Tool '{new_tc['name']}' requested user '{requested_user}', forcing '{actual_user}'"
+                    )
                 new_tc["args"]["user_id"] = actual_user
                 log.info(f"💉 Injected/Verified user_id '{actual_user}' into tool '{new_tc['name']}'")
             new_tool_calls.append(new_tc)

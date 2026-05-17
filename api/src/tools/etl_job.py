@@ -368,7 +368,7 @@ def run_etl(
     # --- 1. Incremental Activities ---
     activities = provider.get_activities(final_start.date(), final_end.date())
     newly_synced_ids = []
-    
+
     last_act_date = get_last_sync_date("recent_activities", user_id=user_id)
 
     if activities:

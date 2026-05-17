@@ -2,11 +2,6 @@ import json
 import logging
 import re
 
-from garmin_training_toolkit_sdk.auth import (
-    exchange_oauth2,
-    get_oauth1_token,
-    get_oauth_consumer,
-)
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
@@ -66,11 +61,10 @@ def complete_garmin_auth(ticket_or_url: str, user_id: str) -> str:
     Completes the Garmin authentication process by exchanging an SSO ticket for OAuth tokens.
     Saves the tokens securely in Google Secret Manager for the specific user.
     """
-    from garminconnect import Garmin
-    
+
     # 1. Robust Ticket Extraction
     ticket_match = re.search(r"(ST-[A-Za-z0-9\-]+)", ticket_or_url)
-    
+
     if not ticket_match:
         return "❌ Could not find a valid ticket (ST-...) in your message. Please make sure to copy the full URL or the service ticket."
 
@@ -95,14 +89,14 @@ def complete_garmin_auth(ticket_or_url: str, user_id: str) -> str:
 
         # 4. Exchange OAuth1 -> OAuth2
         oauth2 = exchange_oauth2(oauth1, consumer)
-        
+
         # 5. Construct the Full Session Dump that the SDK expects
         # We use the primary DI_CLIENT_ID for consistent results
         primary_client_id = DI_CLIENT_IDS[0]
         session_dump = {
             "di_token": oauth2.get("access_token"),
             "di_refresh_token": oauth2.get("refresh_token"),
-            "di_client_id": primary_client_id
+            "di_client_id": primary_client_id,
         }
 
         # 6. Persist to Secret Manager

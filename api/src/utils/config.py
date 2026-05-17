@@ -106,6 +106,7 @@ def setup_environment():
     if tz:
         try:
             import time
+
             os.environ["TZ"] = tz
             time.tzset()
             log.info(f"🌍 Timezone set to: {tz} ({time.strftime('%Z %z')})")
