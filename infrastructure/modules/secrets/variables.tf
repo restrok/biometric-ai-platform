@@ -6,5 +6,5 @@ variable "project_id" {
 variable "secret_ids" {
   description = "List of secret IDs to create"
   type        = list(string)
-  default     = ["aistudio-api-key", "garmin-tokens"]
+  default     = ["aistudio-api-key"]
 }

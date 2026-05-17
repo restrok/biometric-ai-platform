@@ -48,12 +48,27 @@ GOOGLE_API_KEY=your-gemini-api-key
 ## 📊 Data Infrastructure Setup
 
 ### 1. Deploy Cloud Resources (Terraform)
-If you haven't deployed the BigQuery datasets and GCS buckets yet:
-```bash
-cd infrastructure
-terraform init
-terraform apply -var-file="envs/dev.tfvars"
-```
+The infrastructure is modularized and uses a remote GCS backend for state management.
+
+1.  **Configure Variables**:
+    ```bash
+    cd infrastructure
+    cp terraform.tfvars.example terraform.tfvars
+    # Edit terraform.tfvars with your GCP Project ID and Billing Account
+    ```
+
+2.  **Configure Backend**:
+    Create a `backend.tfvars` (ignored by git) to specify where to store your state:
+    ```hcl
+    bucket = "your-tf-state-bucket-name"
+    prefix = "terraform/state"
+    ```
+
+3.  **Initialize and Apply**:
+    ```bash
+    terraform init -backend-config=backend.tfvars
+    terraform apply
+    ```
 
 ### 2. Initialize BigQuery Tables and Knowledge Base
 Run the initialization scripts to create the necessary schemas and upload running principles to the RAG:

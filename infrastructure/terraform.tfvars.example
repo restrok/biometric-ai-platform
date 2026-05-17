@@ -1,0 +1,5 @@
+project_id           = "your-project-id"
+billing_account_id   = "000000-000000-000000"
+region               = "us-central1"
+datalake_bucket_name = "your-datalake-bucket-name"
+dataset_name         = "biometric_data_dev"

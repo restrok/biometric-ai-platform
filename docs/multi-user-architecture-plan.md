@@ -1,4 +1,4 @@
-# Multi-User Architecture & Secret Management Plan
+# Multi-User Architecture & Secret Management Plan (Implemented ✅)
 
 ## Background & Motivation
 The Biometric AI Platform currently operates as a single-user system, hardcoded to a specific Garmin account and user profile. The goal is to expand the platform to support multiple users (e.g., family members on the same local network) so they can access their own personalized AI Coach via the existing API.
@@ -23,22 +23,23 @@ The Biometric AI Platform currently operates as a single-user system, hardcoded 
 
 ## Phased Implementation Plan
 
-### Phase 1: Database Migration
+### Phase 1: Database Migration (Completed ✅)
 - Modify `init_profile_tables.py` to add a `user_id` (STRING) column to all tables.
 - Create a migration script to backfill the existing single-user data with a default `user_id` (e.g., `fsirio`).
 
-### Phase 2: Secret Manager Integration
+### Phase 2: Secret Manager Integration (Completed ✅)
 - Create a utility script to upload local `garmin_tokens.json` to Google Secret Manager under the user's ID.
 - Update `src/utils/provider_factory.py` to accept a `user_id` and fetch the corresponding secret from GCP.
 - **Cost Optimization:** Ensure that when the Garmin SDK refreshes tokens and saves back to GCP, the previous secret version is explicitly destroyed to stay within the 6 active versions free-tier limit.
 
-### Phase 3: API & Context Isolation
+### Phase 3: API & Context Isolation (Completed ✅)
 - Update `main.py` FastAPI app to extract `X-User-ID` from headers or requests.
 - Pass `user_id` through the LangGraph state (`AgentState`).
 - Update `retriever.py` tools to include `WHERE user_id = '{user_id}'` in all BigQuery queries.
 - Update `etl_job.py` to accept a `user_id` and attach it to all uploaded DataFrames.
+- **Dynamic SSO Auth:** Added `get_garmin_auth_url` and `complete_garmin_auth` tools to enable account linking directly through the API.
 
-### Phase 4: Containerization & Deployment
+### Phase 4: Containerization & Deployment (Completed ✅)
 - Create a `Dockerfile` in the `api/` directory using a Python 3.11 base image.
 - Install the `uv` package manager.
 - Install Playwright and its system dependencies (required for the Garmin SDK auth).

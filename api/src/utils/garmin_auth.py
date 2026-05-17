@@ -1,126 +1,144 @@
 import json
 import logging
+import os
 from pathlib import Path
 
-from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS, find_token_file
+from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS
 from garminconnect import Garmin
+
+from src.utils.config import get_config, get_secret, set_secret
 
 log = logging.getLogger(__name__)
 
 
 def get_all_garmin_user_ids() -> list[str]:
     """
-    Scans the token directories and returns a list of user IDs found.
-    Extracts {user_id} from garmin_tokens_{user_id}.json.
+    Scans the token directories and BigQuery to return a list of all known user IDs.
     """
+    user_ids = set()
+
+    # 1. Scan Local Files (Legacy/Dev)
     possible_dirs = [
         Path("/root/.garminconnect"),
         Path.home() / ".garminconnect",
     ]
 
-    user_ids = set()
     for d in possible_dirs:
         try:
             if d.exists():
                 for f in d.glob("garmin_tokens_*.json"):
-                    # Extract 'fsirio' from 'garmin_tokens_fsirio.json'
                     user_id = f.name.replace("garmin_tokens_", "").replace(".json", "")
                     if user_id:
                         user_ids.add(user_id)
         except PermissionError:
-            log.debug(f"Permission denied for directory: {d}")
             continue
+
+    # 2. Scan BigQuery (Source of truth for registered users)
+    try:
+        from google.cloud import bigquery
+
+        config = get_config()
+        client = bigquery.Client(project=config["project_id"])
+        query = f"SELECT DISTINCT user_id FROM `{config['project_id']}.{config['dataset_id']}.user_profile` WHERE user_id IS NOT NULL"
+        results = client.query(query).result()
+        for row in results:
+            user_ids.add(row.user_id)
+    except Exception as e:
+        log.debug(f"Failed to fetch user_ids from BigQuery: {e}")
+
+    # 3. Fallback to default user if nothing found
+    if not user_ids:
+        default_user = os.getenv("DEFAULT_USER_ID", "fsirio")
+        user_ids.add(default_user)
 
     return list(user_ids)
 
 
 def refresh_garmin_tokens() -> bool:
     """
-    Manually refreshes all Garmin tokens found in the token directories.
-    Scans for garmin_tokens*.json and refreshes each session using
-    multi-client ID rotation.
+    Refreshes Garmin tokens for all users found in Secret Manager or local files.
     """
-    # 1. Identify all potential token files
-    # We check common locations since find_token_file() might fail in some container envs
-    possible_dirs = [
-        Path("/root/.garminconnect"),
-        Path.home() / ".garminconnect",
-    ]
-
-    # Also add the path from find_token_file if it finds anything
-    primary = find_token_file()
-    if primary:
-        possible_dirs.append(Path(primary).parent)
-
-    token_files = []
-    checked_dirs = set()
-
-    for d in possible_dirs:
-        try:
-            if d.exists() and d not in checked_dirs:
-                token_files.extend(list(d.glob("garmin_tokens*.json")))
-                # Also check for the legacy name if no user-specific ones found
-                if not token_files:
-                    legacy = d / "garmin_tokens.json"
-                    if legacy.exists():
-                        token_files.append(legacy)
-                checked_dirs.add(d)
-        except PermissionError:
-            log.debug(f"Permission denied for directory: {d}")
-            continue
-
-    if not token_files:
-        log.warning("No Garmin token files found to refresh.")
+    user_ids = get_all_garmin_user_ids()
+    if not user_ids:
+        log.warning("No users found to refresh.")
         return False
 
-    log.info(f"🔄 Found {len(token_files)} Garmin token files to refresh.")
-
+    log.info(f"🔄 Starting token refresh for users: {user_ids}")
     all_success = True
-    for token_file in token_files:
-        log.info(f"🕒 Refreshing: {token_file.name}")
-        try:
-            with open(token_file) as f:
-                tokens = json.load(f)
-        except Exception as e:
-            log.error(f"Failed to read tokens from {token_file}: {e}")
-            all_success = False
+
+    for user_id in user_ids:
+        log.info(f"🕒 Refreshing tokens for user: {user_id}")
+
+        # 1. Try to load tokens (Secret Manager -> Local File)
+        tokens = None
+        source_type = None  # 'secret' or 'file'
+        source_path = None
+
+        # A. Check Secret Manager
+        secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
+        secret_name = f"{secret_base_name}-{user_id}"
+        token_json = get_secret(secret_name)
+
+        if token_json:
+            try:
+                tokens = json.loads(token_json)
+                source_type = "secret"
+                log.debug(f"Loaded tokens for {user_id} from Secret Manager.")
+            except Exception as e:
+                log.warning(f"Failed to parse secret for {user_id}: {e}")
+
+        # B. Check Local File if no secret found
+        if not tokens:
+            possible_files = [
+                Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
+                Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json",
+            ]
+            for pf in possible_files:
+                if pf.exists():
+                    try:
+                        with open(pf) as f:
+                            tokens = json.load(f)
+                            source_type = "file"
+                            source_path = pf
+                            log.debug(f"Loaded tokens for {user_id} from local file: {pf}")
+                            break
+                    except Exception as e:
+                        log.warning(f"Failed to read file {pf}: {e}")
+
+        if not tokens:
+            log.warning(f"No tokens found for user {user_id}. Skipping.")
             continue
 
-        success = False
-        new_tokens = None
-
+        # 2. Refresh the session
+        refreshed_tokens = None
         for client_id in DI_CLIENT_IDS:
-            log.debug(f"Attempting refresh with client ID: {client_id}")
             client = Garmin()
             try:
-                # Load current tokens into the garminconnect client
                 client.client.loads(json.dumps(tokens))
                 client.client.di_client_id = client_id
-
-                # This is the internal SDK/garminconnect method that rotates the token
                 client.client._refresh_di_token()
-
-                # Get the new token state
-                new_tokens_json = client.client.dumps()
-                new_tokens = json.loads(new_tokens_json)
-
-                log.info(f"✅ Successfully refreshed session in {token_file.name} using {client_id}")
-                success = True
+                refreshed_tokens = json.loads(client.client.dumps())
+                log.info(f"✅ Successfully refreshed session for {user_id} using {client_id}")
                 break
             except Exception as e:
-                log.debug(f"Refresh failed for client {client_id}: {e}")
+                log.debug(f"Refresh failed for {user_id} with {client_id}: {e}")
                 continue
 
-        if success and new_tokens:
-            try:
-                # Save specifically to the source file
-                with open(token_file, "w") as f:
-                    json.dump(new_tokens, f, indent=4)
-            except Exception as e:
-                log.error(f"Failed to save refreshed tokens to {token_file}: {e}")
-                all_success = False
+        # 3. Save back to the SAME source
+        if refreshed_tokens:
+            if source_type == "secret":
+                if not set_secret(secret_name, json.dumps(refreshed_tokens)):
+                    log.error(f"❌ Failed to update secret for {user_id}")
+                    all_success = False
+            elif source_type == "file" and source_path:
+                try:
+                    with open(source_path, "w") as f:
+                        json.dump(refreshed_tokens, f, indent=4)
+                except Exception as e:
+                    log.error(f"❌ Failed to save file for {user_id}: {e}")
+                    all_success = False
         else:
-            log.error(f"❌ Failed to refresh {token_file.name} for all available client IDs.")
+            log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
             all_success = False
 
     return all_success

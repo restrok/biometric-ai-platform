@@ -192,7 +192,7 @@ def _retrieve_biometric_data_cached(
 
             query_act = f"""
                 SELECT id, 
-                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_MICROS(CAST(date / 1000 AS INT64))) as date, 
+                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date, 
                        type, distance_m, avg_hr, vo2max 
                 FROM `{project_id}.{dataset}.recent_activities` 
                 {where_clause}
@@ -235,8 +235,8 @@ def _retrieve_biometric_data_cached(
             if user_id:
                 where_sleep += f" AND user_id = '{user_id}'"
             query_sleep = f"""
-                SELECT date, duration_sec, quality, deep_sleep_sec, light_sleep_sec, 
-                       rem_sleep_sec, awake_sec, sleep_score
+                SELECT date, duration_sec, quality, deep_sec, light_sec, 
+                       rem_sec, awake_sec
                 FROM `{project_id}.{dataset}.sleep_history` 
                 {where_sleep}
                 ORDER BY date DESC LIMIT 1
@@ -305,10 +305,11 @@ def _retrieve_biometric_data_cached(
 
             query_health = f"""
                 SELECT date, feeling, notes, fatigue_level, injury_notes
-                FROM `{project_id}.{dataset}.health_status` 
+                FROM `{project_id}.{dataset}.user_health_status`
                 {where_str}
                 ORDER BY date DESC LIMIT 1
             """
+
             health_rows = list(client.query(query_health).result())
             log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
             return "latest_health_status", (dict(health_rows[0]) if health_rows else None)

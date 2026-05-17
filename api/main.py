@@ -78,24 +78,41 @@ async def lifespan(app: FastAPI):
         await asyncio.sleep(10)
         while True:
             try:
-                # Calculate seconds until next proactive run (default 02:00 UTC = 11:00 PM -03)
+                # Calculate seconds until next proactive run
                 from datetime import datetime, timedelta
 
-                target_hour = int(os.getenv("PROACTIVE_HOUR_UTC", "2"))
+                interval_hours = int(os.getenv("PROACTIVE_INTERVAL_HOURS", "0"))
                 now = datetime.now()
-                next_run = now.replace(hour=target_hour, minute=0, second=0, microsecond=0)
-                if next_run <= now:
-                    next_run += timedelta(days=1)
+
+                if interval_hours > 0:
+                    # Align to the next interval (e.g., if 6h, run at 00, 06, 12, 18)
+                    current_hour = now.hour
+                    next_interval_hour = ((current_hour // interval_hours) + 1) * interval_hours
+
+                    if next_interval_hour >= 24:
+                        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+                    else:
+                        next_run = now.replace(hour=next_interval_hour, minute=0, second=0, microsecond=0)
+
+                    log.info(f"📅 Proactive auto-sync interval set to {interval_hours} hours (Local Time).")
+                else:
+                    # Fallback to daily specific hour (default 02:00 Local)
+                    target_hour = int(os.getenv("PROACTIVE_HOUR", os.getenv("PROACTIVE_HOUR_UTC", "2")))
+                    next_run = now.replace(hour=target_hour, minute=0, second=0, microsecond=0)
+                    if next_run <= now:
+                        next_run += timedelta(days=1)
 
                 sleep_seconds = (next_run - now).total_seconds()
                 log.info(
-                    f"📅 Next proactive auto-sync scheduled for {next_run} UTC (in {sleep_seconds / 3600:.2f} hours)"
+                    f"📅 Next proactive auto-sync scheduled for {next_run.strftime('%Y-%m-%d %H:%M:%S')} (Local Time, in {sleep_seconds / 3600:.2f} hours)"
                 )
 
                 # Wait until target hour
                 await asyncio.sleep(sleep_seconds)
 
-                log.info(f"🕒 It is {target_hour}:00 UTC. Starting daily proactive auto-sync ETL...")
+                log.info(
+                    f"🕒 Starting proactive auto-sync ETL at {datetime.now().strftime('%H:%M:%S')} (Local Time)..."
+                )
                 user_ids = get_all_garmin_user_ids()
 
                 if not user_ids:
@@ -116,7 +133,7 @@ async def lifespan(app: FastAPI):
                     # Sleep a bit between users to avoid spikes
                     await asyncio.sleep(30)
 
-                log.info("✅ Daily proactive auto-sync cycle completed.")
+                log.info("✅ Proactive auto-sync cycle completed.")
             except Exception as e:
                 log.error(f"❌ Error in auto-sync loop: {e}")
                 # If it fails, wait 1 hour and try again (or wait until next 8am)

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2026-05-16
+### Fixed
+- **Code Quality:** Resolved multiple linting errors (unused imports, unnecessary mode arguments) and type-checking issues in `scripts/manage_tools.py`.
+- **Dependency Management:** Added missing `types-requests` dev dependency to resolve mypy import-untyped errors.
+
 ## [1.4.1] - 2026-05-13
 ### Fixed
 - **Critical Hydration Safety:** Implemented a safety cap of 1.5L for proactive hydration recommendations and refined the messaging to be advisory rather than mandatory, mitigating hyponatremia risks.

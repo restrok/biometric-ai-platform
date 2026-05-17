@@ -22,5 +22,5 @@ variable "datalake_bucket_name" {
 variable "dataset_name" {
   description = "Name of the BigQuery dataset."
   type        = string
-  default     = "biometric_data"
+  default     = "biometric_data_dev"
 }

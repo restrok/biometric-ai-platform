@@ -18,6 +18,7 @@ def create_profile_tables():
     # 1. User Profile Table
     profile_table_id = f"{PROJECT_ID}.{DATASET_ID}.user_profile"
     profile_schema = [
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("display_name", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("gender", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("age", "INTEGER", mode="NULLABLE"),
@@ -39,6 +40,7 @@ def create_profile_tables():
     # 2. Body Composition Table (Historical)
     body_table_id = f"{PROJECT_ID}.{DATASET_ID}.body_composition"
     body_schema = [
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("date", "DATE", mode="REQUIRED"),
         bigquery.SchemaField("weight_kg", "FLOAT64", mode="REQUIRED"),
         bigquery.SchemaField("bmi", "FLOAT64", mode="NULLABLE"),
@@ -56,6 +58,7 @@ def create_profile_tables():
     # 3. Scheduled Workouts Table
     scheduled_table_id = f"{PROJECT_ID}.{DATASET_ID}.scheduled_workouts"
     scheduled_schema = [
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("id", "INTEGER", mode="REQUIRED"),
         bigquery.SchemaField("workout_id", "INTEGER", mode="NULLABLE"),
         bigquery.SchemaField("title", "STRING", mode="NULLABLE"),

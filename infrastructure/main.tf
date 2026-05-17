@@ -12,26 +12,35 @@ terraform {
     }
   }
 
-  backend "local" {
-    path = "terraform.tfstate"
-  }
+  backend "gcs" {}
 }
 
 provider "google" {
-  project = var.project_id
-  region  = var.region
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
+  billing_project       = var.project_id
 }
 
 provider "google-beta" {
-  project = var.project_id
-  region  = var.region
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
+  billing_project       = var.project_id
 }
 
 module "storage" {
-  source       = "./modules/storage"
+  source            = "./modules/storage"
+  project_id        = var.project_id
+  region            = var.region
+  bucket_name       = var.datalake_bucket_name
+  state_bucket_name = "tf-state-${var.project_id}"
+}
+
+module "bigquery" {
+  source       = "./modules/bigquery"
   project_id   = var.project_id
   region       = var.region
-  bucket_name  = var.datalake_bucket_name
   dataset_name = var.dataset_name
 }
 
@@ -44,5 +53,11 @@ module "iam" {
 module "secrets" {
   source     = "./modules/secrets"
   project_id = var.project_id
+}
+
+module "billing" {
+  source             = "./modules/billing"
+  project_id         = var.project_id
+  billing_account_id = var.billing_account_id
 }
 
