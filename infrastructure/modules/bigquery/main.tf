@@ -13,9 +13,9 @@ resource "google_bigquery_dataset" "biometric_dataset" {
 # Adjust the value as needed (1024 GB = 1TB approx). Here we use 100GB/day.
 
 resource "google_cloud_quotas_quota_preference" "bigquery_query_usage" {
-  service  = "bigquery.googleapis.com"
-  parent   = "projects/${var.project_id}"
-  quota_id = "QueryUsagePerDay"
+  service              = "bigquery.googleapis.com"
+  parent               = "projects/${var.project_id}"
+  quota_id             = "QueryUsagePerDay"
   ignore_safety_checks = "QUOTA_DECREASE_PERCENTAGE_TOO_HIGH"
   quota_config {
     preferred_value = floor(1024 * 1024 / 30)
