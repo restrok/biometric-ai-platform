@@ -466,6 +466,9 @@ def run_etl(
         log.info(f"Retrieved {len(hrv_data)} HRV records from Provider.")
         if hrv_data:
             df_hrv = pd.DataFrame([h.model_dump() for h in hrv_data])
+            # The SDK was updated to use 'last_night_avg', but our BigQuery schema expects 'avg_hrv'
+            if "last_night_avg" in df_hrv.columns:
+                df_hrv.rename(columns={"last_night_avg": "avg_hrv"}, inplace=True)
             try:
                 upsert_to_bq(df_hrv, "hrv_history", unique_key="date", user_id=user_id)
             except Exception as e:
