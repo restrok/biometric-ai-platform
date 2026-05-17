@@ -544,7 +544,7 @@ def run_etl(
                 df_body = pd.concat([df_body, df_manual]).drop_duplicates(subset=["date"], keep="first")
 
             if not df_body.empty:
-                df_body["date"] = pd.to_datetime(df_body["date"])
+                df_body["date"] = pd.to_datetime(df_body["date"]).dt.date
                 df_body = df_body.dropna(subset=["date"])
 
                 profile = provider.get_user_profile()

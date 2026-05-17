@@ -101,6 +101,17 @@ def setup_environment():
     env_path = Path(__file__).parent.parent.parent / ".env"
     load_dotenv(env_path)
 
+    # Set system timezone if TZ is provided
+    tz = os.getenv("TZ")
+    if tz:
+        try:
+            import time
+            os.environ["TZ"] = tz
+            time.tzset()
+            log.info(f"🌍 Timezone set to: {tz} ({time.strftime('%Z %z')})")
+        except Exception as e:
+            log.warning(f"Failed to set timezone {tz}: {e}")
+
     # 1. Try to get AI Studio API Key from Secret Manager using configurable name
     secret_name = os.getenv("AISTUDIO_API_KEY_SECRET_NAME", "aistudio-api-key")
     api_key = get_secret(secret_name) or os.getenv("GOOGLE_API_KEY")

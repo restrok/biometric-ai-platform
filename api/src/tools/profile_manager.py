@@ -123,6 +123,72 @@ def log_health_status(
         return f"Error logging health status: {e}"
 
 
+class ProactiveConfigInput(BaseModel):
+    enabled: bool | None = Field(None, description="Whether to enable proactive coaching alerts and auto-sync.")
+    interval_hours: int | None = Field(None, description="Frequency of auto-sync in hours (e.g., 6). Set to 0 to use a specific daily hour.")
+    target_hour: int | None = Field(None, description="Specific daily hour (0-23) for sync if interval_hours is 0.")
+    user_id: str | None = Field(None, description="The ID of the user.")
+
+
+@tool(args_schema=ProactiveConfigInput)
+def configure_proactive_coaching(
+    enabled: bool | None = None,
+    interval_hours: int | None = None,
+    target_hour: int | None = None,
+    user_id: str | None = None,
+):
+    """
+    Configures the proactive coaching engine settings.
+    Use this tool when the user wants to enable/disable the proactive coach, 
+    change how often it syncs (interval), or set a specific time for the daily sync.
+    """
+    # Note: In a production multi-tenant environment, these would be in a DB per user.
+    # For now, we update the environment/env file which affects the global background loop.
+    env_path = ".env"
+    try:
+        with open(env_path, "r") as f:
+            lines = f.readlines()
+
+        new_lines = []
+        updates = {}
+        if enabled is not None:
+            updates["ENABLE_PROACTIVE"] = str(enabled).lower()
+        if interval_hours is not None:
+            updates["PROACTIVE_INTERVAL_HOURS"] = str(interval_hours)
+        if target_hour is not None:
+            updates["PROACTIVE_HOUR"] = str(target_hour)
+
+        found_keys = set()
+        for line in lines:
+            key_found = False
+            for k, v in updates.items():
+                if line.startswith(f"{k}="):
+                    new_lines.append(f"{k}={v}\n")
+                    found_keys.add(k)
+                    key_found = True
+                    break
+            if not key_found:
+                new_lines.append(line)
+
+        for k, v in updates.items():
+            if k not in found_keys:
+                new_lines.append(f"{k}={v}\n")
+
+        with open(env_path, "w") as f:
+            f.writelines(new_lines)
+
+        # Also update os.environ for immediate effect in the current process
+        for k, v in updates.items():
+            import os
+            os.environ[k] = v
+
+        log.info(f"✅ Proactive configuration updated: {updates}")
+        return f"Successfully updated proactive coaching configuration: {updates}. The changes will take effect in the next sync cycle."
+    except Exception as e:
+        log.error(f"❌ Failed to update proactive configuration: {e}")
+        return f"Error updating proactive configuration: {e}"
+
+
 class GoalInput(BaseModel):
     target_date: str = Field(..., description="Target date for the goal (YYYY-MM-DD).")
     goal_type: str = Field(..., description="Type of goal (e.g., 'race', 'volume', 'weight', 'pace').")
@@ -186,3 +252,5 @@ def manage_goals(
     except Exception as e:
         log.error(f"❌ Failed to manage goal: {e}")
         return f"Error managing goal: {e}"
+
+

@@ -25,7 +25,12 @@ from src.tools.garmin_uploader import (
     upload_training_plan,
 )
 from src.tools.historical_biometrics import generate_historical_report
-from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
+from src.tools.profile_manager import (
+    configure_proactive_coaching,
+    log_health_status,
+    manage_goals,
+    update_user_zones,
+)
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -67,6 +72,9 @@ Your goal is to provide personalized, research-backed training advice based on t
 - **Separate Facts from Interpretation:** Always start by presenting raw data (e.g., "Observed: 5% Aerobic Decoupling, +2cm Vertical Oscillation"). Then, provide a physiological interpretation labeled as such (e.g., "Interpretation: This suggests potential mechanical fatigue").
 - **Avoid Overconfidence:** Use cautious language. Instead of "You are overtrained," use "The data indicates a trend toward overreaching."
 - **Multi-Observation Rule:** Do not draw definitive conclusions about the user's fitness or health from a single workout. Always cross-reference the current session with at least the last 3-5 activities to identify trends.
+- **Telegram Commands:**
+    - If the user sends `/garmin_login`, you **MUST** immediately call `get_garmin_auth_url`.
+    - If the user sends `/garmin_sync`, you **MUST** immediately call `sync_biometric_data`.
 - **Scope:** You are a coach, not a doctor. If biometric markers (like resting HR or HRV) show extreme outliers, recommend rest and consulting a professional.
 
 ### CORE TRAINING PRINCIPLES (Scientific Guidelines):
@@ -124,6 +132,7 @@ Analyze the following metrics to provide a holistic view of the runner's economy
 - **update_user_zones:** Updates the user's custom heart rate zones (Z1-Z4 max). Use this when telemetry suggests a shift in physiological thresholds.
 - **log_health_status:** Persists subjective health info (feeling, fatigue, injury notes). Use this whenever the user reports how they feel.
 - **manage_goals:** Adds or updates long-term goals (races, weight targets, volume goals).
+- **configure_proactive_coaching:** Configures the proactive coach (enable/disable, sync interval). Use this when the user wants to change how often the coach syncs or check their recovery.
 - **search_exercise_science:** Retrieves foundational exercise science knowledge to justify recommendations or interpret metrics.
 - **get_garmin_auth_url:** Call this when a user wants to connect their Garmin account or re-authenticate. It provides a login link.
 - **complete_garmin_auth:** Call this after the user provides the ticket or URL from the Garmin login. It completes the connection and saves tokens.
@@ -222,8 +231,12 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     """
     t0 = time.time()
     model_name = "gemma-4-31b-it"
-    # Disable AFC via model_kwargs to let LangGraph's should_continue manage the tool loop
-    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False})
+    # Disable AFC via enable_auto_call to let LangGraph's should_continue manage the tool loop
+    llm = ChatGoogleGenerativeAI(
+        model=model_name, 
+        temperature=0.2,
+        enable_auto_call=False
+    )
 
     tools = [
         upload_training_plan,
@@ -244,6 +257,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         batch_remove_workouts,
         get_garmin_auth_url,
         complete_garmin_auth,
+        configure_proactive_coaching,
     ]
     llm_with_tools = llm.bind_tools(tools)
 
@@ -268,7 +282,12 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
                 break
 
     context_str = f"\nUser Biometric Context:\n{current_context}"
-    messages = [SystemMessage(content=SYSTEM_PROMPT + context_str)] + list(state["messages"])
+    
+    # STRICT USER ISOLATION: Add a dedicated system instruction for the current user ID
+    user_id = state.get("user_id", "unknown")
+    isolation_prompt = f"\n\n### 🛡️ MULTI-TENANT ISOLATION (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** You are EXCLUSIVELY acting for user '{user_id}'. You MUST use this ID for all tool calls (e.g., `user_id='{user_id}'`). NEVER use 'fsirio' or any other ID unless the user ID is explicitly '{user_id}'."
+
+    messages = [SystemMessage(content=SYSTEM_PROMPT + context_str + isolation_prompt)] + list(state["messages"])
 
     # DEBUG: Print full prompt sent to LLM
     log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
@@ -313,16 +332,27 @@ def tool_node(state: AgentState) -> Any:
     last_message = messages[-1]
     user_id = state.get("user_id")
 
+    log.info(f"🛠️ Entering tool_node for user: {user_id}")
+
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        log.info(f"📞 Found {len(last_message.tool_calls)} tool calls")
         new_tool_calls = []
         for tc in last_message.tool_calls:
             new_tc = tc.copy()
-            if "user_id" not in new_tc["args"] or new_tc["args"]["user_id"] is None:
-                new_tc["args"]["user_id"] = user_id
-                log.info(f"💉 Injected user_id '{user_id}' into tool '{new_tc['name']}'")
+            log.info(f"🔧 Tool: {new_tc['name']}, Args: {new_tc['args']}")
+            # SECURITY: Always override user_id with the one from state (verified via Header)
+            if "user_id" in new_tc["args"]:
+                actual_user = user_id
+                requested_user = new_tc["args"].get("user_id")
+                if requested_user != actual_user:
+                    log.warning(f"🛡️ Security Override: Tool '{new_tc['name']}' requested user '{requested_user}', forcing '{actual_user}'")
+                new_tc["args"]["user_id"] = actual_user
+                log.info(f"💉 Injected/Verified user_id '{actual_user}' into tool '{new_tc['name']}'")
             new_tool_calls.append(new_tc)
 
         last_message.tool_calls = new_tool_calls
+    else:
+        log.warning("⚠️ No tool calls found in last message")
 
     tn = ToolNode(
         [
@@ -342,6 +372,7 @@ def tool_node(state: AgentState) -> Any:
             batch_remove_workouts,
             get_garmin_auth_url,
             complete_garmin_auth,
+            configure_proactive_coaching,
         ]
     )
     return tn.invoke(state)
@@ -359,14 +390,18 @@ def should_continue(state: AgentState) -> str | Literal["__end__"]:
     messages = state["messages"]
     last_message = messages[-1]
 
+    log.info(f"🤔 should_continue? Last message type: {type(last_message)}")
+
     loop_count = state.get("loop_count", 0)
     if loop_count > 4:
         log.warning(f"⚠️ Loop count ({loop_count}) exceeded. Stopping to preserve API quota.")
         return END
 
-    if getattr(last_message, "tool_calls", None):
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        log.info(f"✅ Tools requested: {[tc['name'] for tc in last_message.tool_calls]}")
         return "tools"
 
+    log.info("🔚 No tools requested. Ending.")
     return END
 
 
