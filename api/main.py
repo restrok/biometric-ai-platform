@@ -59,9 +59,9 @@ async def lifespan(app: FastAPI):
     import asyncio
 
     async def refresh_loop():
+        # Initial delay to let the system start up
+        await asyncio.sleep(5)
         while True:
-            # Wait for 2 hours between refreshes
-            await asyncio.sleep(2 * 3600)
             try:
                 log.info("🕒 Starting scheduled Garmin token refresh...")
                 loop = asyncio.get_event_loop()
@@ -72,6 +72,9 @@ async def lifespan(app: FastAPI):
                     log.warning("⚠️ Scheduled Garmin token refresh failed.")
             except Exception as e:
                 log.error(f"❌ Error in scheduled token refresh: {e}")
+
+            # Wait for 2 hours between refreshes
+            await asyncio.sleep(2 * 3600)
 
     async def auto_sync_loop():
         # Initial delay to let the system settle

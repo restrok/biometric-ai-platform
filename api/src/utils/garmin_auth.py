@@ -67,78 +67,87 @@ def refresh_garmin_tokens() -> bool:
     all_success = True
 
     for user_id in user_ids:
-        log.info(f"🕒 Refreshing tokens for user: {user_id}")
-
-        # 1. Try to load tokens (Secret Manager -> Local File)
-        tokens = None
-        source_type = None  # 'secret' or 'file'
-        source_path = None
-
-        # A. Check Secret Manager
-        secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
-        secret_name = f"{secret_base_name}-{user_id}"
-        token_json = get_secret(secret_name)
-
-        if token_json:
-            try:
-                tokens = json.loads(token_json)
-                source_type = "secret"
-                log.debug(f"Loaded tokens for {user_id} from Secret Manager.")
-            except Exception as e:
-                log.warning(f"Failed to parse secret for {user_id}: {e}")
-
-        # B. Check Local File if no secret found
-        if not tokens:
-            possible_files = [
-                Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
-                Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json",
-            ]
-            for pf in possible_files:
-                if pf.exists():
-                    try:
-                        with open(pf) as f:
-                            tokens = json.load(f)
-                            source_type = "file"
-                            source_path = pf
-                            log.debug(f"Loaded tokens for {user_id} from local file: {pf}")
-                            break
-                    except Exception as e:
-                        log.warning(f"Failed to read file {pf}: {e}")
-
-        if not tokens:
-            log.warning(f"No tokens found for user {user_id}. Skipping.")
-            continue
-
-        # 2. Refresh the session
-        refreshed_tokens = None
-        for client_id in DI_CLIENT_IDS:
-            client = Garmin()
-            try:
-                client.client.loads(json.dumps(tokens))
-                client.client.di_client_id = client_id
-                client.client._refresh_di_token()
-                refreshed_tokens = json.loads(client.client.dumps())
-                log.info(f"✅ Successfully refreshed session for {user_id} using {client_id}")
-                break
-            except Exception as e:
-                log.debug(f"Refresh failed for {user_id} with {client_id}: {e}")
-                continue
-
-        # 3. Save back to the SAME source
-        if refreshed_tokens:
-            if source_type == "secret":
-                if not set_secret(secret_name, json.dumps(refreshed_tokens)):
-                    log.error(f"❌ Failed to update secret for {user_id}")
-                    all_success = False
-            elif source_type == "file" and source_path:
-                try:
-                    with open(source_path, "w") as f:
-                        json.dump(refreshed_tokens, f, indent=4)
-                except Exception as e:
-                    log.error(f"❌ Failed to save file for {user_id}: {e}")
-                    all_success = False
-        else:
-            log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
+        if not refresh_user_token(user_id):
             all_success = False
 
     return all_success
+
+
+def refresh_user_token(user_id: str) -> bool:
+    """
+    Refreshes Garmin tokens for a specific user.
+    """
+    log.info(f"🕒 Refreshing tokens for user: {user_id}")
+
+    # 1. Try to load tokens (Secret Manager -> Local File)
+    tokens = None
+    source_type = None  # 'secret' or 'file'
+    source_path = None
+
+    # A. Check Secret Manager
+    secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
+    secret_name = f"{secret_base_name}-{user_id}"
+    token_json = get_secret(secret_name)
+
+    if token_json:
+        try:
+            tokens = json.loads(token_json)
+            source_type = "secret"
+            log.debug(f"Loaded tokens for {user_id} from Secret Manager.")
+        except Exception as e:
+            log.warning(f"Failed to parse secret for {user_id}: {e}")
+
+    # B. Check Local File if no secret found
+    if not tokens:
+        possible_files = [
+            Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
+            Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json",
+        ]
+        for pf in possible_files:
+            if pf.exists():
+                try:
+                    with open(pf) as f:
+                        tokens = json.load(f)
+                        source_type = "file"
+                        source_path = pf
+                        log.debug(f"Loaded tokens for {user_id} from local file: {pf}")
+                        break
+                except Exception as e:
+                    log.warning(f"Failed to read file {pf}: {e}")
+
+    if not tokens:
+        log.warning(f"No tokens found for user {user_id}. Skipping.")
+        return False
+
+    # 2. Refresh the session
+    refreshed_tokens = None
+    for client_id in DI_CLIENT_IDS:
+        client = Garmin()
+        try:
+            client.client.loads(json.dumps(tokens))
+            client.client.di_client_id = client_id
+            client.client._refresh_di_token()
+            refreshed_tokens = json.loads(client.client.dumps())
+            log.info(f"✅ Successfully refreshed session for {user_id} using {client_id}")
+            break
+        except Exception as e:
+            log.debug(f"Refresh failed for {user_id} with {client_id}: {e}")
+            continue
+
+    # 3. Save back to the SAME source
+    if refreshed_tokens:
+        if source_type == "secret":
+            if not set_secret(secret_name, json.dumps(refreshed_tokens)):
+                log.error(f"❌ Failed to update secret for {user_id}")
+                return False
+        elif source_type == "file" and source_path:
+            try:
+                with open(source_path, "w") as f:
+                    json.dump(refreshed_tokens, f, indent=4)
+            except Exception as e:
+                log.error(f"❌ Failed to save file for {user_id}: {e}")
+                return False
+        return True
+    else:
+        log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
+        return False

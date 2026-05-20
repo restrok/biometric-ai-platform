@@ -324,7 +324,15 @@ def run_etl(
     """
     log.info(f"Starting Biometric Sync for user: {user_id}...")
 
+    from src.utils.garmin_auth import refresh_user_token
     from src.utils.provider_factory import get_provider
+
+    # Proactively refresh tokens before starting the ETL
+    if user_id:
+        try:
+            refresh_user_token(user_id)
+        except Exception as e:
+            log.warning(f"Proactive token refresh failed for {user_id}: {e}")
 
     provider = get_provider(user_id=user_id)
     client = getattr(provider, "client", None)
