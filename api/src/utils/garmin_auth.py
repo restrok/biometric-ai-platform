@@ -7,6 +7,7 @@ from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS
 from garminconnect import Garmin
 
 from src.utils.config import get_config, get_secret, set_secret
+from src.utils.notifications import send_proactive_notification
 
 log = logging.getLogger(__name__)
 
@@ -64,13 +65,28 @@ def refresh_garmin_tokens() -> bool:
         return False
 
     log.info(f"🔄 Starting token refresh for users: {user_ids}")
+    
+    any_attempted = False
     all_success = True
 
     for user_id in user_ids:
+        # Check if user has tokens before attempting refresh
+        secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
+        secret_name = f"{secret_base_name}-{user_id}"
+        
+        token_json = get_secret(secret_name)
+        file_exists = (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json").exists() or \
+                      (Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json").exists()
+
+        if not token_json and not file_exists:
+            log.debug(f"Skipping user {user_id}: no tokens found.")
+            continue
+
+        any_attempted = True
         if not refresh_user_token(user_id):
             all_success = False
 
-    return all_success
+    return all_success if any_attempted else True
 
 
 def refresh_user_token(user_id: str) -> bool:
@@ -97,8 +113,9 @@ def refresh_user_token(user_id: str) -> bool:
         except Exception as e:
             log.warning(f"Failed to parse secret for {user_id}: {e}")
 
-    # B. Check Local File if no secret found
-    if not tokens:
+    # B. If SM failed or no secret, try Local File
+    def load_from_file():
+        nonlocal tokens, source_type, source_path
         possible_files = [
             Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
             Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json",
@@ -111,30 +128,42 @@ def refresh_user_token(user_id: str) -> bool:
                         source_type = "file"
                         source_path = pf
                         log.debug(f"Loaded tokens for {user_id} from local file: {pf}")
-                        break
+                        return True
                 except Exception as e:
                     log.warning(f"Failed to read file {pf}: {e}")
+        return False
+
+    if not tokens:
+        load_from_file()
 
     if not tokens:
         log.warning(f"No tokens found for user {user_id}. Skipping.")
         return False
 
     # 2. Refresh the session
-    refreshed_tokens = None
-    for client_id in DI_CLIENT_IDS:
-        client = Garmin()
-        try:
-            client.client.loads(json.dumps(tokens))
-            client.client.di_client_id = client_id
-            client.client._refresh_di_token()
-            refreshed_tokens = json.loads(client.client.dumps())
-            log.info(f"✅ Successfully refreshed session for {user_id} using {client_id}")
-            break
-        except Exception as e:
-            log.debug(f"Refresh failed for {user_id} with {client_id}: {e}")
-            continue
+    def attempt_refresh(tokens_to_refresh):
+        for client_id in DI_CLIENT_IDS:
+            client = Garmin()
+            try:
+                client.client.loads(json.dumps(tokens_to_refresh))
+                client.client.di_client_id = client_id
+                client.client._refresh_di_token()
+                log.info(f"✅ Successfully refreshed session for {user_id} using {client_id}")
+                return json.loads(client.client.dumps())
+            except Exception as e:
+                log.debug(f"Refresh failed for {user_id} with {client_id}: {e}")
+                continue
+        return None
 
-    # 3. Save back to the SAME source
+    refreshed_tokens = attempt_refresh(tokens)
+
+    # 3. Fallback: If Secret Manager refresh failed, try local file
+    if not refreshed_tokens and source_type == "secret":
+        log.info(f"🔄 SM tokens for {user_id} failed. Attempting local file fallback...")
+        if load_from_file():
+            refreshed_tokens = attempt_refresh(tokens)
+
+    # 4. Save back to the SAME source
     if refreshed_tokens:
         if source_type == "secret":
             if not set_secret(secret_name, json.dumps(refreshed_tokens)):
@@ -150,4 +179,9 @@ def refresh_user_token(user_id: str) -> bool:
         return True
     else:
         log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
+        send_proactive_notification(
+            user_id,
+            "🚨 *Error de Sincronización*: No pude renovar tu sesión de Garmin automáticamente. "
+            "Por favor, ejecutá `/garmin_login` para volver a vincular tu cuenta.",
+        )
         return False

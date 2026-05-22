@@ -49,6 +49,7 @@ from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
 from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
+from src.utils.notifications import send_proactive_notification
 
 
 @asynccontextmanager
@@ -122,16 +123,23 @@ async def lifespan(app: FastAPI):
                     log.warning("No users found to sync.")
 
                 for uid in user_ids:
-                    log.info(f"🔄 Syncing data for user: {uid}")
-                    loop = asyncio.get_event_loop()
-                    # run_etl is synchronous, run in executor
-                    new_ids = await loop.run_in_executor(None, run_etl, uid)
+                    try:
+                        log.info(f"🔄 Syncing data for user: {uid}")
+                        loop = asyncio.get_event_loop()
+                        # run_etl is synchronous, run in executor
+                        new_ids = await loop.run_in_executor(None, run_etl, uid)
 
-                    if os.getenv("ENABLE_PROACTIVE", "false").lower() == "true":
-                        log.info(f"🧠 Running proactive analysis for user: {uid}")
-                        await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
-                    else:
-                        log.info(f"⏸️ Proactive analysis disabled via ENABLE_PROACTIVE for user: {uid}")
+                        if os.getenv("ENABLE_PROACTIVE", "false").lower() == "true":
+                            log.info(f"🧠 Running proactive analysis for user: {uid}")
+                            await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
+                        else:
+                            log.info(f"⏸️ Proactive analysis disabled via ENABLE_PROACTIVE for user: {uid}")
+                    except Exception as user_e:
+                        log.error(f"❌ Failed sync for user {uid}: {user_e}")
+                        send_proactive_notification(
+                            uid,
+                            f"⚠️ *Error de Auto-Sync*: Ocurrió un error inesperado al sincronizar tus datos: `{str(user_e)[:100]}`"
+                        )
 
                     # Sleep a bit between users to avoid spikes
                     await asyncio.sleep(30)

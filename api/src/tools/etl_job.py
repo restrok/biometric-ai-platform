@@ -334,7 +334,7 @@ def run_etl(
         except Exception as e:
             log.warning(f"Proactive token refresh failed for {user_id}: {e}")
 
-    provider = get_provider(user_id=user_id)
+    provider = get_provider(user_id=user_id, force_reload=True)
     client = getattr(provider, "client", None)
 
     if not client:

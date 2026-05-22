@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 _providers: dict[str, GarminProvider] = {}
 
 
-def get_provider(user_id: str | None = None):
+def get_provider(user_id: str | None = None, force_reload: bool = False):
     """
     Returns the active biometric provider (currently hardcoded to Garmin,
     but easily swappable for future brands).
@@ -22,7 +22,7 @@ def get_provider(user_id: str | None = None):
     global _providers
 
     cache_key = user_id or "default"
-    if cache_key in _providers:
+    if cache_key in _providers and not force_reload:
         return _providers[cache_key]
 
     # 1. Try to load from Secret Manager first using configurable name
