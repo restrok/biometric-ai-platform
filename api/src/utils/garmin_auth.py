@@ -97,25 +97,24 @@ def refresh_user_token(user_id: str) -> bool:
 
     # 1. Try to load tokens (Secret Manager -> Local File)
     tokens = None
-    source_type = None  # 'secret' or 'file'
-    source_path = None
-
-    # A. Check Secret Manager
+    original_source = None  # 'secret' or 'file'
+    working_source_path = None
+    
     secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
     secret_name = f"{secret_base_name}-{user_id}"
+    
+    # A. Check Secret Manager
     token_json = get_secret(secret_name)
-
     if token_json:
         try:
             tokens = json.loads(token_json)
-            source_type = "secret"
+            original_source = "secret"
             log.debug(f"Loaded tokens for {user_id} from Secret Manager.")
         except Exception as e:
             log.warning(f"Failed to parse secret for {user_id}: {e}")
 
-    # B. If SM failed or no secret, try Local File
-    def load_from_file():
-        nonlocal tokens, source_type, source_path
+    # Helper to load from file
+    def get_tokens_from_file():
         possible_files = [
             Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
             Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json",
@@ -124,23 +123,12 @@ def refresh_user_token(user_id: str) -> bool:
             if pf.exists():
                 try:
                     with open(pf) as f:
-                        tokens = json.load(f)
-                        source_type = "file"
-                        source_path = pf
-                        log.debug(f"Loaded tokens for {user_id} from local file: {pf}")
-                        return True
+                        return json.load(f), pf
                 except Exception as e:
                     log.warning(f"Failed to read file {pf}: {e}")
-        return False
+        return None, None
 
-    if not tokens:
-        load_from_file()
-
-    if not tokens:
-        log.warning(f"No tokens found for user {user_id}. Skipping.")
-        return False
-
-    # 2. Refresh the session
+    # 2. Refresh Attempt Logic
     def attempt_refresh(tokens_to_refresh):
         for client_id in DI_CLIENT_IDS:
             client = Garmin()
@@ -155,27 +143,46 @@ def refresh_user_token(user_id: str) -> bool:
                 continue
         return None
 
-    refreshed_tokens = attempt_refresh(tokens)
+    # B. Try Refreshing what we have
+    refreshed_tokens = None
+    if tokens:
+        refreshed_tokens = attempt_refresh(tokens)
 
-    # 3. Fallback: If Secret Manager refresh failed, try local file
-    if not refreshed_tokens and source_type == "secret":
-        log.info(f"🔄 SM tokens for {user_id} failed. Attempting local file fallback...")
-        if load_from_file():
-            refreshed_tokens = attempt_refresh(tokens)
+    # C. Fallback: If Secret Manager refresh failed (or no secret), try local file
+    if not refreshed_tokens:
+        if original_source == "secret":
+            log.info(f"🔄 SM tokens for {user_id} failed. Attempting local file fallback...")
+        
+        file_tokens, file_path = get_tokens_from_file()
+        if file_tokens:
+            refreshed_tokens = attempt_refresh(file_tokens)
+            if refreshed_tokens:
+                working_source_path = file_path
 
-    # 4. Save back to the SAME source
+    # 3. Save back (Update Secret Manager AND Local File if possible)
     if refreshed_tokens:
-        if source_type == "secret":
+        success = True
+        
+        # Always try to update Secret Manager if the user is supposed to have one
+        if original_source == "secret" or os.getenv("GOOGLE_CLOUD_PROJECT"):
             if not set_secret(secret_name, json.dumps(refreshed_tokens)):
                 log.error(f"❌ Failed to update secret for {user_id}")
-                return False
-        elif source_type == "file" and source_path:
-            try:
-                with open(source_path, "w") as f:
-                    json.dump(refreshed_tokens, f, indent=4)
-            except Exception as e:
-                log.error(f"❌ Failed to save file for {user_id}: {e}")
-                return False
+                # We don't return False here if file update might still work
+            else:
+                log.info(f"✨ Repaired/Updated Secret Manager for {user_id}")
+
+        # Also update local file if we have one
+        target_file = working_source_path or Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json"
+        try:
+            # Ensure directory exists
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(target_file, "w") as f:
+                json.dump(refreshed_tokens, f, indent=4)
+            log.debug(f"Updated local file for {user_id}: {target_file}")
+        except Exception as e:
+            log.warning(f"Failed to update local file for {user_id}: {e}")
+            # If secret worked, we still consider it a success
+        
         return True
     else:
         log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
