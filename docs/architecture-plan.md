@@ -116,12 +116,18 @@ The platform implements a sophisticated reasoning layer in LangGraph that bridge
 *   **Zero-Cost Production Ready:** The entire stack runs within GCP Free Tier and Google AI Studio Free Tier (Gemini 2.5 Flash).
 *   **Infrastructure as Code:** Terraform modules ready for Storage, IAM, and Service Accounts.
 
-## 9. Migration of Legacy Logic (Plan Generation)
+## 10. High-Reliability Authentication & Surgical ETL (Updated May 2026)
 
-Legacy plan generation logic has been moved to the `legacy_logic/` folder.
+To ensure the platform remains observable and resilient in production, we have implemented several high-reliability enhancements:
 
-**Instructions for the AI Agent:**
-When building the AI/Reasoning layer (LangGraph):
-*   Do NOT use the old `plan_generator.py` script as a direct dependency.
-*   Instead, read the logic inside `legacy_logic/` (especially `RESEARCH_TRAINING_PRINCIPLES.md` and `TRAINING_GUIDELINES.md`) to understand domain rules (80/20 polarized training, recovery metrics).
-*   Re-implement this logic as Tool Functions or System Prompts within the new LangGraph Router Agent.
+### Robust Token Lifecycle
+- **Proactive Refresh & Memory Invalidation:** The `ProviderFactory` now implements a `force_reload` and `refresh` mechanism. Before any write operation (syncing, uploading), the system proactively refreshes Garmin tokens and invalidates the in-memory provider cache to ensure the newest session is used.
+- **Intelligent Secret Repair:** If tokens in GCP Secret Manager are found to be invalid or destroyed, the system automatically falls back to local session files (if available) to "repair" the cloud secret, ensuring seamless continuity across deployments.
+- **Aggressive Cost Optimization:** The Secret Manager integration now strictly maintains **only the latest valid version** of each secret, automatically destroying older versions to minimize storage costs while avoiding "Latest Alias" breakage through date-based sorting.
+
+### Surgical Data Synchronization
+- **Defensive BigQuery Wipes:** The ETL process has moved from "Total Wipe" to **Surgical Sync**. It now only clears the specific 14-day window it is currently fetching from Garmin, preserving all historical data and distant future plans.
+- **Strict Date Validation:** All calendar management tools now implement strict date-boundary checks to prevent accidental mass-deletion of workouts during Garmin API month-boundary rotations.
+
+### Proactive Error Observability
+- **Immediate Failure Alerts:** Authentication and synchronization failures are no longer silent logs. The system proactively pushes critical error summaries (e.g., Garmin re-login requirements) to the user via the Telegram Orchestrator, ensuring rapid intervention.

@@ -108,17 +108,24 @@ When using `discovered_tool_upload_training_plan`, follow this exact schema.
 }
 ```
 
-### 6. Runtime & System Awareness
-- **CONTAINERIZED ENVIRONMENT:** The API runs in a Docker container (`biometric-coach-api`).
-- **Volume Mounts:** Garmin tokens are mounted from the host (typically `/home/fsirio/homelab/.garminconnect`) to `/root/.garminconnect` inside the container. If 401 errors occur, verify the mount with `docker inspect biometric-coach-api`.
-- **Dependency Management:** 
-  - On the **HOST**: Use `uv run` for all scripts.
-  - Inside the **CONTAINER**: Use `python` directly (e.g., `docker exec biometric-coach-api python scripts/manage_tools.py ...`).
-- **RAPID TESTING WORKFLOW (HOT-SWAP):** To test local changes without a full rebuild:
-  1. Copy modified files: `docker cp api/<file> biometric-coach-api:/app/<file>`
-  2. Restart the container: `docker restart biometric-coach-api`
+### 6. Runtime & System Awareness (CONT.)
 - **BIGQUERY CACHE:** `retrieve_biometric_data` uses a **5-minute time-based cache**. If the user reports a new activity, you MUST use `sync_biometric_data` first, then wait or explain that the cache will refresh in a few minutes if they don't see the change immediately.
 - **Log Inspection (CRITICAL):** If tools fail (e.g., 400/500 errors), ALWAYS run `docker logs biometric-coach-api --tail 50` to see the full traceback.
+
+## 🛠️ Tool Maintenance & Best Practices (Updated May 2026)
+
+### Correct Tool Invocation
+- **CLI Wrapper:** When executing tools manually within the container, ALWAYS use the `call` command:
+  `docker exec biometric-coach-api bash -c "export PYTHONPATH=/app && python scripts/manage_tools.py call <tool_name> '<json_args>'"`
+- **Payload Safety:** Ensure all JSON arguments are properly escaped for the shell.
+
+### Surgical Sync Principle
+- **Defensive Syncing:** The ETL process is now surgical. It only updates a 14-day window. Avoid triggering massive syncs unless explicitly requested.
+- **Calendar Integrity:** Before uploading a new plan, use `clear_calendar` strictly for the dates being modified. The tool now implements strict date-boundary validation.
+
+### Handling SDK Noise
+- **401 "Soft" Failures:** You may see `401 Unauthorized` logs from the Garmin SDK (specifically on `/userprofile-service`). This is internal SDK noise during client rotation. **IGNORE THESE** as long as the final tool response indicates `Success`.
+- **Automatic Repair:** The system now repairs Secret Manager tokens automatically from local files. If you see "SM tokens failed... local file fallback," the system is working as intended to heal the session.
 
 ## 🛠️ Tool & Metric Logic (Expert Knowledge)
 
