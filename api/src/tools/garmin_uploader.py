@@ -122,6 +122,16 @@ def clear_calendar(start_date: str, end_date: str, user_id: str | None = None):
         cleared_count = 0
         for item in items:
             if item.get("itemType") == "workout":
+                item_date_str = item.get("date")
+                if item_date_str:
+                    try:
+                        item_date = datetime.strptime(item_date_str, "%Y-%m-%d").date()
+                        # Strict date check: only clear if within requested range
+                        if not (s_date <= item_date <= e_date):
+                            continue
+                    except ValueError:
+                        log.warning(f"Could not parse date for calendar item: {item_date_str}")
+
                 item_id = item.get("calendarItemId") or item.get("id")
                 if not item_id:
                     continue
