@@ -12,17 +12,28 @@ log = logging.getLogger(__name__)
 _providers: dict[str, GarminProvider] = {}
 
 
-def get_provider(user_id: str | None = None):
+def get_provider(user_id: str | None = None, force_reload: bool = False, refresh: bool = False):
     """
     Returns the active biometric provider (currently hardcoded to Garmin,
     but easily swappable for future brands).
 
     If user_id is provided, it attempts to load user-specific tokens.
+    If refresh is True, it proactively refreshes the tokens with Garmin before loading.
     """
     global _providers
 
+    if user_id and refresh:
+        from src.utils.garmin_auth import refresh_user_token
+
+        try:
+            refresh_user_token(user_id)
+            # If we refresh, we MUST force a reload from disk/SM to use the new tokens
+            force_reload = True
+        except Exception as e:
+            log.warning(f"Proactive refresh failed in factory for {user_id}: {e}")
+
     cache_key = user_id or "default"
-    if cache_key in _providers:
+    if cache_key in _providers and not force_reload:
         return _providers[cache_key]
 
     # 1. Try to load from Secret Manager first using configurable name

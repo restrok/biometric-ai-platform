@@ -78,7 +78,7 @@ def upload_training_plan(workouts: list[Workout], user_id: str | None = None):
 
     log.debug(f"DEBUG: Workout payload: {json.dumps([w.model_dump(exclude_none=True) for w in workouts], indent=2)}")
 
-    provider = get_provider(user_id=user_id)
+    provider = get_provider(user_id=user_id, refresh=True)
 
     try:
         # The SDK's WorkoutPlan will now handle the mapping of these new structures
@@ -107,7 +107,8 @@ class CalendarRange(BaseModel):
 def clear_calendar(start_date: str, end_date: str, user_id: str | None = None):
     """Clears calendar range for the active provider."""
     log.info(f"🧹 Clearing Calendar from {start_date} to {end_date} (user: {user_id})...")
-    provider = get_provider(user_id=user_id)
+
+    provider = get_provider(user_id=user_id, refresh=True)
 
     try:
         from datetime import datetime
@@ -121,6 +122,16 @@ def clear_calendar(start_date: str, end_date: str, user_id: str | None = None):
         cleared_count = 0
         for item in items:
             if item.get("itemType") == "workout":
+                item_date_str = item.get("date")
+                if item_date_str:
+                    try:
+                        item_date = datetime.strptime(item_date_str, "%Y-%m-%d").date()
+                        # Strict date check: only clear if within requested range
+                        if not (s_date <= item_date <= e_date):
+                            continue
+                    except ValueError:
+                        log.warning(f"Could not parse date for calendar item: {item_date_str}")
+
                 item_id = item.get("calendarItemId") or item.get("id")
                 if not item_id:
                     continue
@@ -216,7 +227,8 @@ def prune_unused_workouts(user_id: str | None = None):
     Scans the next 30 days of the calendar to identify active workout IDs.
     """
     log.info(f"✂️ Pruning unused workouts for user: {user_id}...")
-    provider = get_provider(user_id=user_id)
+
+    provider = get_provider(user_id=user_id, refresh=True)
     try:
         from datetime import date, timedelta
 

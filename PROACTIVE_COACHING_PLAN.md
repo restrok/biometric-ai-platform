@@ -7,16 +7,19 @@ Transition the Biometric AI Platform from a **reactive** (Request-Response) syst
 
 ## 🔍 Context & Discoveries (As of May 10, 2026)
 
-### 1. User Profile: The "Silent Athlete"
-- **Failing Thirst Response:** User does not feel thirst during or after high-intensity runs, even with significant **Cardiac Drift (>6%)**.
-- **Perception Gap:** User feels "10/10" (mentally ready) while objective biometrics (**HRV 38ms - UNBALANCED**) indicate significant systemic stress.
-- **Neuromuscular Fatigue:** Ground Contact Time (GCT) increases significantly (292ms → 301ms) late in sessions despite steady power, indicating lost "stiffness" and injury risk.
+### 1. User Profile: The "Silent Athlete" (Updated May 21, 2026)
+- **Biotipo Ectomorfo:** Metabolismo "horno" con alta disipación térmica. Capacidad de almacenamiento limitada, requiere nutrición inmediata post-entreno (ventana de 30m) para evitar catabolismo.
+- **High-Revving Heart:** Corazón con volumen sistólico moderado y frecuencia alta. **Z2 Alta (AeT ~160-165 bpm)** es el estado de flujo aeróbico normal.
+- **Late Steady State:** El cuerpo alcanza el equilibrio metabólico real (Segunda Respiración) recién a los 8km de carrera.
+- **Failing Thirst Response:** User does not feel thirst durante sesiones intensas pese a un **Cardiac Drift >10%**.
+- **Neuromuscular Fatigue:** GCT aumenta bajo fatiga mecánica, perdiendo "stiffness" elástico.
 
 ### 2. Completed Work (Ready for Production)
-- ✅ **Multi-User Token Rotation:** `garmin_auth.py` now scans `/root/.garminconnect` for all user token files and refreshes them concurrently.
-- ✅ **Robust BQ Schema Alignment:** `upsert_to_bq` automatically aligns Pandas DataFrame types with BigQuery table schemas (fixing `ArrowTypeError` and `400 BadRequest`).
-- ✅ **HRV Baseline Integration:** The SDK and BigQuery now capture `status` (e.g., UNBALANCED), `baseline_low`, and `baseline_high`.
-- ✅ **Clean Slate Sync:** Calendar sync now wipes all historical/future user-specific scheduled data to ensure BigQuery perfectly mirrors Garmin (Source of Truth).
+- ✅ **High-Reliability Auth:** `ProviderFactory` centraliza el refresco proactivo de tokens e invalida la caché de memoria automáticamente.
+- ✅ **Secret Manager Auto-Repair:** El sistema repara secretos dañados en GCP usando archivos locales automáticamente cuando detecta un fallo de versión.
+- ✅ **Surgical ETL Sync:** El proceso de sincronización ahora solo sobreescribe ventanas de 14 días, preservando todo el historial pasado.
+- ✅ **Proactive Failure Alerts:** Integración total con Telegram para notificar fallos de 401 o re-login en tiempo real.
+- ✅ **Cost Optimization:** Destrucción automática de versiones antiguas de secretos en GCP (Mantenimiento de versión única).
 
 ---
 

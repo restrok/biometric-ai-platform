@@ -72,17 +72,18 @@ def set_secret(secret_id: str, payload: str) -> bool:
 
         log.info(f"✅ Successfully updated secret version: {response.name}")
 
-        # CLEANUP: Only keep a limited number of versions to stay in free tier
-        # We try to disable/destroy older versions if possible
+        # CLEANUP: Only keep the LATEST version to minimize costs
+        # We destroy all other enabled versions immediately
         try:
-            versions = client.list_secret_versions(request={"parent": secret_path})
-            # Sort by create_time or name (higher index is newer)
+            versions = list(client.list_secret_versions(request={"parent": secret_path}))
+            # Sort by create_time (newest first)
             active_versions = [v for v in versions if v.state.name == "ENABLED"]
-            if len(active_versions) > 5:
-                # Destroy oldest enabled version
-                oldest = sorted(active_versions, key=lambda v: v.name)[0]
-                client.destroy_secret_version(request={"name": oldest.name})
-                log.info(f"🧹 Destroyed old secret version to save quota: {oldest.name}")
+            if len(active_versions) > 1:
+                active_versions.sort(key=lambda v: v.create_time, reverse=True)
+                # The first one is the one we just created, destroy all others
+                for old_v in active_versions[1:]:
+                    client.destroy_secret_version(request={"name": old_v.name})
+                    log.info(f"🧹 Destroyed old secret version to save costs: {old_v.name}")
         except Exception as e:
             log.debug(f"Secret version cleanup failed (non-critical): {e}")
 

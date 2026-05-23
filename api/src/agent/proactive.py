@@ -25,23 +25,42 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
     # 1. Physical Analysis (Telemetry-based)
     activities_to_process = []
     if new_activity_ids:
+        # We use strings for ID comparison to be robust against BQ type inference quirks
+        # which sometimes cause INT64 vs ARRAY<STRING> mismatches in the client library.
+        str_ids = [str(aid) for aid in new_activity_ids if str(aid).strip()]
+
+        if not str_ids:
+            log.warning(f"No valid activity IDs found in {new_activity_ids}")
+            return
+
         query_specific = f"""
             SELECT id, date, type, name 
             FROM `{config["project_id"]}.{dataset}.recent_activities`
-            WHERE user_id = '{user_id}'
-            AND id IN UNNEST({new_activity_ids})
+            WHERE user_id = @user_id
+            AND CAST(id AS STRING) IN UNNEST(@activity_ids)
         """
-        activities_to_process = list(client.query(query_specific).result())
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+                bigquery.ArrayQueryParameter("activity_ids", "STRING", str_ids),
+            ]
+        )
+        activities_to_process = list(client.query(query_specific, job_config=job_config).result())
     else:
         query_latest = f"""
             SELECT id, date, type, name 
             FROM `{config["project_id"]}.{dataset}.recent_activities`
-            WHERE user_id = '{user_id}'
+            WHERE user_id = @user_id
             AND date >= UNIX_SECONDS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR))
             ORDER BY date DESC
             LIMIT 1
         """
-        activities_to_process = list(client.query(query_latest).result())
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            ]
+        )
+        activities_to_process = list(client.query(query_latest, job_config=job_config).result())
 
     try:
         for activity in activities_to_process:
@@ -184,11 +203,18 @@ def _has_been_notified(client, dataset, user_id, entity_id, notification_type):
     query = f"""
         SELECT COUNT(*) as count 
         FROM `{table_id}`
-        WHERE user_id = '{user_id}' 
-        AND entity_id = '{entity_id}'
-        AND type = '{notification_type}'
+        WHERE user_id = @user_id 
+        AND entity_id = @entity_id
+        AND type = @type
     """
-    results = list(client.query(query).result())
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("entity_id", "STRING", str(entity_id)),
+            bigquery.ScalarQueryParameter("type", "STRING", notification_type),
+        ]
+    )
+    results = list(client.query(query, job_config=job_config).result())
     return results[0].count > 0
 
 
