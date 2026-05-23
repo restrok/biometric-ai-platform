@@ -43,9 +43,15 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
     try:
-        where_clause = f"WHERE user_id = '{user_id}'" if user_id else ""
+        query_params = []
+        where_clause = ""
+        if user_id:
+            where_clause = "WHERE user_id = @user_id"
+            query_params.append(bigquery.ScalarQueryParameter("user_id", "STRING", user_id))
+
         query = f"SELECT MAX(date) as last_date FROM `{table_id}` {where_clause}"
-        results = client.query(query).result()
+        job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+        results = client.query(query, job_config=job_config).result()
         row = next(results)
         if row.last_date:
             return pd.to_datetime(row.last_date)
@@ -225,9 +231,15 @@ def get_current_user_metrics(user_id: str | None = None) -> tuple[int | None, in
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.user_profile"
     try:
-        where_clause = f"WHERE user_id = '{user_id}'" if user_id else ""
+        query_params = []
+        where_clause = ""
+        if user_id:
+            where_clause = "WHERE user_id = @user_id"
+            query_params.append(bigquery.ScalarQueryParameter("user_id", "STRING", user_id))
+
         query = f"SELECT max_hr, resting_hr FROM `{table_id}` {where_clause} LIMIT 1"
-        results = client.query(query).result()
+        job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+        results = client.query(query, job_config=job_config).result()
         row = next(results)
         return row.max_hr, row.resting_hr
     except Exception:
@@ -481,15 +493,23 @@ def run_etl(
             try:
                 query = (
                     f"SELECT vo2max FROM `{PROJECT_ID}.{DATASET_NAME}.recent_activities` "
-                    f"WHERE vo2max IS NOT NULL AND user_id = '{user_id}' "
+                    f"WHERE vo2max IS NOT NULL AND user_id = @user_id "
                     f"ORDER BY date DESC LIMIT 1"
                 )
+                job_config = bigquery.QueryJobConfig(
+                    query_parameters=[
+                        bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+                    ]
+                )
                 bq_client = bigquery.Client(project=PROJECT_ID)
-                results = bq_client.query(query).result()
-                row = next(results)
-                if row.vo2max:
-                    status.vo2max = row.vo2max
-                    log.info(f"Patched VO2 Max from latest activity: {row.vo2max}")
+                results = bq_client.query(query, job_config=job_config).result()
+                try:
+                    row = next(results)
+                    if row.vo2max:
+                        status.vo2max = row.vo2max
+                        log.info(f"Patched VO2 Max from latest activity: {row.vo2max}")
+                except StopIteration:
+                    pass
             except Exception:
                 pass
 
@@ -581,12 +601,19 @@ def run_etl(
             # SURGICAL WIPE: Only clear the window we just fetched
             delete_query = f"""
                 DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
-                WHERE user_id = '{user_id}'
-                AND date >= '{now.date().isoformat()}'
-                AND date <= '{end_window.date().isoformat()}'
+                WHERE user_id = @user_id
+                AND date >= @start_date
+                AND date <= @end_date
             """
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+                    bigquery.ScalarQueryParameter("start_date", "DATE", now.date().isoformat()),
+                    bigquery.ScalarQueryParameter("end_date", "DATE", end_window.date().isoformat()),
+                ]
+            )
             log.info(f"Performing surgical calendar wipe for {user_id} in BigQuery ({now.date()} to {end_window.date()})...")
-            bq_client.query(delete_query).result()
+            bq_client.query(delete_query, job_config=job_config).result()
 
             df_cal = pd.DataFrame(all_calendar_items)
             if not df_cal.empty:
