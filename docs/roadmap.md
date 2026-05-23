@@ -29,6 +29,8 @@
 - [ ] **OpenClaw Integration** [SEVERITY: LOW]: Document the pattern for using the platform as an OpenClaw backend.
 
 ## Phase 5: AI Health & Performance Butler (Future Vision 💎)
+- [ ] **Deep Historical Reporting Engine** [SEVERITY: HIGH]: Implement artifact-based long-term analysis (3-6 months) with GCS persistence. See [SensorFM Architecture Plan](./plans/sensor-fm-historical-reporting.md).
+- [ ] **AgentSearch (Dynamic SQL)** [SEVERITY: MED]: Deploy a 'DataScientist' sub-agent to autonomously discover physiological correlations via sandboxed BigQuery queries.
 - [ ] **Advanced Immune Radar:** Cross-reference HRV, Resting HR, and Sleep Quality to provide 24-48h early warning for illness or systemic overreach.
 - [ ] **Precision Nutrition Engine:** Use 'Metabolic Cost' (HR per Step) and session intensity to provide exact carbohydrate/protein timing advice for the next day.
 - [ ] **Lifestyle Stress Auditor:** Correlate subjective 'Health Logs' with objective Stress/HRV data to identify non-training stressors (e.g., work, travel, diet).
