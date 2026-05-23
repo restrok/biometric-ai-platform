@@ -161,8 +161,6 @@ def refresh_user_token(user_id: str) -> bool:
 
     # 3. Save back (Update Secret Manager AND Local File if possible)
     if refreshed_tokens:
-        success = True
-        
         # Always try to update Secret Manager if the user is supposed to have one
         if original_source == "secret" or os.getenv("GOOGLE_CLOUD_PROJECT"):
             if not set_secret(secret_name, json.dumps(refreshed_tokens)):
@@ -184,11 +182,11 @@ def refresh_user_token(user_id: str) -> bool:
             # If secret worked, we still consider it a success
         
         return True
-    else:
-        log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
-        send_proactive_notification(
-            user_id,
-            "🚨 *Error de Sincronización*: No pude renovar tu sesión de Garmin automáticamente. "
-            "Por favor, ejecutá `/garmin_login` para volver a vincular tu cuenta.",
-        )
-        return False
+
+    log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")
+    send_proactive_notification(
+        user_id,
+        "🚨 *Error de Sincronización*: No pude renovar tu sesión de Garmin automáticamente. "
+        "Por favor, ejecutá `/garmin_login` para volver a vincular tu cuenta.",
+    )
+    return False
