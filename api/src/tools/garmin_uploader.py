@@ -107,7 +107,7 @@ class CalendarRange(BaseModel):
 def clear_calendar(start_date: str, end_date: str, user_id: str | None = None):
     """Clears calendar range for the active provider."""
     log.info(f"🧹 Clearing Calendar from {start_date} to {end_date} (user: {user_id})...")
-    
+
     provider = get_provider(user_id=user_id, refresh=True)
 
     try:
@@ -227,7 +227,7 @@ def prune_unused_workouts(user_id: str | None = None):
     Scans the next 30 days of the calendar to identify active workout IDs.
     """
     log.info(f"✂️ Pruning unused workouts for user: {user_id}...")
-    
+
     provider = get_provider(user_id=user_id, refresh=True)
     try:
         from datetime import date, timedelta

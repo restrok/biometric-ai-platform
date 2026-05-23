@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
                         log.error(f"❌ Failed sync for user {uid}: {user_e}")
                         send_proactive_notification(
                             uid,
-                            f"⚠️ *Error de Auto-Sync*: Ocurrió un error inesperado al sincronizar tus datos: `{str(user_e)[:100]}`"
+                            f"⚠️ *Error de Auto-Sync*: Ocurrió un error inesperado al sincronizar tus datos: `{str(user_e)[:100]}`",
                         )
 
                     # Sleep a bit between users to avoid spikes

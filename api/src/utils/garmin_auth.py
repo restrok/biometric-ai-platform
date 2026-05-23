@@ -65,7 +65,7 @@ def refresh_garmin_tokens() -> bool:
         return False
 
     log.info(f"🔄 Starting token refresh for users: {user_ids}")
-    
+
     any_attempted = False
     all_success = True
 
@@ -73,10 +73,11 @@ def refresh_garmin_tokens() -> bool:
         # Check if user has tokens before attempting refresh
         secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
         secret_name = f"{secret_base_name}-{user_id}"
-        
+
         token_json = get_secret(secret_name)
-        file_exists = (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json").exists() or \
-                      (Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json").exists()
+        file_exists = (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json").exists() or (
+            Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json"
+        ).exists()
 
         if not token_json and not file_exists:
             log.debug(f"Skipping user {user_id}: no tokens found.")
@@ -99,10 +100,10 @@ def refresh_user_token(user_id: str) -> bool:
     tokens = None
     original_source = None  # 'secret' or 'file'
     working_source_path = None
-    
+
     secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
     secret_name = f"{secret_base_name}-{user_id}"
-    
+
     # A. Check Secret Manager
     token_json = get_secret(secret_name)
     if token_json:
@@ -152,7 +153,7 @@ def refresh_user_token(user_id: str) -> bool:
     if not refreshed_tokens:
         if original_source == "secret":
             log.info(f"🔄 SM tokens for {user_id} failed. Attempting local file fallback...")
-        
+
         file_tokens, file_path = get_tokens_from_file()
         if file_tokens:
             refreshed_tokens = attempt_refresh(file_tokens)
@@ -180,7 +181,7 @@ def refresh_user_token(user_id: str) -> bool:
         except Exception as e:
             log.warning(f"Failed to update local file for {user_id}: {e}")
             # If secret worked, we still consider it a success
-        
+
         return True
 
     log.error(f"❌ Failed to refresh tokens for user {user_id} after trying all clients.")

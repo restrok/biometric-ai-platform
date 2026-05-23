@@ -597,7 +597,7 @@ def run_etl(
         # 2. Only proceed if we got a valid response (list)
         if all_calendar_items is not None:
             bq_client = bigquery.Client(project=PROJECT_ID)
-            
+
             # SURGICAL WIPE: Only clear the window we just fetched
             delete_query = f"""
                 DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
@@ -612,7 +612,9 @@ def run_etl(
                     bigquery.ScalarQueryParameter("end_date", "DATE", end_window.date().isoformat()),
                 ]
             )
-            log.info(f"Performing surgical calendar wipe for {user_id} in BigQuery ({now.date()} to {end_window.date()})...")
+            log.info(
+                f"Performing surgical calendar wipe for {user_id} in BigQuery ({now.date()} to {end_window.date()})..."
+            )
             bq_client.query(delete_query, job_config=job_config).result()
 
             df_cal = pd.DataFrame(all_calendar_items)
