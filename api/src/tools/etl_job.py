@@ -349,9 +349,10 @@ def run_etl(
     except Exception as e:
         log.error(f"Authentication failed for user {user_id}: {e}")
         from src.utils.notifications import send_proactive_notification
+
         send_proactive_notification(
             user_id=user_id or "fsirio",
-            message="⚠️ **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link."
+            message="⚠️ **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link.",
         )
         return None
 
