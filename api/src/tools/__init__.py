@@ -15,6 +15,7 @@ from .profile_manager import (
     configure_proactive_coaching,
     log_health_status,
     manage_goals,
+    save_calibration_marker,
     update_user_zones,
 )
 from .read_report_artifact import read_report_artifact
@@ -37,6 +38,7 @@ __all__ = [
     "read_report_artifact",
     "log_health_status",
     "manage_goals",
+    "save_calibration_marker",
     "list_workouts",
     "batch_remove_workouts",
     "prune_unused_workouts",

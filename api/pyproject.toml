@@ -21,7 +21,7 @@ dependencies = [
     "uvicorn>=0.44.0",
     "langchain-community>=0.2.0",
     "ragas>=0.2.0",
-    "garmin-training-toolkit-sdk @ git+https://github.com/restrok/garmin-training-toolkit-sdk.git@main#subdirectory=garmin_toolkit",
+    "garmin-training-toolkit-sdk @ git+https://github.com/restrok/garmin-training-toolkit-sdk.git@v0.7.2#subdirectory=garmin_toolkit",
     "google-cloud-secret-manager>=2.27.0",
 ]
 

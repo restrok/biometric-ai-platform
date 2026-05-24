@@ -127,7 +127,7 @@ dev = [
 requires-dist = [
     { name = "db-dtypes", specifier = ">=1.5.1" },
     { name = "fastapi", specifier = ">=0.136.0" },
-    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=main" },
+    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.7.2" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
     { name = "google-cloud-secret-manager", specifier = ">=2.27.0" },
@@ -485,8 +485,8 @@ http = [
 
 [[package]]
 name = "garmin-training-toolkit-sdk"
-version = "0.7.0"
-source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=main#fd02b299ac1326e047666bd404ce70af3b3c8a91" }
+version = "0.7.2"
+source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.7.2#b11b87cce644fbe8badb8b57b4aacd4bf11af5da" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },

@@ -50,7 +50,7 @@ from src.agent.proactive import run_proactive_analysis
 from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
-from src.utils.garmin_auth import refresh_garmin_tokens
+from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
 
 
 # --- Background Scheduler ---
@@ -114,10 +114,8 @@ async def lifespan(app: FastAPI):
                 time.sleep(sleep_seconds)
 
                 # --- Execution Phase ---
-                from db import get_user_mapping
-
-                mapping = get_user_mapping()
-                for _, user_id in mapping.items():
+                user_ids = get_all_garmin_user_ids()
+                for user_id in user_ids:
                     log.info(f"🧠 Running proactive analysis for user: {user_id}")
                     try:
                         run_proactive_analysis(user_id)

@@ -81,7 +81,11 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         _analyze_hrv_status(user_id)
         _check_health_pre_symptoms(user_id)
 
-        # 3. Autonomous Planning for Tomorrow
+        # 3. Discovery Phase (Data Science)
+        # Periodic 'rare' pattern discovery
+        _run_discovery_phase(user_id)
+
+        # 4. Autonomous Planning for Tomorrow
         # We invoke the LangGraph agent with a specific "Planning Instruction"
         # This will trigger clear_calendar, prune_workouts, and upload_training_plan
         from typing import cast
@@ -125,6 +129,48 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
 
     except Exception as e:
         log.error(f"❌ Proactive analysis/planning failed: {e}")
+
+
+def _run_discovery_phase(user_id: str):
+    """
+    Tasks the DataScientist node with finding non-obvious patterns or anomalies
+    in the user's long-term data (30-90 days).
+    """
+    log.info(f"🧪 Activating Discovery Phase (Data Science) for {user_id}...")
+    try:
+        from typing import cast
+
+        from langchain_core.messages import HumanMessage
+
+        from src.agent.graph import AgentState, graph
+
+        discovery_prompt = (
+            "ROLE: Data Scientist. "
+            "TASK: Perform an autonomous 'Discovery Audit' on the user's data from the last 30-90 days. "
+            "1. **Audit Continuity:** First, check `user_calibration_profile` for existing patterns or markers. "
+            "2. **Exploration:** Execute exploratory SQL queries to either (a) validate/update existing patterns with new data or (b) find 'rare' new correlations (e.g., HRV vs. Stride Length, Stress vs. Aerobic Decoupling). "
+            "3. **Persistence:** Use `save_calibration_marker` to persist your findings. If a pattern is confirmed or shifts, update its `marker_value` and `context`. "
+            "4. **Notification:** If you find a significant shift or a new critical pattern, SEND A PROACTIVE NOTIFICATION explaining the discovery and its impact on training. "
+            "5. If no significant changes or new patterns are found, exit silently. "
+            "Total freedom to explore, but absolute duty to persist and update identified physiological truths."
+        )
+
+        initial_state = cast(
+            AgentState,
+            {
+                "messages": [HumanMessage(content=discovery_prompt)],
+                "user_id": user_id,
+                "loop_count": 0,
+                "biometric_context": {},
+                "usage_stats": {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0},
+                "intent": "full",
+            },
+        )
+        # The graph will now route this to the DataScientist node because of the exploratory tool calls
+        graph.invoke(initial_state)
+
+    except Exception as e:
+        log.error(f"❌ Discovery Phase failed: {e}")
 
 
 def _safe_localtime(ts):

@@ -161,17 +161,16 @@ def _retrieve_biometric_data_cached(
     context: dict[str, Any] = {}
     top_3_ids: list[str] = []
 
-    # Common WHERE clause helper for user_id
-    user_where = f"WHERE user_id = '{user_id}'" if user_id else ""
+    # STRICT USER ISOLATION: Default to 'fsirio' if not provided for safety
+    user_id = user_id or "fsirio"
+    user_where = f"WHERE user_id = '{user_id}'"
 
     def fetch_activities() -> tuple[str, list[dict[str, Any]]]:
         """Fetches recent activities from BigQuery."""
         nonlocal top_3_ids
         try:
             t0 = time.time()
-            where_clauses = []
-            if user_id:
-                where_clauses.append(f"user_id = '{user_id}'")
+            where_clauses = [f"user_id = '{user_id}'"]
             if activity_type:
                 where_clauses.append(f"type = '{activity_type}'")
 
@@ -186,9 +185,7 @@ def _retrieve_biometric_data_cached(
                 end_seconds = int(dt_end.timestamp())
                 where_clauses.append(f"date < {end_seconds}")
 
-            where_clause = ""
-            if where_clauses:
-                where_clause = "WHERE " + " AND ".join(where_clauses)
+            where_clause = "WHERE " + " AND ".join(where_clauses)
 
             query_act = f"""
                 SELECT id, 
@@ -211,14 +208,11 @@ def _retrieve_biometric_data_cached(
         """Fetches the latest training status."""
         try:
             t0 = time.time()
-            where_status = "WHERE (status IS NOT NULL OR acute_load IS NOT NULL)"
-            if user_id:
-                where_status += f" AND user_id = '{user_id}'"
             query_status = f"""
                 SELECT status, acute_load, training_load_balance, vo2max_precise, 
                        primary_benefit, recovery_time_hours
                 FROM `{project_id}.{dataset}.training_status` 
-                {where_status}
+                {user_where}
                 ORDER BY date DESC LIMIT 1
             """
             status_rows = list(client.query(query_status).result())
@@ -231,14 +225,11 @@ def _retrieve_biometric_data_cached(
         """Fetches the latest sleep record."""
         try:
             t0 = time.time()
-            where_sleep = "WHERE (duration_sec IS NOT NULL OR quality IS NOT NULL)"
-            if user_id:
-                where_sleep += f" AND user_id = '{user_id}'"
             query_sleep = f"""
                 SELECT date, duration_sec, quality, deep_sec, light_sec, 
                        rem_sec, awake_sec
                 FROM `{project_id}.{dataset}.sleep_history` 
-                {where_sleep}
+                {user_where}
                 ORDER BY date DESC LIMIT 1
             """
             sleep_rows = list(client.query(query_sleep).result())
@@ -333,6 +324,37 @@ def _retrieve_biometric_data_cached(
         except Exception as e:
             log.warning(f"❌ Goals retrieval failed: {e}")
             return "active_goals", []
+
+    def fetch_daily_physiology() -> tuple[str, list[dict[str, Any]]]:
+        """Fetches recent daily physiology (RHR, Stress, Body Battery)."""
+        try:
+            t0 = time.time()
+            query_daily = f"""
+                SELECT date, resting_heart_rate, all_day_stress_avg, body_battery_end_of_day, total_steps
+                FROM `{project_id}.{dataset}.daily_physiology` 
+                {user_where}
+                ORDER BY date DESC LIMIT 7
+            """
+            daily_rows = [dict(row) for row in client.query(query_daily).result()]
+            log.info(f"⏱️ BigQuery: Daily physiology retrieved in {time.time() - t0:.2f}s")
+            return "daily_physiology_7d", daily_rows
+        except Exception:
+            return "daily_physiology_7d", []
+
+    def fetch_calibration_profile() -> tuple[str, list[dict[str, Any]]]:
+        """Fetches personal calibration markers (PCP)."""
+        try:
+            t0 = time.time()
+            query_calib = f"""
+                SELECT marker_type, marker_value, context
+                FROM `{project_id}.{dataset}.user_calibration_profile` 
+                {user_where}
+            """
+            calib_rows = [dict(row) for row in client.query(query_calib).result()]
+            log.info(f"⏱️ BigQuery: Calibration profile retrieved in {time.time() - t0:.2f}s")
+            return "personal_calibration_profile", calib_rows
+        except Exception:
+            return "personal_calibration_profile", []
 
     def fetch_scheduled_workouts() -> tuple[str, list[dict[str, Any]]]:
         """Fetches scheduled workouts from today onwards."""
@@ -511,6 +533,8 @@ def _retrieve_biometric_data_cached(
         f_body = executor.submit(fetch_body_composition)
         f_health = executor.submit(fetch_health_status)
         f_goals = executor.submit(fetch_user_goals)
+        f_daily = executor.submit(fetch_daily_physiology)
+        f_calib = executor.submit(fetch_calibration_profile)
         f_sched = executor.submit(fetch_scheduled_workouts)
 
         act_key, act_val = f_act.result()
@@ -526,6 +550,8 @@ def _retrieve_biometric_data_cached(
             f_body,
             f_health,
             f_goals,
+            f_daily,
+            f_calib,
             f_sched,
             f_telemetry,
         ]:

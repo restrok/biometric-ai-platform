@@ -111,6 +111,40 @@ def create_profile_tables():
     client.create_table(goals_table, exists_ok=True)
     print(f"✅ Table {goals_table_id} ready.")
 
+    # 6. Daily Physiology Table (24/7 Metrics)
+    daily_table_id = f"{PROJECT_ID}.{DATASET_ID}.daily_physiology"
+    daily_schema = [
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("date", "DATE", mode="REQUIRED"),
+        bigquery.SchemaField("resting_heart_rate", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("max_heart_rate", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("all_day_stress_avg", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("body_battery_end_of_day", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("total_steps", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
+    ]
+
+    daily_table = bigquery.Table(daily_table_id, schema=daily_schema)
+    daily_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+
+    client.create_table(daily_table, exists_ok=True)
+    print(f"✅ Table {daily_table_id} ready.")
+
+    # 7. User Calibration Profile (PCP Markers)
+    calib_table_id = f"{PROJECT_ID}.{DATASET_ID}.user_calibration_profile"
+    calib_schema = [
+        bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("marker_type", "STRING", mode="REQUIRED"),  # 'ac_ratio_red_line', 'adaptation_peak', etc.
+        bigquery.SchemaField("marker_value", "FLOAT64", mode="REQUIRED"),
+        bigquery.SchemaField("context", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+        bigquery.SchemaField("updated_at", "TIMESTAMP", mode="REQUIRED"),
+    ]
+
+    calib_table = bigquery.Table(calib_table_id, schema=calib_schema)
+    client.create_table(calib_table, exists_ok=True)
+    print(f"✅ Table {calib_table_id} ready.")
+
 
 if __name__ == "__main__":
     create_profile_tables()

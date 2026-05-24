@@ -255,3 +255,58 @@ def manage_goals(
     except Exception as e:
         log.error(f"❌ Failed to manage goal: {e}")
         return f"Error managing goal: {e}"
+
+
+class CalibrationMarkerInput(BaseModel):
+    marker_type: str = Field(..., description="Type of marker (e.g., 'ac_ratio_red_line', 'adaptation_peak').")
+    marker_value: float = Field(..., description="Numerical value of the marker.")
+    context: str | None = Field(None, description="Context or reason for this marker.")
+    user_id: str | None = Field(None, description="The ID of the user.")
+
+
+@tool(args_schema=CalibrationMarkerInput)
+def save_calibration_marker(
+    marker_type: str,
+    marker_value: float,
+    context: str | None = None,
+    user_id: str | None = None,
+):
+    """
+    Saves a Personal Calibration Profile (PCP) marker in BigQuery.
+    Use this tool (specifically the DataScientist) to persist discovered personal limits
+    or adaptation peaks found during historical data analysis.
+    """
+    config = get_config()
+    project_id = config["project_id"]
+    dataset = config["dataset_id"]
+
+    client = bigquery.Client(project=project_id)
+    table_id = f"{project_id}.{dataset}.user_calibration_profile"
+
+    # Merge on marker_type and user_id to update existing markers
+    on_clause = "T.marker_type = S.marker_type"
+    if user_id:
+        on_clause += f" AND T.user_id = '{user_id}'"
+
+    query = f"""
+        MERGE `{table_id}` T
+        USING (SELECT '{marker_type}' as marker_type) S
+        ON {on_clause}
+        WHEN MATCHED THEN
+            UPDATE SET 
+                marker_value = {marker_value},
+                context = {f"'{context}'" if context else "NULL"},
+                updated_at = CURRENT_TIMESTAMP()
+        WHEN NOT MATCHED THEN
+            INSERT (user_id, marker_type, marker_value, context, created_at, updated_at)
+            VALUES ({f"'{user_id}'" if user_id else "NULL"}, '{marker_type}', {marker_value}, {f"'{context}'" if context else "NULL"}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
+    """
+
+    try:
+        query_job = client.query(query)
+        query_job.result()
+        log.info(f"✅ Successfully saved calibration marker: {marker_type}={marker_value} (user: {user_id})")
+        return f"Successfully saved calibration marker: {marker_type}={marker_value}."
+    except Exception as e:
+        log.error(f"❌ Failed to save calibration marker: {e}")
+        return f"Error saving calibration marker: {e}"

@@ -104,7 +104,7 @@ def get_bigquery_schema() -> str:
     pid = config.get("project_id")
     ds = config.get("dataset_id")
 
-    schema_info: dict[str, Any] = {}
+    schema_info: dict[str, Any] = {"dataset_id": ds}
     client = get_bq_client(pid)
 
     try:
