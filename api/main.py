@@ -39,7 +39,7 @@ root_logger.addHandler(file_handler)
 log = logging.getLogger("api")
 log.info(f"🚀 Logging initialized with level: {log_level_name}")
 
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
 from langchain_core.messages import HumanMessage
@@ -50,7 +50,7 @@ from src.agent.proactive import run_proactive_analysis
 from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
-from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
+from src.utils.garmin_auth import refresh_garmin_tokens
 
 
 # --- Background Scheduler ---
