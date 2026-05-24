@@ -3,7 +3,7 @@
 import logging
 import os
 import statistics
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -103,7 +103,6 @@ def upsert_to_bq(
                     else:
                         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
                 elif bqt == "FLOAT":
-
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif bqt == "STRING":
                     df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
@@ -560,7 +559,7 @@ def run_etl(
                     df_profile.loc[0, "resting_hr"] = fallback_rest
                     log.info(f"Patched Resting HR with fallback: {fallback_rest}")
 
-            df_profile["updated_at"] = datetime.now(timezone.utc)
+            df_profile["updated_at"] = datetime.now(UTC)
             upsert_to_bq(df_profile, "user_profile", unique_key="user_id", user_id=user_id)
     except Exception as e:
         log.warning(f"User Profile sync failed: {e}")
@@ -662,7 +661,7 @@ def run_etl(
                     final_cal["description"] = ""
                     final_cal["duration_sec"] = df_cal.get("duration", 0)
                     final_cal["distance_m"] = df_cal.get("distance", 0)
-                    final_cal["updated_at"] = datetime.now(timezone.utc)
+                    final_cal["updated_at"] = datetime.now(UTC)
 
                     upload_to_bq(
                         final_cal,
@@ -734,7 +733,7 @@ def get_daily_physiology(client: Any, start_date: str, end_date: str) -> list[di
                         "all_day_stress_avg": summary.get("averageStressLevel"),
                         "body_battery_end_of_day": last_bb,
                         "total_steps": summary.get("totalSteps"),
-                        "updated_at": datetime.now(timezone.utc),
+                        "updated_at": datetime.now(UTC),
                     }
                 )
         except Exception as e:

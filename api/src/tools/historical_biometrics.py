@@ -80,7 +80,7 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
     # Fetch Personal Red Line (A:C Ratio)
     query_calib = f"""
         SELECT marker_value 
-        FROM `{config['project_id']}.{dataset}.user_calibration_profile`
+        FROM `{config["project_id"]}.{dataset}.user_calibration_profile`
         WHERE user_id = '{user_id}' 
         AND marker_type = 'ac_ratio_red_line'
     """

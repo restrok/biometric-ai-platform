@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Any
 
 import pandas as pd
 from google.cloud import bigquery
@@ -36,7 +35,7 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
     try:
         # 1. Fetch historical running distances (last 35 days for buffer)
         start_date = (datetime.now() - timedelta(days=35)).strftime("%Y-%m-%d")
-        
+
         # We need daily sums of distance
         query_dist = f"""
             SELECT 
@@ -56,8 +55,8 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
             AND marker_type IN ('ac_ratio_red_line', 'hrv_sensitivity_index')
         """
         calib_res = {r.marker_type: r.marker_value for r in client.query(query_calib).result()}
-        red_line = calib_res.get('ac_ratio_red_line', 1.45)
-        hrv_sensitivity = calib_res.get('hrv_sensitivity_index', 1.0) # Default 1.0 multiplier
+        red_line = calib_res.get("ac_ratio_red_line", 1.45)
+        hrv_sensitivity = calib_res.get("hrv_sensitivity_index", 1.0)  # Default 1.0 multiplier
 
         # 2.1 Fetch Latest HRV Status
         query_hrv = f"""
@@ -99,32 +98,32 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
         pace_res = list(client.query(query_pace).result())
         # Garmin pace is usually in m/s or min/km depending on the tool's storage.
         # recent_activities avg_pace is stored as float. Let's assume it's m/s if > 1 or min/km if < 1?
-        # Actually, let's look at the schema or data. 
+        # Actually, let's look at the schema or data.
         # In the context it showed: "avg_hr": 151.0, "distance_m": 9639.95...
         # Wait, retrieve_biometric_data output: "distance_m": 9639.95... "avg_hr": 151.0
         # It doesn't show avg_pace in the JSON I saw earlier but the schema says "avg_pace": "FLOAT".
-        
-        avg_pace_ms = pace_res[0].avg_pace if pace_res and pace_res[0].avg_pace else 3.0 # Fallback 3m/s (~5:33 min/km)
-        
+
+        avg_pace_ms = pace_res[0].avg_pace if pace_res and pace_res[0].avg_pace else 3.0  # Fallback 3m/s (~5:33 min/km)
+
         # Calculate proposed distance
         proposed_distance_km = (duration_mins * 60 * avg_pace_ms) / 1000
-        
+
         # 4. Calculate A:C Ratio
         if df_act.empty:
             current_ac = 1.0
-            new_ac = (proposed_distance_km / 7) / (proposed_distance_km / 28) # Will be 4.0 if no history
+            new_ac = (proposed_distance_km / 7) / (proposed_distance_km / 28)  # Will be 4.0 if no history
         else:
             df_act["date"] = pd.to_datetime(df_act["date_str"])
             df_act = df_act.set_index("date")
-            
+
             # Resample to ensure all days are present
             df_daily = df_act.resample("D").sum().fillna(0)
-            
+
             # Current State
             acute_load = df_daily["distance_km"].tail(7).sum()
             chronic_load = df_daily["distance_km"].tail(28).sum() / 4
             current_ac = acute_load / chronic_load if chronic_load > 0 else 1.0
-            
+
             # Future State (Assuming workout is today)
             df_future = df_daily.copy()
             today_str = datetime.now().strftime("%Y-%m-%d")
@@ -134,7 +133,7 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
                 # Add a new row if not present
                 new_row = pd.DataFrame({"distance_km": [proposed_distance_km]}, index=[pd.to_datetime(today_str)])
                 df_future = pd.concat([df_future, new_row]).sort_index()
-            
+
             new_acute = df_future["distance_km"].tail(7).sum()
             new_chronic = df_future["distance_km"].tail(28).sum() / 4
             new_ac = new_acute / new_chronic if new_chronic > 0 else 1.0
@@ -160,7 +159,7 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
             "proposed_workout": {
                 "duration_mins": duration_mins,
                 "avg_hr": avg_hr,
-                "est_distance_km": round(proposed_distance_km, 2)
+                "est_distance_km": round(proposed_distance_km, 2),
             },
             "impact_analysis": {
                 "current_ac_ratio": round(current_ac, 2),
@@ -169,11 +168,11 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
                 "effective_ac_ratio": round(effective_ac, 2),
                 "personal_red_line": red_line,
                 "risk_level": risk_level,
-                "hrv_context": hrv_context
+                "hrv_context": hrv_context,
             },
-            "recommendation": recommendation
+            "recommendation": recommendation,
         }
-        
+
         log.info(f"✅ Training impact projected for {user_id}: New AC {new_ac}")
         return json.dumps(result)
 

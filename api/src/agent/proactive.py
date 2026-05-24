@@ -139,7 +139,9 @@ def _run_discovery_phase(user_id: str):
     log.info(f"🧪 Activating Discovery Phase (Data Science) for {user_id}...")
     try:
         from typing import cast
+
         from langchain_core.messages import HumanMessage
+
         from src.agent.graph import AgentState, graph
 
         discovery_prompt = (

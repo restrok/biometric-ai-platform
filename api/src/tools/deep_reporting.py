@@ -140,7 +140,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     z_score_eff = 0.0
     cv_color = "#3498db"
     ac_trend_svg = ""
-    
+
     config = get_config()
     client = get_bq_client(config["project_id"])
     dataset = config["dataset_id"]
@@ -148,7 +148,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     # Fetch Personal Red Line (A:C Ratio)
     query_calib = f"""
         SELECT marker_value 
-        FROM `{config['project_id']}.{dataset}.user_calibration_profile`
+        FROM `{config["project_id"]}.{dataset}.user_calibration_profile`
         WHERE user_id = '{user_id}' 
         AND marker_type = 'ac_ratio_red_line'
     """

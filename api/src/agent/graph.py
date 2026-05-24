@@ -10,7 +10,6 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     SystemMessage,
-    ToolMessage,
 )
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
@@ -266,11 +265,11 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
 
     # Filter state messages to include only standard types that the model supports
     # and strictly pass them as standard LangChain messages
-    input_messages = [
+    input_messages: list[BaseMessage] = [
         SystemMessage(content=INJURY_PREVENTION_PROMPT),
         SystemMessage(content=context_str),
     ]
-    
+
     # Only pass the last Human message to avoid polluting with previous agent reports
     for m in reversed(state["messages"]):
         if m.type == "human":
@@ -295,7 +294,7 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     context = state.get("biometric_context", {})
     context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
 
-    input_messages = [
+    input_messages: list[BaseMessage] = [
         SystemMessage(content=SLEEP_CIRCADIAN_PROMPT),
         SystemMessage(content=context_str),
     ]
@@ -303,8 +302,8 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     # Include the latest reports from other agents if available
     for m in state["messages"]:
         if "--- INTERNAL INJURY RISK REPORT ---" in str(m.content):
-             input_messages.append(SystemMessage(content=str(m.content)))
-    
+            input_messages.append(SystemMessage(content=str(m.content)))
+
     # Only pass the last Human message
     for m in reversed(state["messages"]):
         if m.type == "human":
@@ -328,7 +327,7 @@ def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     context = state.get("biometric_context", {})
     context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
 
-    input_messages = [
+    input_messages: list[BaseMessage] = [
         SystemMessage(content=METABOLIC_NUTRITION_AGENT_PROMPT),
         SystemMessage(content=context_str),
     ]
