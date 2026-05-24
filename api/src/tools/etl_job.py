@@ -97,7 +97,7 @@ def upsert_to_bq(
                 if bqt == "INTEGER":
                     if col == "date" or col.endswith("_at"):
                         # Ensure we convert datetime to SECONDS, not nanoseconds
-                        df[col] = pd.to_datetime(df[col], errors="coerce").view("int64") // 10**9
+                        df[col] = pd.to_datetime(df[col], errors="coerce").astype("int64") // 10**9
                         # Replace negative/very small values with 0
                         df.loc[df[col] < 0, col] = 0
                     else:
@@ -106,7 +106,10 @@ def upsert_to_bq(
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif bqt == "STRING":
                     df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
-                elif bqt in ["DATETIME", "TIMESTAMP"]:
+                elif bqt == "DATETIME":
+                    # BigQuery DATETIME does not support timezones. Strip if present.
+                    df[col] = pd.to_datetime(df[col], errors="coerce").dt.tz_localize(None)
+                elif bqt == "TIMESTAMP":
                     df[col] = pd.to_datetime(df[col], errors="coerce")
                 elif bqt == "DATE":
                     df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
@@ -348,7 +351,7 @@ def run_etl(
         from src.utils.notifications import send_proactive_notification
         send_proactive_notification(
             user_id=user_id or "fsirio",
-            message=f"⚠️ **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link."
+            message="⚠️ **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link."
         )
         return None
 
@@ -437,16 +440,18 @@ def run_etl(
             upsert_to_bq(df_act, "recent_activities", unique_key="id", user_id=user_id)
 
             if all_telemetry:
-                df_telemetry = pd.concat(all_telemetry)
-                if "run_walk_index" in df_telemetry.columns:
-                    df_telemetry["run_walk_index"] = df_telemetry["run_walk_index"].astype(float)
-                upload_to_bq(
-                    df_telemetry,
-                    "latest_activity_telemetry",
-                    "telemetry",
-                    mode="WRITE_APPEND",
-                    user_id=user_id,
-                )
+                all_telemetry = [d for d in all_telemetry if not d.empty]
+                if all_telemetry:
+                    df_telemetry = pd.concat(all_telemetry)
+                    if "run_walk_index" in df_telemetry.columns:
+                        df_telemetry["run_walk_index"] = df_telemetry["run_walk_index"].astype(float)
+                    upload_to_bq(
+                        df_telemetry,
+                        "latest_activity_telemetry",
+                        "telemetry",
+                        mode="WRITE_APPEND",
+                        user_id=user_id,
+                    )
         else:
             log.info(f"No new activities to sync for user {user_id}.")
 
@@ -589,7 +594,9 @@ def run_etl(
             manual_data = get_manual_weigh_ins(client, start_str, end_str)
             if manual_data:
                 df_manual = pd.DataFrame(manual_data)
-                df_body = pd.concat([df_body, df_manual]).drop_duplicates(subset=["date"], keep="first")
+                dfs_to_concat = [d for d in [df_body, df_manual] if not d.empty]
+                if dfs_to_concat:
+                    df_body = pd.concat(dfs_to_concat).drop_duplicates(subset=["date"], keep="first")
 
             if not df_body.empty:
                 df_body["date"] = pd.to_datetime(df_body["date"]).dt.date

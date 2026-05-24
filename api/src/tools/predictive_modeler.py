@@ -132,7 +132,8 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
             else:
                 # Add a new row if not present
                 new_row = pd.DataFrame({"distance_km": [proposed_distance_km]}, index=[pd.to_datetime(today_str)])
-                df_future = pd.concat([df_future, new_row]).sort_index()
+                dfs_to_concat = [d for d in [df_future, new_row] if not d.empty]
+                df_future = pd.concat(dfs_to_concat).sort_index() if dfs_to_concat else pd.DataFrame()
 
             new_acute = df_future["distance_km"].tail(7).sum()
             new_chronic = df_future["distance_km"].tail(28).sum() / 4
