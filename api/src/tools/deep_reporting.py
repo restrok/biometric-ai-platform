@@ -140,6 +140,20 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     z_score_eff = 0.0
     cv_color = "#3498db"
     ac_trend_svg = ""
+    
+    config = get_config()
+    client = get_bq_client(config["project_id"])
+    dataset = config["dataset_id"]
+
+    # Fetch Personal Red Line (A:C Ratio)
+    query_calib = f"""
+        SELECT marker_value 
+        FROM `{config['project_id']}.{dataset}.user_calibration_profile`
+        WHERE user_id = '{user_id}' 
+        AND marker_type = 'ac_ratio_red_line'
+    """
+    calib_res = list(client.query(query_calib).result())
+    red_line = calib_res[0].marker_value if calib_res else 1.3
 
     if not df_act.empty:
         df_act["date"] = pd.to_datetime(df_act["date_str"])
@@ -161,9 +175,9 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         )
 
         # Color based on A:C ratio
-        if 0.8 <= ac_ratio <= 1.3:
+        if ac_ratio <= 1.1:
             cv_color = "var(--success)"
-        elif ac_ratio > 1.5:
+        elif ac_ratio > red_line:
             cv_color = "var(--danger)"
         else:
             cv_color = "var(--warning)"
@@ -253,12 +267,20 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
     # 5. Warnings & Anomalies
     warnings = []
-    if ac_ratio > 1.3:
+    if ac_ratio > red_line:
         warnings.append(
             (
                 "High Injury Risk",
-                f"A:C Ratio is {ac_ratio} (Safe range: 0.8-1.3). Consider a deload week.",
+                f"A:C Ratio is {ac_ratio} (Personal Red Line: {red_line}). Consider a deload week.",
                 "danger-box",
+            )
+        )
+    elif ac_ratio > 1.3:
+        warnings.append(
+            (
+                "Volume Warning",
+                f"A:C Ratio is {ac_ratio} (Safe baseline: 1.3). You are pushing close to your personal limits.",
+                "warning-box",
             )
         )
     if z_score_eff < -1.5:

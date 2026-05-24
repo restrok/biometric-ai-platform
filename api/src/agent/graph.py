@@ -553,8 +553,10 @@ def route_after_analysis(state: AgentState):
     last_message = messages[-1]
 
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        # If it's a data scientist tool, we could route to data_scientist node
-        # But for now, just use standard tools node
+        # Check if any tool call is for exploratory data science
+        exploratory_tools = ["execute_exploratory_query", "get_bigquery_schema"]
+        if any(tc["name"] in exploratory_tools for tc in last_message.tool_calls):
+            return "data_scientist"
         return "tools"
 
     # If no tools, go to validator before finishing
@@ -581,8 +583,11 @@ workflow.add_edge("injury_prevention", "sleep_recovery")
 workflow.add_edge("sleep_recovery", "metabolic_nutrition")
 workflow.add_edge("metabolic_nutrition", "analyzer")
 
-workflow.add_conditional_edges("analyzer", route_after_analysis, {"tools": "tools", "validator": "validator"})
+workflow.add_conditional_edges(
+    "analyzer", route_after_analysis, {"tools": "tools", "data_scientist": "data_scientist", "validator": "validator"}
+)
 workflow.add_edge("tools", "analyzer")
+workflow.add_edge("data_scientist", "tools")
 workflow.add_edge("validator", END)
 
 # Compile

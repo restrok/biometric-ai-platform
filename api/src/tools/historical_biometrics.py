@@ -73,6 +73,20 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
     if df.empty:
         return {"status": "no_data"}, "No data available."
 
+    config = get_config()
+    client = get_bq_client(config["project_id"])
+    dataset = config["dataset_id"]
+
+    # Fetch Personal Red Line (A:C Ratio)
+    query_calib = f"""
+        SELECT marker_value 
+        FROM `{config['project_id']}.{dataset}.user_calibration_profile`
+        WHERE user_id = '{user_id}' 
+        AND marker_type = 'ac_ratio_red_line'
+    """
+    calib_res = list(client.query(query_calib).result())
+    red_line = calib_res[0].marker_value if calib_res else 1.3
+
     df["date"] = pd.to_datetime(df["date_str"])
     df = df.sort_values("date").set_index("date")
 
@@ -118,9 +132,13 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
     current_chronic = round(df_daily["chronic_load_28d_km"].iloc[-1], 1)
     ac_ratio = round(current_acute / current_chronic, 2) if current_chronic > 0 else 0
 
-    if ac_ratio > 1.5:
+    if ac_ratio > red_line:
         warnings.append(
-            f"ALERTA DE LESIÓN: Ratio Agudo/Crónico en {ac_ratio} (Umbral seguro < 1.3). Sobrecarga de volumen."
+            f"ALERTA DE LESIÓN: Ratio Agudo/Crónico en {ac_ratio} (Superó tu línea roja personal de {red_line}). Sobrecarga de volumen."
+        )
+    elif ac_ratio > 1.3:
+        warnings.append(
+            f"PRECAUCIÓN: Ratio Agudo/Crónico en {ac_ratio} (Base segura < 1.3). Te acercas a tu límite personal."
         )
 
     # Generación de metadatos del reporte
@@ -143,7 +161,7 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 ## 1. Resumen de Carga de Entrenamiento
 - **Volumen últimos 7 días (Carga Aguda):** {current_acute} km
 - **Promedio semanal último mes (Carga Crónica):** {current_chronic} km/semana
-- **Ratio Agudo/Crónico (A:C):** {ac_ratio} *(Seguro: 0.8 - 1.3)*
+- **Ratio Agudo/Crónico (A:C):** {ac_ratio} *(Seguro: 0.8 - 1.3 | Tu Límite: {red_line})*
 
 ## 2. Análisis de Eficiencia Aeróbica (Power / HR)
 - **Baseline (Últimos 60 días):** {round(baseline_eff, 2)}
