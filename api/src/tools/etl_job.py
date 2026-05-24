@@ -340,8 +340,17 @@ def run_etl(
 
     from src.utils.provider_factory import get_provider
 
-    provider = get_provider(user_id=user_id, refresh=True)
-    client = getattr(provider, "client", None)
+    try:
+        provider = get_provider(user_id=user_id, refresh=True)
+        client = getattr(provider, "client", None)
+    except Exception as e:
+        log.error(f"Authentication failed for user {user_id}: {e}")
+        from src.utils.notifications import send_proactive_notification
+        send_proactive_notification(
+            user_id=user_id or "fsirio",
+            message=f"⚠️ **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link."
+        )
+        return None
 
     if not client:
         log.error(f"Garmin authentication client not found in Provider for user {user_id}.")
