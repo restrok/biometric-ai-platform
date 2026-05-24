@@ -161,17 +161,16 @@ def _retrieve_biometric_data_cached(
     context: dict[str, Any] = {}
     top_3_ids: list[str] = []
 
-    # Common WHERE clause helper for user_id
-    user_where = f"WHERE user_id = '{user_id}'" if user_id else ""
+    # STRICT USER ISOLATION: Default to 'fsirio' if not provided for safety
+    user_id = user_id or "fsirio"
+    user_where = f"WHERE user_id = '{user_id}'"
 
     def fetch_activities() -> tuple[str, list[dict[str, Any]]]:
         """Fetches recent activities from BigQuery."""
         nonlocal top_3_ids
         try:
             t0 = time.time()
-            where_clauses = []
-            if user_id:
-                where_clauses.append(f"user_id = '{user_id}'")
+            where_clauses = [f"user_id = '{user_id}'"]
             if activity_type:
                 where_clauses.append(f"type = '{activity_type}'")
 
@@ -186,9 +185,7 @@ def _retrieve_biometric_data_cached(
                 end_seconds = int(dt_end.timestamp())
                 where_clauses.append(f"date < {end_seconds}")
 
-            where_clause = ""
-            if where_clauses:
-                where_clause = "WHERE " + " AND ".join(where_clauses)
+            where_clause = "WHERE " + " AND ".join(where_clauses)
 
             query_act = f"""
                 SELECT id, 
@@ -211,14 +208,11 @@ def _retrieve_biometric_data_cached(
         """Fetches the latest training status."""
         try:
             t0 = time.time()
-            where_status = "WHERE (status IS NOT NULL OR acute_load IS NOT NULL)"
-            if user_id:
-                where_status += f" AND user_id = '{user_id}'"
             query_status = f"""
                 SELECT status, acute_load, training_load_balance, vo2max_precise, 
                        primary_benefit, recovery_time_hours
                 FROM `{project_id}.{dataset}.training_status` 
-                {where_status}
+                {user_where}
                 ORDER BY date DESC LIMIT 1
             """
             status_rows = list(client.query(query_status).result())
@@ -231,14 +225,11 @@ def _retrieve_biometric_data_cached(
         """Fetches the latest sleep record."""
         try:
             t0 = time.time()
-            where_sleep = "WHERE (duration_sec IS NOT NULL OR quality IS NOT NULL)"
-            if user_id:
-                where_sleep += f" AND user_id = '{user_id}'"
             query_sleep = f"""
                 SELECT date, duration_sec, quality, deep_sec, light_sec, 
                        rem_sec, awake_sec
                 FROM `{project_id}.{dataset}.sleep_history` 
-                {where_sleep}
+                {user_where}
                 ORDER BY date DESC LIMIT 1
             """
             sleep_rows = list(client.query(query_sleep).result())
