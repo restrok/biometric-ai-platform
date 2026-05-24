@@ -268,6 +268,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
 
     last_query = user_messages[-1].content
     initial_state = {"messages": [HumanMessage(content=last_query)], "user_id": x_user_id}
+    config = {"configurable": {"thread_id": x_user_id}}
 
     # 1. Handle Streaming Mode
     if req.stream:
@@ -276,7 +277,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
             completion_id = f"chatcmpl-{int(time.time())}"
             created_time = int(time.time())
 
-            async for event in graph.astream_events(initial_state, version="v2"):
+            async for event in graph.astream_events(initial_state, version="v2", config=config):
                 kind = event["event"]
                 tags = event.get("tags", [])
 
@@ -301,7 +302,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
 
     # 2. Handle Non-Streaming Mode
     try:
-        result = await graph.ainvoke(cast(Any, initial_state))
+        result = await graph.ainvoke(cast(Any, initial_state), config=config)
         ai_msg = result["messages"][-1]
         ai_reply = ai_msg.content
 

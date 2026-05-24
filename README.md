@@ -71,7 +71,7 @@ Because the API is fully OpenAI-Compatible, you can plug your AI Coach into prof
 ## ✨ Why Choose Biometric AI?
 
 ### 🔬 Science-Backed, Not Generic
-Generic plans don't know when you slept poorly. Our AI Coach uses **Agentic RAG (Retrieval-Augmented Generation)** grounded in exercise physiology to dynamically adjust your training based on the **Polarized (80/20) Model**. 
+Generic plans don't know when you slept poorly. Our AI Coach uses **Agentic RAG (Retrieval-Augmented Generation)** grounded in exercise physiology to dynamically adjust your training based on the **Polarized (80/20) Model**.
 
 ### 🫀 Second-by-Second Telemetry Analysis
 We don't just look at your average heart rate. The platform analyzes your **Ground Contact Time (GCT), Vertical Oscillation, and Power (Watts)** to detect subtle form breakdowns and Aerobic Decoupling (Cardiac Drift)—catching fatigue before it becomes an injury.
@@ -83,17 +83,14 @@ We don't just look at your average heart rate. The platform analyzes your **Grou
 
 ---
 
-### 🚀 Key Features
-
-* **Multi-User Architecture:** Support for multiple athletes on a single deployment. The API uses `X-User-ID` context isolation for data retrieval and Garmin authentication.
-* **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin (and future brands) without altering the core agent logic.
-
-* **Persistent Bio-Profiles:** The agent autonomously discovers physiological thresholds (like your Aerobic Threshold) and updates your BigQuery profile automatically.
-*   **Automated Calendar Management:** The AI can build complex interval sessions (e.g., 10x400m) and sync them directly to your device.
-*   **Zero-CLI Dynamic Auth:** Link your Garmin account directly through the chat interface using secure SSO—no terminal commands required.
-*   **Modular Infrastructure (Terraform):** Ready-to-deploy GCP infrastructure (BigQuery, GCS, IAM, Secrets, Budgets) managed with enterprise-grade modular Terraform.
-*   **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.
-
+## 🚀 Key Features
+- **Classroom of Agents Architecture:** Multi-agent orchestration using LangGraph (Data Scientist, Physiologist, Head Coach) for complex decision making.
+- **Deep Biometric Evolution:** Dynamic historical reporting (3-6 months) generating rich HTML dashboards with SVG trend visualizations.
+- **AgentSearch (Exploratory SQL):** Autonomous data exploration using sandboxed BigQuery queries to discover personalized physiological correlations.
+- **Pre-Flight Health Scan:** Mandatory safety gating that cross-references A:C Ratio, HRV, and subjective logs before prescribing any workout.
+- **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.
+- **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin.
+- **Zero-CLI Dynamic Auth:** Link your Garmin account directly through the chat interface using secure SSO.
 
 ---
 

@@ -14,6 +14,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
+from src.tools.data_scientist import execute_exploratory_query, get_bigquery_schema
+from src.tools.deep_reporting import generate_deep_historical_report
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
     batch_remove_workouts,
@@ -24,7 +26,12 @@ from src.tools.garmin_uploader import (
     upload_training_plan,
 )
 from src.tools.historical_biometrics import generate_historical_report
-from src.tools.profile_manager import log_health_status, manage_goals, update_user_zones
+from src.tools.profile_manager import (
+    configure_proactive_coaching,
+    log_health_status,
+    manage_goals,
+    update_user_zones,
+)
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -45,9 +52,13 @@ TOOLS = {
     "search_exercise_science": search_exercise_science,
     "retrieve_biometric_data": retrieve_biometric_data,
     "generate_historical_report": generate_historical_report,
+    "generate_deep_historical_report": generate_deep_historical_report,
+    "execute_exploratory_query": execute_exploratory_query,
+    "get_bigquery_schema": get_bigquery_schema,
     "read_report_artifact": read_report_artifact,
     "get_garmin_auth_url": get_garmin_auth_url,
     "complete_garmin_auth": complete_garmin_auth,
+    "configure_proactive_coaching": configure_proactive_coaching,
 }
 
 

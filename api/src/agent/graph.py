@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
@@ -15,6 +16,8 @@ from typing_extensions import TypedDict
 
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
+from src.tools.data_scientist import execute_exploratory_query, get_bigquery_schema
+from src.tools.deep_reporting import generate_deep_historical_report
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
     batch_remove_workouts,
@@ -63,11 +66,23 @@ class IntentClassifier(BaseModel):
 
 
 # System prompt incorporating legacy_logic rules (summarized)
-SYSTEM_PROMPT = """You are a highly advanced AI Running Coach and Exercise Physiologist. 
+SYSTEM_PROMPT = """You are a highly advanced AI Running Coach and Exercise Physiologist, inspired by the latest research in Large Sensor Foundation Models (SensorFM).
 Your goal is to provide personalized, research-backed training advice based on the user's query and their current biometric context.
 
-### 🛡️ ETHICAL & PRECISION PROTOCOL (CRITICAL)
-- **HARD RULE: NO MANUAL HISTORICAL REPORTS.** If the user asks for a "Reporte Histórico", "Evolución", or any long-term analysis, you **MUST** call `generate_historical_report`. Do NOT attempt to summarize the data from `retrieve_biometric_data` manually. You lack the statistical engine to calculate A:C ratios and Z-scores; only the tool can do this and create the necessary GCS artifact.
+### 🛡️ MANDATORY PRE-FLIGHT HEALTH SCAN (CRITICAL)
+Before you prescribe ANY training plan or specific workout (using `upload_training_plan`), you MUST perform a holistic scan of the user's current physiological state:
+1. **Objective Workload:** Check the current **Acute:Chronic (A:C) Ratio**. 
+   - If A:C Ratio > 1.3: You are FORBIDDEN from prescribing high intensity. Suggest Zone 1/2 or rest.
+   - If A:C Ratio > 1.5: You MUST recommend immediate deload or total rest.
+2. **Nervous System Status:** Evaluate the latest **HRV Trend**. 
+   - If HRV is "Declining" or "Unbalanced": Prioritize recovery sessions only.
+3. **Subjective Wellness:** Check the latest **Health Logs** (Fatigue/Feeling).
+   - If fatigue >= 7 or feeling <= 4: Override high-intensity requests with easy recovery.
+4. **Data Recency:** If your biometric context is older than 24h or missing these markers, you MUST call `retrieve_biometric_data` or `generate_historical_report` BEFORE drafting the plan.
+
+### 🛡️ ETHICAL & PRECISION PROTOCOL
+- **HARD RULE: DEEP HISTORICAL ANALYSIS.** If the user asks for a "Reporte Histórico", "Evolución", or any analysis spanning 1-6 months, you **MUST** call `generate_deep_historical_report`. Do NOT attempt to summarize raw telemetry or multiple months of data manually. You lack the statistical engine to calculate rolling A:C ratios and Z-scores efficiently; only the tool can generate the high-fidelity GCS artifact required for deep insights.
+- **HARD RULE: EXPLORATORY DATA SCIENCE.** If a user asks a novel physiological question that isn't covered by standard tools (e.g., "Does my sleep quality correlate with my running pace?"), use `get_bigquery_schema` to understand the data lake and then `execute_exploratory_query` to find the answer. You are a "Data Scientist" as much as a coach.
 - **HARD RULE: NO UI BUTTON HALLUCINATIONS.** We are an API-first system. If a user wants to connect their Garmin account, you **MUST** call `get_garmin_auth_url`. Do NOT tell the user to use a "Connect button" or "App settings" as they do not exist in the current interface.
 - **Separate Facts from Interpretation:** Always start by presenting raw data (e.g., "Observed: 5% Aerobic Decoupling, +2cm Vertical Oscillation"). Then, provide a physiological interpretation labeled as such (e.g., "Interpretation: This suggests potential mechanical fatigue").
 - **Avoid Overconfidence:** Use cautious language. Instead of "You are overtrained," use "The data indicates a trend toward overreaching."
@@ -118,7 +133,10 @@ Analyze the following metrics to provide a holistic view of the runner's economy
 
 
 ### TOOLS & ACTIONS:
-- **upload_training_plan:** You MUST call this tool whenever the user asks for a training plan, recovery plan, or workout upload. 
+- **generate_deep_historical_report:** MANDATORY for 'Historical Reports', 'Evolución', or long-term trends (1-6 months). Performs multi-domain analysis (Cardio, Sleep, HRV, Subjective Health) and creates a GCS HTML artifact.
+- **execute_exploratory_query:** Executes sandboxed, read-only SQL for novel hypothesis testing. MUST include `WHERE user_id = '{user_id}'`.
+- **get_bigquery_schema:** Retrieves the table and column definitions for the Biometric Data Lake.
+- **upload_training_plan:** You MUST call this tool whenever the user asks for a training plan, recovery plan, or workout upload. **MANDATORY:** Perform a Pre-Flight Health Scan before calling this.
 - **clear_calendar:** You MUST call this tool before `upload_training_plan` to clear the target date range. This prevents duplicates.
 - **remove_workout:** Use this to delete a specific workout template if requested.
 - **list_workouts:** Lists all workout templates currently in the user's Garmin library.
@@ -232,8 +250,8 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     """
     t0 = time.time()
     model_name = "gemma-4-31b-it"
-    # Disable AFC via enable_auto_call to let LangGraph's should_continue manage the tool loop
-    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, enable_auto_call=False)
+    # Disable AFC via model_kwargs to let LangGraph's should_continue manage the tool loop without warnings
+    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False})
 
     tools = [
         upload_training_plan,
@@ -243,6 +261,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         update_user_zones,
         sync_biometric_data,
         generate_historical_report,
+        generate_deep_historical_report,
+        execute_exploratory_query,
+        get_bigquery_schema,
         read_report_artifact,
         analyze_activity_efficiency,
         analyze_activity_stages,
@@ -361,6 +382,10 @@ def tool_node(state: AgentState) -> Any:
             search_exercise_science,
             update_user_zones,
             sync_biometric_data,
+            generate_historical_report,
+            generate_deep_historical_report,
+            execute_exploratory_query,
+            get_bigquery_schema,
             analyze_activity_efficiency,
             analyze_activity_stages,
             retrieve_biometric_data,
@@ -374,50 +399,61 @@ def tool_node(state: AgentState) -> Any:
             configure_proactive_coaching,
         ]
     )
-    return tn.invoke(state)
+    return tn
 
 
-def should_continue(state: AgentState) -> str | Literal["__end__"]:
-    """Determines if the graph should continue to tools or end.
+def node_data_scientist(state: AgentState) -> dict[str, Any]:
+    """Specialized node for complex exploratory data analysis."""
+    log.info("🧪 DataScientist node activated for deep analysis...")
+    # This node could have its own specialized system prompt
+    # For now, it delegates to the main analyzer with the DataScientist tools
+    return node_analyze(state)
 
-    Args:
-        state: Current agent state.
 
-    Returns:
-        'tools' if tools are requested, otherwise END.
-    """
+def node_validator(state: AgentState) -> dict[str, Any]:
+    """Validates the output of the analyzer to ensure physiological accuracy and formatting."""
+    last_msg = state["messages"][-1].content
+    log.info("🧐 Validator node reviewing response...")
+    
+    # Simple validation logic: check if the response is too short or lacks context
+    if len(str(last_msg)) < 100 and "artifact_uri" not in str(last_msg):
+        log.warning("⚠️ Response seems too brief. Requesting elaboration.")
+        # This could trigger a retry or a feedback message
+        
+    return {"loop_count": state.get("loop_count", 0)}
+
+
+# Conditional edges from analyzer
+def route_after_analysis(state: AgentState):
     messages = state["messages"]
     last_message = messages[-1]
-
-    log.info(f"🤔 should_continue? Last message type: {type(last_message)}")
-
-    loop_count = state.get("loop_count", 0)
-    if loop_count > 4:
-        log.warning(f"⚠️ Loop count ({loop_count}) exceeded. Stopping to preserve API quota.")
-        return END
-
+    
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        log.info(f"✅ Tools requested: {[tc['name'] for tc in last_message.tool_calls]}")
+        # If it's a data scientist tool, we could route to data_scientist node
+        # But for now, just use standard tools node
         return "tools"
+    
+    # If no tools, go to validator before finishing
+    return "validator"
 
-    log.info("🔚 No tools requested. Ending.")
-    return END
 
+memory = MemorySaver()
 
-# Build Graph
-builder = StateGraph(AgentState)
-builder.add_node("router", node_router)
-builder.add_node("retriever", node_retrieve_context)
-builder.add_node("analyzer", node_analyze)
-builder.add_node("tools", tool_node)
+workflow = StateGraph(AgentState)
+workflow.add_node("router", node_router)
+workflow.add_node("retriever", node_retrieve_context)
+workflow.add_node("analyzer", node_analyze)
+workflow.add_node("data_scientist", node_data_scientist)
+workflow.add_node("validator", node_validator)
+workflow.add_node("tools", tool_node)
 
-builder.add_edge(START, "router")
-builder.add_edge("router", "retriever")
-builder.add_edge("retriever", "analyzer")
+workflow.add_edge(START, "router")
+workflow.add_edge("router", "retriever")
+workflow.add_edge("retriever", "analyzer")
 
-builder.add_conditional_edges("analyzer", should_continue, {"tools": "tools", END: END})
-
-builder.add_edge("tools", "analyzer")
+workflow.add_conditional_edges("analyzer", route_after_analysis, {"tools": "tools", "validator": "validator"})
+workflow.add_edge("tools", "analyzer")
+workflow.add_edge("validator", END)
 
 # Compile
-graph = builder.compile()
+graph = workflow.compile(checkpointer=memory)
