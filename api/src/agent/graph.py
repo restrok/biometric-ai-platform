@@ -6,7 +6,12 @@ import time
 from collections.abc import Sequence
 from typing import Annotated, Any, Literal
 
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import (
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
@@ -14,6 +19,12 @@ from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
+from src.agent.prompts import (
+    HEAD_COACH_SYSTEM_PROMPT,
+    INJURY_PREVENTION_PROMPT,
+    METABOLIC_NUTRITION_AGENT_PROMPT,
+    SLEEP_CIRCADIAN_PROMPT,
+)
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
 from src.tools.data_scientist import execute_exploratory_query, get_bigquery_schema
@@ -28,10 +39,12 @@ from src.tools.garmin_uploader import (
     upload_training_plan,
 )
 from src.tools.historical_biometrics import generate_historical_report
+from src.tools.predictive_modeler import project_training_impact
 from src.tools.profile_manager import (
     configure_proactive_coaching,
     log_health_status,
     manage_goals,
+    save_calibration_marker,
     update_user_zones,
 )
 from src.tools.read_report_artifact import read_report_artifact
@@ -83,7 +96,10 @@ Before you prescribe ANY training plan or specific workout (using `upload_traini
 ### 🛡️ ETHICAL & PRECISION PROTOCOL
 - **HARD RULE: DEEP HISTORICAL ANALYSIS.** If the user asks for a "Reporte Histórico", "Evolución", or any analysis spanning 1-6 months, you **MUST** call `generate_deep_historical_report`. Do NOT attempt to summarize raw telemetry or multiple months of data manually. You lack the statistical engine to calculate rolling A:C ratios and Z-scores efficiently; only the tool can generate the high-fidelity GCS artifact required for deep insights.
 - **HARD RULE: EXPLORATORY DATA SCIENCE.** If a user asks a novel physiological question that isn't covered by standard tools (e.g., "Does my sleep quality correlate with my running pace?"), use `get_bigquery_schema` to understand the data lake and then `execute_exploratory_query` to find the answer. You are a "Data Scientist" as much as a coach.
-- **HARD RULE: NO UI BUTTON HALLUCINATIONS.** We are an API-first system. If a user wants to connect their Garmin account, you **MUST** call `get_garmin_auth_url`. Do NOT tell the user to use a "Connect button" or "App settings" as they do not exist in the current interface.
+    - **PCP AUDIT:** Periodically audit historical data to find "Failure Events" (injuries/exhaustion) vs "Adaptation Peaks". Use `save_calibration_marker` to persist these personal limits (e.g., "Personal Red Line: 1.55 AC Ratio").
+    - **HOLISTIC VIEW:** Always cross-reference training load with `daily_physiology` (all-day stress, RHR). If a user has high life stress but low training load, recommend recovery anyway.
+- **HARD RULE: NO UI BUTTON HALLUCINATIONS.**
+ We are an API-first system. If a user wants to connect their Garmin account, you **MUST** call `get_garmin_auth_url`. Do NOT tell the user to use a "Connect button" or "App settings" as they do not exist in the current interface.
 - **Separate Facts from Interpretation:** Always start by presenting raw data (e.g., "Observed: 5% Aerobic Decoupling, +2cm Vertical Oscillation"). Then, provide a physiological interpretation labeled as such (e.g., "Interpretation: This suggests potential mechanical fatigue").
 - **Avoid Overconfidence:** Use cautious language. Instead of "You are overtrained," use "The data indicates a trend toward overreaching."
 - **Multi-Observation Rule:** Do not draw definitive conclusions about the user's fitness or health from a single workout. Always cross-reference the current session with at least the last 3-5 activities to identify trends.
@@ -239,6 +255,109 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
     return {"biometric_context": context}
 
 
+def node_injury_prevention(state: AgentState) -> dict[str, Any]:
+    """Specialized node for injury risk analysis."""
+    log.info("🛡️ Injury Prevention Agent scanning biometrics...")
+    model_name = "gemma-4-31b-it"
+    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+
+    context = state.get("biometric_context", {})
+    context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
+
+    # Filter state messages to include only standard types that the model supports
+    # and strictly pass them as standard LangChain messages
+    input_messages = [
+        SystemMessage(content=INJURY_PREVENTION_PROMPT),
+        SystemMessage(content=context_str),
+    ]
+    
+    # Only pass the last Human message to avoid polluting with previous agent reports
+    for m in reversed(state["messages"]):
+        if m.type == "human":
+            input_messages.append(HumanMessage(content=m.content))
+            break
+
+    response = model.invoke(input_messages)
+    # Wrap the response as a hidden internal report
+    report_msg = SystemMessage(
+        content=f"--- INTERNAL INJURY RISK REPORT ---\n{response.content}\n----------------------------------"
+    )
+
+    return {"messages": [report_msg]}
+
+
+def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
+    """Specialized node for sleep and recovery analysis."""
+    log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
+    model_name = "gemma-4-31b-it"
+    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+
+    context = state.get("biometric_context", {})
+    context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
+
+    input_messages = [
+        SystemMessage(content=SLEEP_CIRCADIAN_PROMPT),
+        SystemMessage(content=context_str),
+    ]
+
+    # Include the latest reports from other agents if available
+    for m in state["messages"]:
+        if "--- INTERNAL INJURY RISK REPORT ---" in str(m.content):
+             input_messages.append(SystemMessage(content=str(m.content)))
+    
+    # Only pass the last Human message
+    for m in reversed(state["messages"]):
+        if m.type == "human":
+            input_messages.append(HumanMessage(content=m.content))
+            break
+
+    response = model.invoke(input_messages)
+    report_msg = SystemMessage(
+        content=f"--- INTERNAL SLEEP & RECOVERY REPORT ---\n{response.content}\n----------------------------------"
+    )
+
+    return {"messages": [report_msg]}
+
+
+def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
+    """Specialized node for metabolic nutrition analysis."""
+    log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
+    model_name = "gemma-4-31b-it"
+    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+
+    context = state.get("biometric_context", {})
+    context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
+
+    input_messages = [
+        SystemMessage(content=METABOLIC_NUTRITION_AGENT_PROMPT),
+        SystemMessage(content=context_str),
+    ]
+
+    # Include reports from other agents for full context
+    for m in state["messages"]:
+        if any(
+            marker in str(m.content)
+            for marker in [
+                "--- INTERNAL INJURY RISK REPORT ---",
+                "--- INTERNAL SLEEP & RECOVERY REPORT ---",
+            ]
+        ):
+            input_messages.append(SystemMessage(content=str(m.content)))
+
+    # Pass the last Human message
+    for m in reversed(state["messages"]):
+        if m.type == "human":
+            input_messages.append(HumanMessage(content=m.content))
+            break
+
+    response = model.invoke(input_messages)
+    report_msg = SystemMessage(
+        content=f"--- INTERNAL METABOLIC & FUELING REPORT ---\n{response.content}\n----------------------------------"
+    )
+
+    return {"messages": [report_msg]}
+
+
 def node_analyze(state: AgentState) -> dict[str, Any]:
     """Calls the LLM to generate the training plan or response.
 
@@ -271,6 +390,8 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         log_health_status,
         prune_unused_workouts,
         manage_goals,
+        save_calibration_marker,
+        project_training_impact,
         list_workouts,
         batch_remove_workouts,
         get_garmin_auth_url,
@@ -305,7 +426,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     user_id = state.get("user_id", "unknown")
     isolation_prompt = f"\n\n### 🛡️ MULTI-TENANT ISOLATION (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** You are EXCLUSIVELY acting for user '{user_id}'. You MUST use this ID for all tool calls (e.g., `user_id='{user_id}'`). NEVER use 'fsirio' or any other ID unless the user ID is explicitly '{user_id}'."
 
-    messages = [SystemMessage(content=SYSTEM_PROMPT + context_str + isolation_prompt)] + list(state["messages"])
+    messages = [SystemMessage(content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt)] + list(
+        state["messages"]
+    )
 
     # DEBUG: Print full prompt sent to LLM
     log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
@@ -390,6 +513,8 @@ def tool_node(state: AgentState) -> Any:
             analyze_activity_stages,
             retrieve_biometric_data,
             log_health_status,
+            save_calibration_marker,
+            project_training_impact,
             prune_unused_workouts,
             manage_goals,
             list_workouts,
@@ -441,6 +566,9 @@ memory = MemorySaver()
 workflow = StateGraph(AgentState)
 workflow.add_node("router", node_router)
 workflow.add_node("retriever", node_retrieve_context)
+workflow.add_node("injury_prevention", node_injury_prevention)
+workflow.add_node("sleep_recovery", node_sleep_recovery)
+workflow.add_node("metabolic_nutrition", node_metabolic_nutrition)
 workflow.add_node("analyzer", node_analyze)
 workflow.add_node("data_scientist", node_data_scientist)
 workflow.add_node("validator", node_validator)
@@ -448,7 +576,10 @@ workflow.add_node("tools", tool_node)
 
 workflow.add_edge(START, "router")
 workflow.add_edge("router", "retriever")
-workflow.add_edge("retriever", "analyzer")
+workflow.add_edge("retriever", "injury_prevention")
+workflow.add_edge("injury_prevention", "sleep_recovery")
+workflow.add_edge("sleep_recovery", "metabolic_nutrition")
+workflow.add_edge("metabolic_nutrition", "analyzer")
 
 workflow.add_conditional_edges("analyzer", route_after_analysis, {"tools": "tools", "validator": "validator"})
 workflow.add_edge("tools", "analyzer")

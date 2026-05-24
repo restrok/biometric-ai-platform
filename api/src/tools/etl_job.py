@@ -3,7 +3,7 @@
 import logging
 import os
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -101,13 +101,16 @@ def upsert_to_bq(
                         # Replace negative/very small values with 0
                         df.loc[df[col] < 0, col] = 0
                     else:
-                        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype("int64")
+                        df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
                 elif bqt == "FLOAT":
+
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif bqt == "STRING":
                     df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
                 elif bqt in ["DATETIME", "TIMESTAMP"]:
                     df[col] = pd.to_datetime(df[col], errors="coerce")
+                elif bqt == "DATE":
+                    df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
                 elif bqt == "BOOLEAN":
                     df[col] = df[col].astype(bool)
     except Exception as e:
@@ -486,6 +489,20 @@ def run_etl(
             except Exception as e:
                 log.error(f"HRV sync failed during upload: {e}")
 
+    # --- 3c. Incremental Daily Physiology ---
+    last_daily_date = get_last_sync_date("daily_physiology", user_id=user_id)
+    start_daily = (last_daily_date - timedelta(days=1)) if last_daily_date else (final_end - timedelta(days=7))
+
+    if start_daily.date() <= final_end.date():
+        log.info(f"Syncing Daily Physiology from {start_daily.date()} to {final_end.date()} (user: {user_id})...")
+        daily_phys = get_daily_physiology(client, start_daily.strftime("%Y-%m-%d"), final_end.strftime("%Y-%m-%d"))
+        if daily_phys:
+            try:
+                df_daily = pd.DataFrame(daily_phys)
+                upsert_to_bq(df_daily, "daily_physiology", unique_key="date", user_id=user_id)
+            except Exception as e:
+                log.error(f"Daily physiology sync failed during upload: {e}")
+
     # --- 4. Training Status ---
     status = get_training_status(client, final_end.strftime("%Y-%m-%d"))
     if status:
@@ -543,7 +560,7 @@ def run_etl(
                     df_profile.loc[0, "resting_hr"] = fallback_rest
                     log.info(f"Patched Resting HR with fallback: {fallback_rest}")
 
-            df_profile["updated_at"] = datetime.utcnow()
+            df_profile["updated_at"] = datetime.now(timezone.utc)
             upsert_to_bq(df_profile, "user_profile", unique_key="user_id", user_id=user_id)
     except Exception as e:
         log.warning(f"User Profile sync failed: {e}")
@@ -645,7 +662,7 @@ def run_etl(
                     final_cal["description"] = ""
                     final_cal["duration_sec"] = df_cal.get("duration", 0)
                     final_cal["distance_m"] = df_cal.get("distance", 0)
-                    final_cal["updated_at"] = datetime.utcnow()
+                    final_cal["updated_at"] = datetime.now(timezone.utc)
 
                     upload_to_bq(
                         final_cal,
@@ -665,6 +682,66 @@ def run_etl(
 
     log.info(f"Incremental Sync Complete for user {user_id}!")
     return newly_synced_ids
+
+
+def get_daily_physiology(client: Any, start_date: str, end_date: str) -> list[dict[str, Any]]:
+    """Fetches daily physiology summaries from Garmin.
+
+    Args:
+        client: Garmin authentication client.
+        start_date: Start date string (YYYY-MM-DD).
+        end_date: End date string (YYYY-MM-DD).
+
+    Returns:
+        A list of dictionaries containing daily physiological metrics.
+    """
+    daily_data = []
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+
+    if not client.display_name:
+        try:
+            settings = client.get_userprofile_settings()
+            client.display_name = settings.get("displayName")
+        except Exception as e:
+            log.warning(f"Could not retrieve display_name for daily physiology sync: {e}")
+            return []
+
+    current_dt = start_dt
+    while current_dt <= end_dt:
+        date_str = current_dt.strftime("%Y-%m-%d")
+        try:
+            # get_user_summary provides RHR, stress, steps, etc.
+            summary = client.get_user_summary(date_str)
+            if summary:
+                # Body battery end of day requires parsing the timeseries
+                bb_data = client.get_body_battery(date_str)
+                last_bb = None
+                if bb_data and isinstance(bb_data, list):
+                    # Usually get_body_battery returns a list with one dict for the day
+                    day_data = bb_data[0]
+                    bb_series = day_data.get("bodyBatteryValuesArray", [])
+                    if bb_series:
+                        # Each entry is [timestamp_ms, bb_value]
+                        # We take the value from the last entry
+                        last_bb = bb_series[-1][1]
+
+                daily_data.append(
+                    {
+                        "date": date_str,
+                        "resting_heart_rate": summary.get("restingHeartRate"),
+                        "max_heart_rate": summary.get("maxHeartRate"),
+                        "all_day_stress_avg": summary.get("averageStressLevel"),
+                        "body_battery_end_of_day": last_bb,
+                        "total_steps": summary.get("totalSteps"),
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                )
+        except Exception as e:
+            log.warning(f"Failed to fetch daily physiology for {date_str}: {e}")
+        current_dt += timedelta(days=1)
+
+    return daily_data
 
 
 if __name__ == "__main__":

@@ -334,6 +334,37 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Goals retrieval failed: {e}")
             return "active_goals", []
 
+    def fetch_daily_physiology() -> tuple[str, list[dict[str, Any]]]:
+        """Fetches recent daily physiology (RHR, Stress, Body Battery)."""
+        try:
+            t0 = time.time()
+            query_daily = f"""
+                SELECT date, resting_heart_rate, all_day_stress_avg, body_battery_end_of_day, total_steps
+                FROM `{project_id}.{dataset}.daily_physiology` 
+                {user_where}
+                ORDER BY date DESC LIMIT 7
+            """
+            daily_rows = [dict(row) for row in client.query(query_daily).result()]
+            log.info(f"⏱️ BigQuery: Daily physiology retrieved in {time.time() - t0:.2f}s")
+            return "daily_physiology_7d", daily_rows
+        except Exception:
+            return "daily_physiology_7d", []
+
+    def fetch_calibration_profile() -> tuple[str, list[dict[str, Any]]]:
+        """Fetches personal calibration markers (PCP)."""
+        try:
+            t0 = time.time()
+            query_calib = f"""
+                SELECT marker_type, marker_value, context
+                FROM `{project_id}.{dataset}.user_calibration_profile` 
+                {user_where}
+            """
+            calib_rows = [dict(row) for row in client.query(query_calib).result()]
+            log.info(f"⏱️ BigQuery: Calibration profile retrieved in {time.time() - t0:.2f}s")
+            return "personal_calibration_profile", calib_rows
+        except Exception:
+            return "personal_calibration_profile", []
+
     def fetch_scheduled_workouts() -> tuple[str, list[dict[str, Any]]]:
         """Fetches scheduled workouts from today onwards."""
         try:
@@ -511,6 +542,8 @@ def _retrieve_biometric_data_cached(
         f_body = executor.submit(fetch_body_composition)
         f_health = executor.submit(fetch_health_status)
         f_goals = executor.submit(fetch_user_goals)
+        f_daily = executor.submit(fetch_daily_physiology)
+        f_calib = executor.submit(fetch_calibration_profile)
         f_sched = executor.submit(fetch_scheduled_workouts)
 
         act_key, act_val = f_act.result()
@@ -526,6 +559,8 @@ def _retrieve_biometric_data_cached(
             f_body,
             f_health,
             f_goals,
+            f_daily,
+            f_calib,
             f_sched,
             f_telemetry,
         ]:

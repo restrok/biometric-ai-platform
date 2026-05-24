@@ -28,13 +28,13 @@ Instead of filling missing data gaps (which requires the massive pretraining sca
 
 ## Proposed Phased Implementation Plan
 
-### Phase 1: The Deep Reporting Engine
+### Phase 1: The Deep Reporting Engine (Completed ✅)
 1.  Create `api/src/tools/deep_reporting.py`.
 2.  Implement `generate_long_term_report` tool focusing on SQL aggregations (monthly averages, Z-scores) rather than row-by-row retrieval.
 3.  Store outputs as artifacts in Google Cloud Storage and return a signed URL to the user, alongside an Executive Summary for the LLM context.
 4.  Update `ROADMAP.md` Phase 4 to include this feature.
 
-### Phase 2: AgentSearch (Dynamic SQL)
+### Phase 2: AgentSearch (Dynamic SQL) (Completed ✅)
 1.  Implement a safe, sandboxed BigQuery execution tool with read-only permissions.
     *   **Infrastructure Guardrail:** The `execute_exploratory_query` tool MUST use a dedicated Google Cloud Service Account with strictly `roles/bigquery.dataViewer` permissions. This guarantees that even if the LLM hallucinates a destructive query (e.g., DROP, DELETE), BigQuery will reject it at the IAM level.
 2.  Add a `DataScientist` sub-agent node in our LangGraph orchestrator specifically trained on our BigQuery schema.
@@ -54,7 +54,7 @@ Instead of filling missing data gaps (which requires the massive pretraining sca
         ```
 3.  When a query requires deep historical correlation not covered by standard tools, the main agent delegates to the `DataScientist` to write and run the custom analysis.
 
-### Phase 3: Continuous Feedback Loop
+### Phase 3: Continuous Feedback Loop (Current Focus 🚧)
 1.  Update the proactive analysis script to detect missing critical data points (e.g., no sleep data recorded).
 2.  Implement a trigger to request manual subjective input from the user to augment the missing objective data before scheduling the next workout.
 

@@ -22,13 +22,28 @@
 - [x] **Zombie Context Resolution:** 3-day expiration filter for health logs to prevent repetitive old reminders.
 - [x] **Full Tool Integration:** 100% of internal tools linked to the API to prevent model hallucinations.
 
-## Phase 4: Production Deployment & Ecosystem Expansion (Current Focus 🚧)
+## Phase 4: Production Deployment & Ecosystem Expansion (Completed ✅)
 - [x] **Dockerization:** API and Worker logic containerized for streamlined deployment.
 - [x] **Proactive Notifications Agent:** Built-in standalone logic for daily summaries via the Orchestrator.
+- [x] **Phase 2: Daily Life Ingestion & Personal Calibration Profile (Completed ✅)**
+    - [x] Implement All-Day metrics ingestion (RHR, Stress, Steps) to `daily_physiology` table.
+    - [x] Implement Personal Calibration Profile (PCP) storage and `save_calibration_marker` tool.
+    - [x] Update agent logic to cross-reference training load with daily stress.
+    - [x] **Backfill Engine:** One-time 1-year ingestion logic for historical baselines.
 - [ ] **Persistent Conversation Memory** [SEVERITY: HIGH]: Use BigQuery/Vector store to allow the agent to recall past coaching sessions over months.
 - [ ] **OpenClaw Integration** [SEVERITY: LOW]: Document the pattern for using the platform as an OpenClaw backend.
 
-## Phase 5: AI Health & Performance Butler (Future Vision 💎)
+## Phase 5: AI Health & Performance Butler (Current Focus 🚧)
+- [x] **Predictive Load Modeler:** Implement `project_training_impact` tool for A:C ratio simulation. (Completed ✅)
+- [x] **Multi-Agent Refactor:** Evolve LangGraph into specialized agent nodes (Injury, Sleep, Nutrition). (Completed ✅)
+- [ ] **Phase 3: New User Onboarding & Scalability**
+    - [ ] **Data-Rich Onboarding (Existing Users):**
+        - [ ] Automated 3-6 month historical backfill (Activities, Sleep, HRV) upon first login.
+        - [ ] "First Look" Profile Audit: DataScientist autonomously identifies baseline AeT and Max HR from history.
+    - [ ] **Cold-Start Onboarding (New Athletes - e.g., Mercedes):**
+        - [ ] Guided calibration phase (2 weeks of Zone 2 only) to establish initial efficiency metrics.
+        - [ ] Manual baseline entry for RHR and perceived fitness levels.
+        - [ ] Synthetic baseline generation based on age/gender until real telemetry is available.
 - [ ] **Deep Historical Reporting Engine** [SEVERITY: HIGH]: Implement artifact-based long-term analysis (3-6 months) with GCS persistence. See [SensorFM Architecture Plan](./plans/sensor-fm-historical-reporting.md).
 - [ ] **AgentSearch (Dynamic SQL)** [SEVERITY: MED]: Deploy a 'DataScientist' sub-agent to autonomously discover physiological correlations via sandboxed BigQuery queries.
 - [ ] **Advanced Immune Radar:** Cross-reference HRV, Resting HR, and Sleep Quality to provide 24-48h early warning for illness or systemic overreach.

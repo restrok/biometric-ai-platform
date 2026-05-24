@@ -26,6 +26,7 @@ from src.tools.garmin_uploader import (
     upload_training_plan,
 )
 from src.tools.historical_biometrics import generate_historical_report
+from src.tools.predictive_modeler import project_training_impact
 from src.tools.profile_manager import (
     configure_proactive_coaching,
     log_health_status,
@@ -51,6 +52,7 @@ TOOLS = {
     "analyze_activity_efficiency": analyze_activity_efficiency,
     "search_exercise_science": search_exercise_science,
     "retrieve_biometric_data": retrieve_biometric_data,
+    "project_training_impact": project_training_impact,
     "generate_historical_report": generate_historical_report,
     "generate_deep_historical_report": generate_deep_historical_report,
     "execute_exploratory_query": execute_exploratory_query,
