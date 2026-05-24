@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.messages import HumanMessage
 
-from src.agent.graph import graph
+from src.agent.graph import AgentState, graph
 
 
 async def run_demo():
@@ -16,7 +16,14 @@ async def run_demo():
     # User's real question
     user_message = "Ayer corrí casi 10k y me sentí muy bien. Mi HRV está un poco bajo (37ms) pero me siento con energía. ¿Puedo salir a correr hoy domingo unos 12k en Z2 para seguir sumando hacia mi carrera del 15 de julio?"
 
-    inputs = {"messages": [HumanMessage(content=user_message)], "user_id": "fsirio", "intent": "full"}
+    inputs: AgentState = {
+        "messages": [HumanMessage(content=user_message)],
+        "user_id": "fsirio",
+        "intent": "full",
+        "biometric_context": {},
+        "usage_stats": {},
+        "loop_count": 0,
+    }
 
     # Run the graph
     async for output in graph.astream(inputs, config={"configurable": {"thread_id": "demo_session"}}):

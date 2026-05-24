@@ -7,12 +7,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.messages import HumanMessage
 
-from src.agent.graph import node_injury_prevention, node_metabolic_nutrition, node_sleep_recovery
+from src.agent.graph import AgentState, node_injury_prevention, node_metabolic_nutrition, node_sleep_recovery
 
 
 async def test_agent():
     # Mock state with a mix of poor sleep, high load, and ectomorph profile
-    state = {
+    state: AgentState = {
         "messages": [
             HumanMessage(
                 content="Ayer corrí 10k fuerte. ¿Qué debería comer hoy para recuperar bien y cómo estoy para entrenar?"
@@ -57,12 +57,12 @@ async def test_agent():
 
     print("🧪 Running Injury Prevention Agent Node...")
     injury_result = node_injury_prevention(state)
-    state["messages"] = list(state["messages"]) + list(injury_result["messages"])
+    state["messages"] = list(state["messages"]) + list(injury_result.get("messages", []))
     print(injury_result["messages"][0].content)
 
     print("\n🧬 Running Sleep & Circadian Agent Node...")
     sleep_result = node_sleep_recovery(state)
-    state["messages"] = list(state["messages"]) + list(sleep_result["messages"])
+    state["messages"] = list(state["messages"]) + list(sleep_result.get("messages", []))
     print(sleep_result["messages"][0].content)
 
     print("\n⚖️ Running Metabolic Nutrition Agent Node...")
