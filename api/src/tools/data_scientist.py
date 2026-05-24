@@ -34,9 +34,9 @@ class SQLQueryInput(BaseModel):
 def execute_exploratory_query(sql: str, user_id: str) -> str:
     """
     Executes a read-only SQL query against the BigQuery data lake.
-    Use this tool ONLY when standard analysis tools are insufficient for 
+    Use this tool ONLY when standard analysis tools are insufficient for
     answering complex, multi-domain correlation questions.
-    
+
     🚨 SECURITY RULES:
     1. MUST contain 'WHERE user_id = {user_id}'.
     2. MUST NOT contain INSERT, UPDATE, DELETE, DROP, or ALTER.
@@ -51,7 +51,9 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
         return "Error: Only SELECT operations are allowed for exploratory analysis."
 
     if "SELECT *" in sql.upper():
-        return "Error: SELECT * is forbidden. Please list explicit columns to ensure cost efficiency and schema stability."
+        return (
+            "Error: SELECT * is forbidden. Please list explicit columns to ensure cost efficiency and schema stability."
+        )
 
     # Isolation Check
     if f"user_id = '{user_id}'" not in sql and f"user_id='{user_id}'" not in sql:
@@ -62,13 +64,13 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
     # We automatically discover tables and inject them for robustness.
     ds = config.get("dataset_id")
     qualified_sql = sql
-    
+
     try:
         client = get_bq_client(pid)
         # Dynamic Auto-Discovery of tables in the dataset
         dataset_ref = client.dataset(ds)
         available_tables = [t.table_id for t in client.list_tables(dataset_ref)]
-        
+
         for table in available_tables:
             # Replace unqualified table names with qualified ones
             if f" {table}" in qualified_sql or f"\n{table}" in qualified_sql:
@@ -78,7 +80,7 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
         log.info(f"🧪 Executing exploratory SQL (Qualified): {qualified_sql}")
         query_job = client.query(qualified_sql)
         results = list(query_job.result())
-        
+
         if not results:
             return "Query executed successfully but returned no results."
 
@@ -100,14 +102,14 @@ def get_bigquery_schema() -> str:
     config = get_config()
     pid = config.get("project_id")
     ds = config.get("dataset_id")
-    
+
     schema_info = {}
     client = get_bq_client(pid)
-    
+
     try:
         dataset_ref = client.dataset(ds)
         tables = [t.table_id for t in client.list_tables(dataset_ref)]
-        
+
         for table_name in tables:
             try:
                 table = client.get_table(f"{pid}.{ds}.{table_name}")

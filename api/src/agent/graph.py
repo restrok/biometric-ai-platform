@@ -413,12 +413,12 @@ def node_validator(state: AgentState) -> dict[str, Any]:
     """Validates the output of the analyzer to ensure physiological accuracy and formatting."""
     last_msg = state["messages"][-1].content
     log.info("🧐 Validator node reviewing response...")
-    
+
     # Simple validation logic: check if the response is too short or lacks context
     if len(str(last_msg)) < 100 and "artifact_uri" not in str(last_msg):
         log.warning("⚠️ Response seems too brief. Requesting elaboration.")
         # This could trigger a retry or a feedback message
-        
+
     return {"loop_count": state.get("loop_count", 0)}
 
 
@@ -426,12 +426,12 @@ def node_validator(state: AgentState) -> dict[str, Any]:
 def route_after_analysis(state: AgentState):
     messages = state["messages"]
     last_message = messages[-1]
-    
+
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         # If it's a data scientist tool, we could route to data_scientist node
         # But for now, just use standard tools node
         return "tools"
-    
+
     # If no tools, go to validator before finishing
     return "validator"
 

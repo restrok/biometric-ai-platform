@@ -68,35 +68,41 @@ class DeepReportingInput(BaseModel):
     dataset: str | None = Field(None, description="BigQuery Dataset ID.")
 
 
-def _generate_svg_chart(data: list[float], labels: list[str], title: str, color: str = "#3b82f6", baseline: float | None = None) -> str:
+def _generate_svg_chart(
+    data: list[float], labels: list[str], title: str, color: str = "#3b82f6", baseline: float | None = None
+) -> str:
     """Generates a responsive, zero-dependency SVG trend chart."""
-    if not data: return ""
-    
+    if not data:
+        return ""
+
     width = 800
     height = 200
     padding = 40
-    
+
     # Scale data
     min_val = min(data) if data else 0
     max_val = max(data) if data else 1
-    
+
     # Adjust range for better visualization
     if baseline:
         min_val = min(min_val, baseline * 0.8)
         max_val = max(max_val, baseline * 1.2)
-        
+
     range_val = (max_val - min_val) if max_val != min_val else 1
-    
-    def get_x(i): return padding + (i * (width - 2 * padding) / (len(data) - 1)) if len(data) > 1 else width / 2
-    def get_y(v): return height - padding - ((v - min_val) * (height - 2 * padding) / range_val)
+
+    def get_x(i):
+        return padding + (i * (width - 2 * padding) / (len(data) - 1)) if len(data) > 1 else width / 2
+
+    def get_y(v):
+        return height - padding - ((v - min_val) * (height - 2 * padding) / range_val)
 
     points = " ".join([f"{get_x(i)},{get_y(v)}" for i, v in enumerate(data)])
-    
+
     # Baseline line (e.g., A:C 1.0)
     baseline_svg = ""
     if baseline:
         by = get_y(baseline)
-        baseline_svg = f'<line x1="{padding}" y1="{by}" x2="{width-padding}" y2="{by}" stroke="var(--text-muted)" stroke-dasharray="4" opacity="0.5" />'
+        baseline_svg = f'<line x1="{padding}" y1="{by}" x2="{width - padding}" y2="{by}" stroke="var(--text-muted)" stroke-dasharray="4" opacity="0.5" />'
 
     return f"""
     <div class="chart-container">
@@ -105,7 +111,7 @@ def _generate_svg_chart(data: list[float], labels: list[str], title: str, color:
             {baseline_svg}
             <polyline points="{points}" fill="none" stroke="{color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
             <!-- Data points -->
-            {" ".join([f'<circle cx="{get_x(i)}" cy="{get_y(v)}" r="4" fill="{color}" />' for i, v in enumerate(data) if i % max(1, len(data)//15) == 0])}
+            {" ".join([f'<circle cx="{get_x(i)}" cy="{get_y(v)}" r="4" fill="{color}" />' for i, v in enumerate(data) if i % max(1, len(data) // 15) == 0])}
         </svg>
         <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); padding: 0 {padding}px;">
             <span>{labels[0]}</span>
@@ -134,23 +140,25 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     z_score_eff = 0.0
     cv_color = "#3498db"
     ac_trend_svg = ""
-    
+
     if not df_act.empty:
         df_act["date"] = pd.to_datetime(df_act["date_str"])
         df_act = df_act.sort_values("date").set_index("date")
-        
+
         # Acute:Chronic (A:C) Ratio logic
         df_daily = df_act.resample("D").agg({"distance_km": "sum", "avg_hr": "mean", "avg_power": "mean"}).fillna(0)
         df_daily["acute_load"] = df_daily["distance_km"].rolling(window=7, min_periods=1).sum()
         df_daily["chronic_load"] = df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
         df_daily["ac_ratio"] = (df_daily["acute_load"] / df_daily["chronic_load"]).fillna(1.0)
-        
+
         ac_ratio = round(df_daily["ac_ratio"].iloc[-1], 2)
-        
+
         # Chart Data
         ac_data = df_daily["ac_ratio"].tail(30).tolist()
         ac_labels = [d.strftime("%b %d") for d in df_daily.index[-30:]]
-        ac_trend_svg = _generate_svg_chart(ac_data, ac_labels, "Workload (A:C Ratio) - Last 30 Days", color="var(--accent)", baseline=1.0)
+        ac_trend_svg = _generate_svg_chart(
+            ac_data, ac_labels, "Workload (A:C Ratio) - Last 30 Days", color="var(--accent)", baseline=1.0
+        )
 
         # Color based on A:C ratio
         if 0.8 <= ac_ratio <= 1.3:
@@ -159,7 +167,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             cv_color = "var(--danger)"
         else:
             cv_color = "var(--warning)"
-        
+
         # Efficiency Z-Score (Power/HR)
         df_act["eff"] = df_act["avg_power"] / df_act["avg_hr"].replace(0, pd.NA)
         valid_eff = df_act["eff"].dropna()
@@ -168,7 +176,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             std_eff = valid_eff.std()
             recent_eff = valid_eff.tail(3).mean()
             z_score_eff = round((recent_eff - baseline_eff) / std_eff, 2) if std_eff > 0 else 0.0
-        
+
         cv_summary = (
             f"You completed {round(df_act['distance_km'].sum(), 1)} km total. "
             f"Your current Acute:Chronic workload ratio is <strong>{ac_ratio}</strong>. "
@@ -187,15 +195,20 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         recent_hrv = df_hrv["avg_hrv"].tail(7).mean()
         hrv_pct_change = ((recent_hrv - avg_hrv) / avg_hrv) * 100 if avg_hrv > 0 else 0
         hrv_trend = "Improving" if hrv_pct_change > 5 else "Declining" if hrv_pct_change < -5 else "Stable"
-        
-        if hrv_trend == "Improving": hrv_color = "var(--success)"
-        elif hrv_trend == "Declining": hrv_color = "var(--danger)"
-        else: hrv_color = "var(--accent)"
-        
+
+        if hrv_trend == "Improving":
+            hrv_color = "var(--success)"
+        elif hrv_trend == "Declining":
+            hrv_color = "var(--danger)"
+        else:
+            hrv_color = "var(--accent)"
+
         # Chart Data
         hrv_data = df_hrv["avg_hrv"].tail(30).tolist()
         hrv_labels = [d.strftime("%b %d") for d in df_hrv["date"].tail(30)]
-        hrv_trend_svg = _generate_svg_chart(hrv_data, hrv_labels, "Autonomic Recovery (HRV) - Last 30 Days", color=hrv_color, baseline=avg_hrv)
+        hrv_trend_svg = _generate_svg_chart(
+            hrv_data, hrv_labels, "Autonomic Recovery (HRV) - Last 30 Days", color=hrv_color, baseline=avg_hrv
+        )
 
         hrv_summary = f"Your average HRV is <strong>{int(avg_hrv)} ms</strong>. The 7-day trend is <strong>{hrv_trend}</strong> ({round(hrv_pct_change, 1)}% variance vs baseline)."
 
@@ -203,7 +216,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     sleep_summary = "N/A"
     if not df_sleep.empty:
         df_sleep["date"] = pd.to_datetime(df_sleep["date"])
-        avg_duration_h = (df_sleep["duration_sec"].mean() / 3600)
+        avg_duration_h = df_sleep["duration_sec"].mean() / 3600
         avg_quality = df_sleep["quality"].mean()
         sleep_summary = f"Average nightly duration is <strong>{round(avg_duration_h, 1)} hours</strong> with an average quality score of <strong>{int(avg_quality)}/100</strong>."
 
@@ -215,17 +228,17 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     if not df_health.empty:
         df_health["date"] = pd.to_datetime(df_health["date"])
         df_health = df_health.sort_values("date")
-        
+
         recent_health = df_health.tail(14).copy()
         # Ensure numeric types for comparison
         recent_health["fatigue_level"] = pd.to_numeric(recent_health["fatigue_level"], errors="coerce")
         recent_health["feeling"] = pd.to_numeric(recent_health["feeling"], errors="coerce")
-        
+
         high_fatigue_days = len(recent_health[recent_health["fatigue_level"] >= 7])
         low_feeling_days = len(recent_health[recent_health["feeling"] <= 4])
-        
+
         health_summary = f"In the last 14 logged days, you reported high fatigue (>=7/10) on <strong>{high_fatigue_days} days</strong> and poor feeling (<=4/10) on <strong>{low_feeling_days} days</strong>."
-        
+
         # Simple correlation logic
         if high_fatigue_days >= 3 and ac_ratio > 1.2:
             health_correlation_insight = "<strong>Correlation Alert:</strong> Your subjective reports of high fatigue align strongly with your high Acute:Chronic workload ratio. The objective data validates your physical sensations of overreaching."
@@ -234,18 +247,40 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         elif high_fatigue_days == 0 and ac_ratio > 1.3:
             health_correlation_insight = "<strong>Warning:</strong> You are not reporting high fatigue, but your objective workload (A:C > 1.3) is high. Beware of masked cumulative fatigue."
         else:
-            health_correlation_insight = "Your subjective feelings are currently tracking normally with your objective training load."
+            health_correlation_insight = (
+                "Your subjective feelings are currently tracking normally with your objective training load."
+            )
 
     # 5. Warnings & Anomalies
     warnings = []
     if ac_ratio > 1.3:
-        warnings.append(("High Injury Risk", f"A:C Ratio is {ac_ratio} (Safe range: 0.8-1.3). Consider a deload week.", "danger-box"))
+        warnings.append(
+            (
+                "High Injury Risk",
+                f"A:C Ratio is {ac_ratio} (Safe range: 0.8-1.3). Consider a deload week.",
+                "danger-box",
+            )
+        )
     if z_score_eff < -1.5:
-        warnings.append(("Efficiency Drop", f"Recent runs show a significant decoupling (Z-Score {z_score_eff}). Possible overreaching.", "danger-box"))
+        warnings.append(
+            (
+                "Efficiency Drop",
+                f"Recent runs show a significant decoupling (Z-Score {z_score_eff}). Possible overreaching.",
+                "danger-box",
+            )
+        )
     if hrv_trend == "Declining":
-        warnings.append(("Systemic Stress", "HRV trend is declining. Prioritize sleep and low-intensity sessions.", "warning-box"))
+        warnings.append(
+            ("Systemic Stress", "HRV trend is declining. Prioritize sleep and low-intensity sessions.", "warning-box")
+        )
     if high_fatigue_days >= 4:
-        warnings.append(("Chronic Subjective Fatigue", f"You reported high fatigue on {high_fatigue_days} recent days. Intervention required.", "warning-box"))
+        warnings.append(
+            (
+                "Chronic Subjective Fatigue",
+                f"You reported high fatigue on {high_fatigue_days} recent days. Intervention required.",
+                "warning-box",
+            )
+        )
 
     # Prepare HTML Components
     icon_check = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
@@ -253,7 +288,12 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     icon_user = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
 
     if warnings:
-        warnings_html = "".join([f'<div class="status-box {cls}">{icon_alert} <span><strong>{title}:</strong> {msg}</span></div>' for title, msg, cls in warnings])
+        warnings_html = "".join(
+            [
+                f'<div class="status-box {cls}">{icon_alert} <span><strong>{title}:</strong> {msg}</span></div>'
+                for title, msg, cls in warnings
+            ]
+        )
     else:
         warnings_html = f'<div class="status-box success-box">{icon_check} <span>All biometric domains are currently balanced and within safe physiological limits.</span></div>'
 
@@ -261,7 +301,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     timestamp = int(time.time())
     report_date = datetime.now().strftime("%b %d, %Y")
     file_name = f"reports/{user_id}/deep_report_{timestamp}.html"
-    
+
     html_report = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -501,14 +541,14 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             <article>
                 <h3>{icon_check} Cardiovascular & Load</h3>
                 <p class="insight-text">{cv_summary}</p>
-                <p class="insight-text"><strong>Physiological Insight:</strong> {'Your aerobic efficiency is improving significantly.' if z_score_eff > 1.5 else 'Your load management is optimal.' if ac_ratio <= 1.3 else 'You are increasing volume too rapidly, which may increase injury risk.'}</p>
+                <p class="insight-text"><strong>Physiological Insight:</strong> {"Your aerobic efficiency is improving significantly." if z_score_eff > 1.5 else "Your load management is optimal." if ac_ratio <= 1.3 else "You are increasing volume too rapidly, which may increase injury risk."}</p>
                 {ac_trend_svg}
             </article>
 
             <article>
                 <h3>{icon_check} Autonomic Recovery (HRV)</h3>
                 <p class="insight-text">{hrv_summary}</p>
-                <p class="insight-text"><strong>Interpretation:</strong> {hrv_trend} HRV indicates a {'balanced' if hrv_trend == 'Stable' else 'stressed' if hrv_trend == 'Declining' else 'super-compensating'} autonomic nervous system.</p>
+                <p class="insight-text"><strong>Interpretation:</strong> {hrv_trend} HRV indicates a {"balanced" if hrv_trend == "Stable" else "stressed" if hrv_trend == "Declining" else "super-compensating"} autonomic nervous system.</p>
                 {hrv_trend_svg}
             </article>
 
@@ -538,7 +578,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
     llm_summary = {
         "status": "success",
-        "period_months": context.get('months_back', 3),
+        "period_months": context.get("months_back", 3),
         "ac_ratio": ac_ratio,
         "hrv_trend": hrv_trend,
         "efficiency_z_score": z_score_eff,
@@ -551,10 +591,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
 @tool(args_schema=DeepReportingInput)
 async def generate_deep_historical_report(
-    user_id: str, 
-    months_back: int = 3, 
-    project_id: str | None = None, 
-    dataset: str | None = None
+    user_id: str, months_back: int = 3, project_id: str | None = None, dataset: str | None = None
 ) -> str:
     """
     Generates a high-precision, multi-domain historical report for the user.
@@ -573,7 +610,7 @@ async def generate_deep_historical_report(
     def _fetch_all_data():
         client = get_bq_client(pid)
         start_date = (datetime.now() - timedelta(days=30 * months_back)).strftime("%Y-%m-%d")
-        
+
         # 1. Activities
         q_act = f"""
             SELECT 
@@ -586,13 +623,13 @@ async def generate_deep_historical_report(
             AND date >= UNIX_SECONDS(TIMESTAMP('{start_date}'))
             GROUP BY 1 ORDER BY 1 ASC
         """
-        
+
         # 2. HRV
         q_hrv = f"SELECT date, avg_hrv FROM `{pid}.{ds}.hrv_history` WHERE user_id = '{user_id}' AND date >= '{start_date}' ORDER BY date ASC"
-        
+
         # 3. Sleep
         q_sleep = f"SELECT date, duration_sec, quality FROM `{pid}.{ds}.sleep_history` WHERE user_id = '{user_id}' AND date >= '{start_date}' ORDER BY date ASC"
-        
+
         # 4. Health Logs
         q_health = f"SELECT date, feeling, fatigue_level FROM `{pid}.{ds}.user_health_status` WHERE user_id = '{user_id}' AND date >= '{start_date}' ORDER BY date ASC"
 
@@ -601,24 +638,24 @@ async def generate_deep_historical_report(
             "hrv": client.query(q_hrv).to_dataframe(),
             "sleep": client.query(q_sleep).to_dataframe(),
             "health": client.query(q_health).to_dataframe(),
-            "months_back": months_back
+            "months_back": months_back,
         }
 
     try:
         context_data = await asyncio.to_thread(_fetch_all_data)
-        
+
         llm_summary, html_report = _calculate_deep_stats(context_data, user_id)
-        
+
         if llm_summary.get("status") == "no_data":
             return json.dumps(llm_summary)
 
         # Save to GCS
         file_path = llm_summary.pop("artifact_path")
         artifact_uri = await save_artifact_to_gcs(pid, bucket_name, file_path, html_report)
-        
+
         llm_summary["artifact_uri"] = artifact_uri
         log.info(f"✅ Deep report artifact generated for {user_id}: {artifact_uri}")
-        
+
         return json.dumps(llm_summary)
 
     except Exception as e:
