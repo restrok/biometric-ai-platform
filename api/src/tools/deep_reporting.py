@@ -6,7 +6,6 @@ import time
 from datetime import datetime, timedelta
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from google.cloud import bigquery, storage
 from langchain_core.tools import tool
@@ -146,8 +145,6 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         df_daily["chronic_load"] = df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
         df_daily["ac_ratio"] = (df_daily["acute_load"] / df_daily["chronic_load"]).fillna(1.0)
         
-        current_acute = df_daily["acute_load"].iloc[-1]
-        current_chronic = df_daily["chronic_load"].iloc[-1]
         ac_ratio = round(df_daily["ac_ratio"].iloc[-1], 2)
         
         # Chart Data

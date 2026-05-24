@@ -374,7 +374,7 @@ def tool_node(state: AgentState) -> Any:
     else:
         log.warning("⚠️ No tool calls found in last message")
 
-    tn = ToolNode(
+    return ToolNode(
         [
             upload_training_plan,
             clear_calendar,
@@ -399,7 +399,6 @@ def tool_node(state: AgentState) -> Any:
             configure_proactive_coaching,
         ]
     )
-    return tn
 
 
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
