@@ -33,23 +33,23 @@
 - [ ] **Persistent Conversation Memory** [SEVERITY: HIGH]: Use BigQuery/Vector store to allow the agent to recall past coaching sessions over months.
 - [ ] **OpenClaw Integration** [SEVERITY: LOW]: Document the pattern for using the platform as an OpenClaw backend.
 
-## Phase 5: AI Health & Performance Butler (Current Focus 🚧)
+## Phase 5: AI Health & Performance Butler (Completed ✅)
 - [x] **Predictive Load Modeler:** Implement `project_training_impact` tool for A:C ratio simulation. (Completed ✅)
 - [x] **Multi-Agent Refactor:** Evolve LangGraph into specialized agent nodes (Injury, Sleep, Nutrition). (Completed ✅)
-- [ ] **Phase 3: New User Onboarding & Scalability**
-    - [ ] **Data-Rich Onboarding (Existing Users):**
-        - [ ] Automated 3-6 month historical backfill (Activities, Sleep, HRV) upon first login.
-        - [ ] "First Look" Profile Audit: DataScientist autonomously identifies baseline AeT and Max HR from history.
-    - [ ] **Cold-Start Onboarding (New Athletes - e.g., Mercedes):**
-        - [ ] Guided calibration phase (2 weeks of Zone 2 only) to establish initial efficiency metrics.
-        - [ ] Manual baseline entry for RHR and perceived fitness levels.
-        - [ ] Synthetic baseline generation based on age/gender until real telemetry is available.
-- [ ] **Deep Historical Reporting Engine** [SEVERITY: HIGH]: Implement artifact-based long-term analysis (3-6 months) with GCS persistence. See [SensorFM Architecture Plan](./plans/sensor-fm-historical-reporting.md).
-- [ ] **AgentSearch (Dynamic SQL)** [SEVERITY: MED]: Deploy a 'DataScientist' sub-agent to autonomously discover physiological correlations via sandboxed BigQuery queries.
+- [x] **Deep Historical Reporting Engine:** Implement artifact-based long-term analysis (3-6 months) with GCS persistence. (Completed ✅)
+- [x] **AgentSearch (Dynamic SQL):** Deploy a 'DataScientist' sub-agent to autonomously discover physiological correlations. (Completed ✅)
+- [x] **Autonomous Discovery Phase:** Background discovery loop for persistent 'Success Markers'. (Completed ✅)
+
+## Phase 6: Advanced Physiological Intelligence (Current Focus 🚧)
 - [ ] **Advanced Immune Radar:** Cross-reference HRV, Resting HR, and Sleep Quality to provide 24-48h early warning for illness or systemic overreach.
 - [ ] **Precision Nutrition Engine:** Use 'Metabolic Cost' (HR per Step) and session intensity to provide exact carbohydrate/protein timing advice for the next day.
 - [ ] **Lifestyle Stress Auditor:** Correlate subjective 'Health Logs' with objective Stress/HRV data to identify non-training stressors (e.g., work, travel, diet).
 - [ ] **Injury Prevention Hub:** Track 'Niggles' and fatigue trends in mechanical metrics (GCT balance, Vertical Oscillation) to proactively prescribe mobility or rest.
+- [ ] **Multi-Sport Support (Swimming, Rollerblading):** Extend `upload_training_plan` schema to support alternative `sportType` and adapt biomechanical rules to handle low-impact metrics (e.g., SWOLF).
+- [ ] **Phase 3: New User Onboarding & Scalability**
+    - [ ] **Data-Rich Onboarding (Existing Users):**
+        - [ ] Automated 3-6 month historical backfill (Activities, Sleep, HRV) upon first login.
+        - [ ] "First Look" Profile Audit: DataScientist autonomously identifies baseline AeT and Max HR from history.
 
 ## Architecture Philosophy
 - **API as the Engine:** Complex logic (ETL, BQ, Auth) lives in Python.

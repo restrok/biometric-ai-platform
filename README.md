@@ -84,8 +84,14 @@ We don't just look at your average heart rate. The platform analyzes your **Grou
 ---
 
 ## 🚀 Key Features
-- **Classroom of Agents Architecture:** Multi-agent orchestration using LangGraph (Data Scientist, Physiologist, Head Coach) for complex decision making.
-- **Deep Biometric Evolution:** Dynamic historical reporting (3-6 months) generating rich HTML dashboards with SVG trend visualizations.
+- **Classroom of Agents Architecture:** Multi-agent orchestration using LangGraph. Complex decision-making is delegated to specialized expert nodes:
+    - **🛡️ Injury Prevention Agent:** Monitors A:C Ratio and mechanical form drifts (GCT, Oscillation).
+    - **🧬 Sleep & Circadian Agent:** Analyzes recovery quality and adjusts training intensity.
+    - **⚖️ Metabolic Nutrition Agent:** Calculates fueling needs and glycogen replenishment based on session cost.
+    - **🧪 Data Scientist Agent:** Autonomously discovers 'rare' physiological correlations via exploratory SQL.
+- **Autonomous Discovery Phase:** Background engine that proactively audits the last 30-90 days of data during each sync to find hidden patterns and persistent 'Success Markers'.
+- **Dynamic Personal Calibration Profile (PCP):** Moves beyond static rules to personalized safety limits (e.g., dynamic 1.45 AC Ratio red-line) persisted in BigQuery.
+- **Deep Biometric Evolution:** Dynamic historical reporting (3-6 months) generating rich HTML dashboards with SVG trend visualizations stored in GCS.
 - **AgentSearch (Exploratory SQL):** Autonomous data exploration using sandboxed BigQuery queries to discover personalized physiological correlations.
 - **Pre-Flight Health Scan:** Mandatory safety gating that cross-references A:C Ratio, HRV, and subjective logs before prescribing any workout.
 - **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.

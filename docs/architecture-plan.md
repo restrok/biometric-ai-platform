@@ -116,18 +116,42 @@ The platform implements a sophisticated reasoning layer in LangGraph that bridge
 *   **Zero-Cost Production Ready:** The entire stack runs within GCP Free Tier and Google AI Studio Free Tier (Gemini 2.5 Flash).
 *   **Infrastructure as Code:** Terraform modules ready for Storage, IAM, and Service Accounts.
 
-## 10. High-Reliability Authentication & Surgical ETL (Updated May 2026)
+## 11. Specialized Multi-Agent Topology (LangGraph)
 
-To ensure the platform remains observable and resilient in production, we have implemented several high-reliability enhancements:
+To handle the increasing complexity of biometric analysis, the platform has transitioned from a monolithic agent to a **Specialized Multi-Agent Graph**. This architecture delegates domain-specific reasoning to expert nodes before synthesizing a final coaching response.
 
-### Robust Token Lifecycle
-- **Proactive Refresh & Memory Invalidation:** The `ProviderFactory` now implements a `force_reload` and `refresh` mechanism. Before any write operation (syncing, uploading), the system proactively refreshes Garmin tokens and invalidates the in-memory provider cache to ensure the newest session is used.
-- **Intelligent Secret Repair:** If tokens in GCP Secret Manager are found to be invalid or destroyed, the system automatically falls back to local session files (if available) to "repair" the cloud secret, ensuring seamless continuity across deployments.
-- **Aggressive Cost Optimization:** The Secret Manager integration now strictly maintains **only the latest valid version** of each secret, automatically destroying older versions to minimize storage costs while avoiding "Latest Alias" breakage through date-based sorting.
+### Agent Roles & Specialized Mandates
+*   **🛡️ Injury Prevention Agent:** Focuses on mechanical and volume-based risk. Monitors rolling A:C Ratios, Ground Contact Time (GCT) drift, and Vertical Oscillation.
+*   **🧬 Sleep & Circadian Agent:** Analyzes recovery quality (Deep/REM cycles), HRV trends, and sleep-debt impact on readiness.
+*   **⚖️ Metabolic Nutrition Agent:** Calculates energy cost (Metabolic Cost/HR per Step) and prescribes specific glycogen replenishment strategies.
+*   **🧪 Data Scientist:** An autonomous node that handles exploratory SQL queries. It discovers non-obvious correlations (e.g., Temperature vs. Efficiency) and persists them in the **Personal Calibration Profile**.
 
-### Surgical Data Synchronization
-- **Defensive BigQuery Wipes:** The ETL process has moved from "Total Wipe" to **Surgical Sync**. It now only clears the specific 14-day window it is currently fetching from Garmin, preserving all historical data and distant future plans.
-- **Strict Date Validation:** All calendar management tools now implement strict date-boundary checks to prevent accidental mass-deletion of workouts during Garmin API month-boundary rotations.
+### System Workflow
+```mermaid
+graph TD
+    User([User Request]) --> Router{Semantic Router}
+    Router -- Tool Need --> Retriever[Biometric Retriever]
+    Retriever --> Injury[Injury Prevention Agent]
+    Injury --> Sleep[Sleep & Circadian Agent]
+    Sleep --> Nutrition[Metabolic Nutrition Agent]
+    Nutrition --> Analyzer[Head Coach / Analyzer]
+    
+    Analyzer -- Exploratory Query --> DS[Data Scientist]
+    DS -- SQL Execution --> BQ[(BigQuery Lakehouse)]
+    BQ --> DS
+    DS -- Pattern Found --> PCP[(Personal Calibration Profile)]
+    DS --> Analyzer
+    
+    Analyzer -- Action Required --> Tools[Action Tools]
+    Tools -- Upload/Sync --> Provider[Garmin/Hardware]
+    Analyzer --> Validator[Response Validator]
+    Validator --> User
+```
 
-### Proactive Error Observability
-- **Immediate Failure Alerts:** Authentication and synchronization failures are no longer silent logs. The system proactively pushes critical error summaries (e.g., Garmin re-login requirements) to the user via the Telegram Orchestrator, ensuring rapid intervention.
+## 12. Persistent Physiological Memory (Autonomous Discovery)
+
+The system now implements a **Proactive Discovery Loop**. During every synchronization cycle, the **Data Scientist** agent performs an autonomous audit of the user's historical data (30-90 days). 
+
+1.  **Continuity Check:** Reads existing Success Markers from the `user_calibration_profile`.
+2.  **Hypothesis Testing:** Executes exploratory queries to find shifts in physiological truths (e.g., "Is my heat sensitivity improving?").
+3.  **Persistence:** Updates numerical values and context in BigQuery, ensuring that the **Head Coach** has immediate access to these 'rare' insights during real-time planning without re-calculating them.
