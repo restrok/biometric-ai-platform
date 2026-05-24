@@ -39,25 +39,28 @@ root_logger.addHandler(file_handler)
 log = logging.getLogger("api")
 log.info(f"🚀 Logging initialized with level: {log_level_name}")
 
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 
 from src.agent.graph import graph
 from src.agent.proactive import run_proactive_analysis
 from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
-from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
-from src.utils.notifications import send_proactive_notification
+from src.utils.garmin_auth import refresh_garmin_tokens
 
 
+# --- Background Scheduler ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Handles application startup and shutdown events.
     """
     import asyncio
+    import threading
 
     async def refresh_loop():
         # Initial delay to let the system start up
@@ -65,6 +68,7 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 log.info("🕒 Starting scheduled Garmin token refresh...")
+                # Run in executor because it's a sync function doing IO
                 loop = asyncio.get_event_loop()
                 success = await loop.run_in_executor(None, refresh_garmin_tokens)
                 if success:
@@ -77,31 +81,27 @@ async def lifespan(app: FastAPI):
             # Wait for 2 hours between refreshes
             await asyncio.sleep(2 * 3600)
 
-    async def auto_sync_loop():
-        # Initial delay to let the system settle
-        await asyncio.sleep(10)
+    def run_proactive_scheduler():
+        """Background loop to trigger proactive analysis at a specific local hour."""
         while True:
             try:
-                # Calculate seconds until next proactive run
-                from datetime import datetime, timedelta
-
-                interval_hours = int(os.getenv("PROACTIVE_INTERVAL_HOURS", "0"))
+                interval_hours = int(os.getenv("PROACTIVE_INTERVAL_HOURS", "6"))
                 now = datetime.now()
 
                 if interval_hours > 0:
                     # Align to the next interval (e.g., if 6h, run at 00, 06, 12, 18)
-                    current_hour = now.hour
-                    next_interval_hour = ((current_hour // interval_hours) + 1) * interval_hours
-
+                    next_interval_hour = ((now.hour // interval_hours) + 1) * interval_hours
                     if next_interval_hour >= 24:
-                        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+                        next_run = (now + timedelta(days=1)).replace(
+                            hour=next_interval_hour % 24, minute=0, second=0, microsecond=0
+                        )
                     else:
                         next_run = now.replace(hour=next_interval_hour, minute=0, second=0, microsecond=0)
 
                     log.info(f"📅 Proactive auto-sync interval set to {interval_hours} hours (Local Time).")
                 else:
-                    # Fallback to daily specific hour (default 02:00 Local)
-                    target_hour = int(os.getenv("PROACTIVE_HOUR", os.getenv("PROACTIVE_HOUR_UTC", "2")))
+                    # Fallback to daily specific hour (default 23:00 Local)
+                    target_hour = int(os.getenv("PROACTIVE_HOUR_LOCAL", "23"))
                     next_run = now.replace(hour=target_hour, minute=0, second=0, microsecond=0)
                     if next_run <= now:
                         next_run += timedelta(days=1)
@@ -111,95 +111,49 @@ async def lifespan(app: FastAPI):
                     f"📅 Next proactive auto-sync scheduled for {next_run.strftime('%Y-%m-%d %H:%M:%S')} (Local Time, in {sleep_seconds / 3600:.2f} hours)"
                 )
 
-                # Wait until target hour
-                await asyncio.sleep(sleep_seconds)
+                time.sleep(sleep_seconds)
 
-                log.info(
-                    f"🕒 Starting proactive auto-sync ETL at {datetime.now().strftime('%H:%M:%S')} (Local Time)..."
-                )
-                user_ids = get_all_garmin_user_ids()
+                # --- Execution Phase ---
+                from db import get_user_mapping
 
-                if not user_ids:
-                    log.warning("No users found to sync.")
-
-                for uid in user_ids:
+                mapping = get_user_mapping()
+                for _, user_id in mapping.items():
+                    log.info(f"🧠 Running proactive analysis for user: {user_id}")
                     try:
-                        log.info(f"🔄 Syncing data for user: {uid}")
-                        loop = asyncio.get_event_loop()
-                        # run_etl is synchronous, run in executor
-                        new_ids = await loop.run_in_executor(None, run_etl, uid)
-
-                        if os.getenv("ENABLE_PROACTIVE", "false").lower() == "true":
-                            log.info(f"🧠 Running proactive analysis for user: {uid}")
-                            await loop.run_in_executor(None, run_proactive_analysis, uid, new_ids)
-                        else:
-                            log.info(f"⏸️ Proactive analysis disabled via ENABLE_PROACTIVE for user: {uid}")
-                    except Exception as user_e:
-                        log.error(f"❌ Failed sync for user {uid}: {user_e}")
-                        send_proactive_notification(
-                            uid,
-                            f"⚠️ *Error de Auto-Sync*: Ocurrió un error inesperado al sincronizar tus datos: `{str(user_e)[:100]}`",
-                        )
-
-                    # Sleep a bit between users to avoid spikes
-                    await asyncio.sleep(30)
+                        run_proactive_analysis(user_id)
+                    except Exception as e:
+                        log.error(f"❌ Failed sync for user {user_id}: {e}")
 
                 log.info("✅ Proactive auto-sync cycle completed.")
+
             except Exception as e:
                 log.error(f"❌ Error in auto-sync loop: {e}")
-                # If it fails, wait 1 hour and try again (or wait until next 8am)
-                await asyncio.sleep(3600)
+                time.sleep(300)
 
-    # Start the background tasks
-    refresh_task = asyncio.create_task(refresh_loop())
-    sync_task = asyncio.create_task(auto_sync_loop())
+    # Start the token refresh loop in the background
+    asyncio.create_task(refresh_loop())
+
+    # Start the proactive scheduler in a separate thread
+    threading.Thread(target=run_proactive_scheduler, daemon=True).start()
 
     yield
 
-    # Clean up on shutdown
-    refresh_task.cancel()
-    sync_task.cancel()
-    with suppress(asyncio.CancelledError):
-        await asyncio.gather(refresh_task, sync_task)
 
-
-app = FastAPI(
-    title="Biometric AI Platform API",
-    description="Agentic RAG Backend for Biometric Data Analysis",
-    version="0.1.0",
-    lifespan=lifespan,
-)
-
-app.include_router(tools.router)
-
-
-class HealthCheck(BaseModel):
-    status: str
-    version: str
-
-
-class ChatRequest(BaseModel):
-    message: str
-
-
-class ChatResponse(BaseModel):
-    reply: str
-    context_used: dict
+app = FastAPI(title="Biometric AI API", lifespan=lifespan)
+app.include_router(tools.router, prefix="/tools")
 
 
 # --- OpenAI Compatibility Models ---
-
-
 class OpenAIChatMessage(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
     content: str
 
 
 class OpenAICompletionRequest(BaseModel):
-    model: str = "biometric-coach"
+    model: str = "gemma-4-31b-it"
     messages: list[OpenAIChatMessage]
     stream: bool = False
-    temperature: float | None = 0.7
+    temperature: float = 0.2
 
 
 class OpenAICompletionResponseChoice(BaseModel):
@@ -216,25 +170,9 @@ class OpenAICompletionResponse(BaseModel):
     choices: list[OpenAICompletionResponseChoice]
 
 
-@app.get("/health", response_model=HealthCheck, tags=["System"])
-async def health_check():
-    """
-    Returns the current health status of the API.
-    """
-    return HealthCheck(status="ok", version="0.1.0")
-
-
-@app.post("/sync", tags=["System"])
-async def trigger_sync():
-    """
-    Manually triggers the Garmin-to-BigQuery ETL process.
-    """
-    try:
-        # In a production environment, this should be a background task
-        run_etl()
-        return {"status": "success", "message": "Biometric data sync completed."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/health")
+async def health():
+    return {"status": "ok", "timestamp": time.time()}
 
 
 @app.post("/profile/zones", tags=["User Profile"])
@@ -243,31 +181,41 @@ async def update_zones(zones: ZoneUpdate):
     Updates the user's custom heart rate zones.
     """
     try:
-        # tool names are internal but for clarity we use the new one
         result = update_user_zones.invoke(zones.model_dump())
         return {"status": "success", "message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/v1/chat/completions", tags=["AI Agent"])
-async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None)):
+@app.post("/sync", tags=["ETL"])
+async def trigger_sync(user_id: str = "fsirio", days_back: int = 3):
     """
-    OpenAI-compatible endpoint for the Biometric Coach.
-    Supports both streaming and non-streaming modes.
+    Manually triggers a biometric sync for a specific user.
     """
-    log.info(f"📩 Incoming chat completion request for user: {x_user_id or 'anonymous'}")
+    try:
+        new_ids = run_etl(user_id=user_id, days_back=days_back)
+        count = len(new_ids) if new_ids is not None else 0
+        return {"status": "success", "synced_activities": count, "activity_ids": new_ids}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    if not os.getenv("GOOGLE_API_KEY"):
-        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY environment variable is not set.")
 
-    # We take the last user message as the primary query
-    user_messages = [m for m in req.messages if m.role == "user"]
+@app.post("/v1/chat/completions")
+async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None, alias="X-User-ID")):
+    """OpenAI-compatible endpoint for chat completions."""
+    user_id = x_user_id or "fsirio"
+    log.info(f"📩 Incoming chat completion request for user: {user_id}")
+
+    # Extract user messages for the agent
+    user_messages = [msg for msg in req.messages if msg.role == "user"]
     if not user_messages:
         raise HTTPException(status_code=400, detail="No user message provided.")
 
     last_query = user_messages[-1].content
-    initial_state = {"messages": [HumanMessage(content=last_query)], "user_id": x_user_id}
+    initial_state = {"messages": [HumanMessage(content=last_query)], "user_id": user_id}
+
+    # Add config for checkpointer (required for MemorySaver)
+    config: RunnableConfig = {"configurable": {"thread_id": user_id}}
 
     # 1. Handle Streaming Mode
     if req.stream:
@@ -276,7 +224,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
             completion_id = f"chatcmpl-{int(time.time())}"
             created_time = int(time.time())
 
-            async for event in graph.astream_events(initial_state, version="v2"):
+            async for event in graph.astream_events(cast(Any, initial_state), version="v2", config=config):
                 kind = event["event"]
                 tags = event.get("tags", [])
 
@@ -301,7 +249,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
 
     # 2. Handle Non-Streaming Mode
     try:
-        result = await graph.ainvoke(cast(Any, initial_state))
+        result = await graph.ainvoke(cast(Any, initial_state), config=config)
         ai_msg = result["messages"][-1]
         ai_reply = ai_msg.content
 
