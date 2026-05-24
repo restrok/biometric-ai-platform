@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 from google.cloud import bigquery
 from langchain_core.tools import tool
@@ -34,9 +35,9 @@ class SQLQueryInput(BaseModel):
 def execute_exploratory_query(sql: str, user_id: str) -> str:
     """
     Executes a read-only SQL query against the BigQuery data lake.
-    Use this tool ONLY when standard analysis tools are insufficient for
+    Use this tool ONLY when standard analysis tools are insufficient for 
     answering complex, multi-domain correlation questions.
-
+    
     🚨 SECURITY RULES:
     1. MUST contain 'WHERE user_id = {user_id}'.
     2. MUST NOT contain INSERT, UPDATE, DELETE, DROP, or ALTER.
@@ -51,9 +52,7 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
         return "Error: Only SELECT operations are allowed for exploratory analysis."
 
     if "SELECT *" in sql.upper():
-        return (
-            "Error: SELECT * is forbidden. Please list explicit columns to ensure cost efficiency and schema stability."
-        )
+        return "Error: SELECT * is forbidden. Please list explicit columns to ensure cost efficiency and schema stability."
 
     # Isolation Check
     if f"user_id = '{user_id}'" not in sql and f"user_id='{user_id}'" not in sql:
@@ -103,7 +102,7 @@ def get_bigquery_schema() -> str:
     pid = config.get("project_id")
     ds = config.get("dataset_id")
 
-    schema_info = {}
+    schema_info: dict[str, Any] = {}
     client = get_bq_client(pid)
 
     try:
@@ -117,6 +116,6 @@ def get_bigquery_schema() -> str:
             except Exception:
                 schema_info[table_name] = "Error retrieving schema."
     except Exception as e:
-        return f"Error discovering tables: {e}"
+        schema_info["error"] = f"Error discovering tables: {e}"
 
     return json.dumps(schema_info)
