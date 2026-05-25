@@ -12,18 +12,20 @@ You will demonstrate three critical capabilities:
 
 ## 2. What are we generating? (The Deliverables)
 What will live in your GitHub and in the cloud is the following:
-### A. A Smart Data Lake (GCP)
-An automated system where you upload data, and in seconds, the data is cleaned in BigQuery and transformed into vectors (embeddings) in a Vector DB.
-**Value:** Demonstrates that you know how to build data pipelines for AI.
+### A. A Smart Hybrid Lakehouse (GCP)
+An automated system that separates real-time state from analytical history.
+*   **Firestore (OLTP):** Demonstrates ultra-low latency state management for AI agents.
+*   **BigQuery (OLAP):** High-performance telemetry storage and vector search.
+**Value:** Demonstrates advanced database design for high-scale AI applications.
 
-### B. A RAG Engine (Retrieval-Augmented Generation)
-An API (on Cloud Run or GKE) that acts as an "AI Personal Trainer."
-**How it works:** When you ask a question, the system searches your vector database for your best runs, passes them to the LLM as context, and the LLM responds with authority based on your own data.
-**Value:** This is the technology used by leading AI startups.
+### B. Parallel Multi-Agent RAG Engine
+A LangGraph-powered API that acts as a "Classroom of Experts."
+**How it works:** Domain-specific agents (Injury, Sleep, Nutrition) analyze your telemetry in parallel. A Head Coach synthesizes their findings into a cohesive plan.
+**Value:** This represents the cutting edge of agentic design, far beyond simple monolithic LLM calls.
 
-### C. The "SRE Wrapper"
-A Terraform repository that deploys everything with a single command and a dashboard (Grafana/Cloud Monitoring) that shows how much each question you ask the AI costs.
-**Value:** This is what differentiates you from an average developer. It shows order, security, and cost control.
+### C. The "SRE & FinOps Wrapper"
+A platform built for observability and cost control.
+**Value:** Demonstrates "Dry Run" cost estimation, FinOps logging, and Terraform-driven infrastructure—the marks of a Senior AI Infrastructure Engineer.
 
 ## 4. Strategic Vision: The "Garmin" Integration Case Study
 If this platform were integrated natively into the Garmin ecosystem, it would transform from a data dashboard into an **Autonomous Intelligence Engine**. Here are the top 3 strategic integration paths:
@@ -45,9 +47,8 @@ If this platform were integrated natively into the Garmin ecosystem, it would tr
 
 ---
 
-### Performance Benchmark Reached (Update)
-The system has reached a critical milestone in latency and reasoning capacity:
-*   **End-to-End Latency:** ~6 seconds.
-*   **Retrieval (Data Gravity):** ~3 seconds using `ThreadPoolExecutor` to query 6 biometric domains in BigQuery in parallel.
-*   **Inference (Context Injection):** ~3 seconds using `gemini-2.5-flash`.
-*   **Intelligence:** The AI is capable of processing dense second-by-second mechanical summaries (Power, HR, GCT, VO) to autonomously detect complex physiological phenomena such as **Aerobic Decoupling** and "efficiency leaks" in running technique, confirming the "Product-Grade" level of the platform.
+### Performance Milestone: Multi-Agent Intelligence
+The system has reached a "Product-Grade" reasoning capacity:
+*   **Parallel Inference:** Specialist agents execute in parallel, maintaining high intelligence with optimized latency (~30s total loop in free tier).
+*   **Precision Intelligence:** The AI detects complex physiological phenomena like **Aerobic Decoupling**, **Immune System Stress (Z-Scores)**, and mechanical form breakdowns.
+*   **Memory Depth:** Persistent Firestore context allows the coach to remember your work-from-home schedule, favorite terrains, and chronically tight calves across months of interaction.

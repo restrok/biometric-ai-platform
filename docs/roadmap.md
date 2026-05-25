@@ -1,63 +1,42 @@
 # Biometric AI Platform Roadmap
 
+This roadmap tracks the evolution of the platform from a simple Garmin extractor to a high-performance, multi-agent AI Expert System.
+
 ## Phase 1: Core Biometric Integration (Completed ✅)
-- [x] Integrate Garmin Training Toolkit SDK for biometric data extraction.
-- [x] Set up BigQuery data lake for activities, telemetry, sleep, and body composition.
-- [x] Implement robust authentication with multi-client token refresh.
-- [x] Build foundational LangChain tools.
+- [x] **SDK Foundation**: Integrate Garmin Training Toolkit SDK for raw telemetry extraction.
+- [x] **Data Lakehouse**: Set up BigQuery tables for activities, telemetry, sleep, and body composition.
+- [x] **Multi-Client Auth**: Robust authentication with automatic token refresh for multiple users.
+- [x] **LangChain Integration**: Build foundational tools for LLM-driven data retrieval.
 
 ## Phase 2: Agentic Architecture & LLM Native Optimizations (Completed ✅)
-- [x] Develop `biometric-coach` skill with 80/20 polarized rules.
-- [x] Implement LangGraph orchestrator with Semantic Routing.
-- [x] Add self-healing tool loops for automatic error recovery.
-- [x] OpenAI-compatible REST API with SSE streaming.
-- [x] Implement autonomous pagination for retrieval.
+- [x] **LangGraph Orchestration**: Transition to stateful agent flows with Semantic Routing.
+- [x] **Polarized 80/20 Logic**: Implement strict coaching rules grounded in exercise science.
+- [x] **Self-Healing Loops**: Automatic error recovery and tool-use validation.
+- [x] **OpenAI-Compatible API**: High-performance REST API with SSE streaming support.
 
 ## Phase 3: Reliability, Safety & Precision (Completed ✅)
-- [x] **Ethical & Precision Protocol:** Separate facts from interpretation.
-- [x] **Universal Goals Feature:** Native BigQuery persistence for user objectives (e.g., July 15 Race).
-- [x] **Hybrid Telemetry Architecture:** Implemented a dual-view strategy (Global Metrics + 5-min Segments) to ensure 100% precision while maintaining 116:1 compression.
-- [x] **Hydration Safety Protocol:** Implemented strict 1.5L caps and advisory tone to mitigate clinical risks.
-- [x] **Autonomous Athletic Director:** Proactive 11:00 PM sync cycle that automatically clears calendar and schedules tomorrow's optimal session.
-- [x] **Zombie Context Resolution:** 3-day expiration filter for health logs to prevent repetitive old reminders.
-- [x] **Full Tool Integration:** 100% of internal tools linked to the API to prevent model hallucinations.
+- [x] **Universal Goals**: Persistence for race targets and long-term objectives.
+- [x] **Hybrid Telemetry Architecture**: Dual-view strategy (Global + 5-min Segments) for sub-second precision.
+- [x] **Hydration Safety Protocol**: Automated electrolyte advice with clinical-risk mitigation.
+- [x] **Autonomous Athletic Director**: Proactive nightly sync cycles for calendar optimization.
+- [x] **Smart Context Aging**: Automatic filtering of stale subjective logs (3-day TTL).
 
-## Phase 3.5: Scaling & New User Onboarding (Current Focus 🚧)
-- [ ] **Data-Rich Onboarding (Existing Users):**
-    - [ ] Automated 3-6 month historical backfill (Activities, Sleep, HRV) upon first login.
-    - [x] **"First Look" Profile Audit:** DataScientist autonomously identifies baseline AeT and Max HR from history. (Completed ✅)
-- [ ] **Cold-Start Onboarding (New Athletes - e.g., Mercedes):**
-    - [ ] Guided calibration phase (2 weeks of Zone 2 only) to establish initial efficiency metrics.
-    - [ ] Manual baseline entry for RHR and perceived fitness levels via Health Logs.
-    - [ ] Synthetic baseline generation based on age/gender until real telemetry is available.
+## Phase 4: Scaling & SRE Foundations (Completed ✅)
+- [x] **Multi-User Identity**: Strict isolation of biometric data and sessions by `user_id`.
+- [x] **Hybrid Storage (OLTP/OLAP)**: Implementation of the [Firestore vs. BigQuery](./database-design-guidelines.md) split for sub-30ms context retrieval.
+- [x] **Semantic Conversation Memory**: Firestore persistence for "Golden Nuggets" (preferences, medical quirks) across sessions.
+- [x] **Dockerized Ecosystem**: Full containerization of the API and background workers.
 
-## Phase 4: Production Deployment & Ecosystem Expansion (Completed ✅)
-- [x] **Dockerization:** API and Worker logic containerized for streamlined deployment.
-- [x] **Proactive Notifications Agent:** Built-in standalone logic for daily summaries via the Orchestrator.
-- [x] **Phase 2: Daily Life Ingestion & Personal Calibration Profile (Completed ✅)**
-    - [x] Implement All-Day metrics ingestion (RHR, Stress, Steps) to `daily_physiology` table.
-    - [x] Implement Personal Calibration Profile (PCP) storage and `save_calibration_marker` tool.
-    - [x] Update agent logic to cross-reference training load with daily stress.
-    - [x] **Backfill Engine:** One-time 1-year ingestion logic for historical baselines.
-- [ ] **Persistent Conversation Memory** [SEVERITY: HIGH]: Use BigQuery/Vector store to allow the agent to recall past coaching sessions over months.
-- [ ] **OpenClaw Integration** [SEVERITY: LOW]: Document the pattern for using the platform as an OpenClaw backend.
+## Phase 5: Parallel Multi-Agent Orchestration (Completed ✅)
+- [x] **Parallel Execution (Fan-out)**: LangGraph refactor to run specialist agents (**Injury, Sleep, Nutrition**) in parallel, reducing latency by 60%.
+- [x] **Agent Discovery Loop**: Background DataScientist task to audit 30-90 days of history for 'rare' success markers.
+- [x] **Predictive Load Modeler**: Integrated AC Ratio simulation to project training impact before prescription.
+- [x] **Rich HTML Dashboards**: Generation of high-fidelity historical artifacts with SVG visualizations stored in GCS.
 
-## Phase 5: AI Health & Performance Butler (Completed ✅)
-- [x] **Predictive Load Modeler:** Implement `project_training_impact` tool for A:C ratio simulation. (Completed ✅)
-- [x] **Multi-Agent Refactor:** Evolve LangGraph into specialized agent nodes (Injury, Sleep, Nutrition). (Completed ✅)
-- [x] **Deep Historical Reporting Engine:** Implement artifact-based long-term analysis (3-6 months) with GCS persistence. (Completed ✅)
-- [x] **AgentSearch (Dynamic SQL):** Deploy a 'DataScientist' sub-agent to autonomously discover physiological correlations. (Completed ✅)
-- [x] **Autonomous Discovery Phase:** Background discovery loop for persistent 'Success Markers'. (Completed ✅)
-
-## Phase 6: Advanced Physiological Intelligence (Current Focus 🚧)
-- [ ] **Advanced Immune Radar:** Cross-reference HRV, Resting HR, and Sleep Quality to provide 24-48h early warning for illness or systemic overreach.
-- [ ] **Precision Nutrition Engine:** Use 'Metabolic Cost' (HR per Step) and session intensity to provide exact carbohydrate/protein timing advice for the next day.
-- [ ] **Lifestyle Stress Auditor:** Correlate subjective 'Health Logs' with objective Stress/HRV data to identify non-training stressors (e.g., work, travel, diet).
-- [ ] **Injury Prevention Hub:** Track 'Niggles' and fatigue trends in mechanical metrics (GCT balance, Vertical Oscillation) to proactively prescribe mobility or rest.
-- [ ] **Multi-Sport Support (Swimming, Rollerblading):** Extend `upload_training_plan` schema to support alternative `sportType` and adapt biomechanical rules to handle low-impact metrics (e.g., SWOLF).
-
-## Architecture Philosophy
-- **API as the Engine:** Complex logic (ETL, BQ, Auth) lives in Python.
-- **Agent as the Brain:** Modular Skills (`SKILL.md`) provide the expert persona.
-- **Dynamic Precision:** Physiological thresholds are calculated dynamically from raw telemetry (e.g., 90% power rule) to ensure analysis adapts to any fitness level.
-- **OpenAI Standard:** Zero-friction integration with the broader AI ecosystem.
+## Phase 6: Advanced Intelligence & Predictive SRE (Current Focus 🚧)
+- [x] **Immune Radar**: Statistical anomaly detection using **Z-Scores** (Standard Deviations) to predict illness based on HRV and RHR shifts.
+- [x] **Asynchronous Onboarding**: Automated 90-day historical backfill managed via Firestore state without blocking the agent.
+- [x] **SRE-Driven Data Science**: BigQuery **Dry Run** evaluation to ensure query cost efficiency and partitioning optimization.
+- [ ] **Precision Nutrition 2.0**: Integration of real-time telemetry (HR per step) for exact carbohydrate and protein replenishment math.
+- [ ] **Cross-User Pattern Discovery**: (Admin only) Discovering global performance trends across the entire athlete population.
+- [ ] **Wearable-Agnostic Interface**: Expansion to Suunto and Whoop via the [Standardized Provider Interface](./architecture-plan.md).
