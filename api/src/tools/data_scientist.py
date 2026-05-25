@@ -94,6 +94,58 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
         return f"Error executing query: {e}"
 
 
+@tool(args_schema=SQLQueryInput)
+def execute_exploratory_query_dry_run(sql: str, user_id: str) -> str:
+    """
+    Performs a BigQuery 'Dry Run' to estimate the cost/bytes scanned by a query.
+    USE THIS TOOL BEFORE execute_exploratory_query to ensure efficiency.
+    Returns the estimated total bytes processed.
+    """
+    config = get_config()
+    pid = config.get("project_id")
+    ds = config.get("dataset_id")
+
+    # Basic isolation check (same as execution)
+    if f"user_id = '{user_id}'" not in sql and f"user_id='{user_id}'" not in sql:
+        return f"Error: Security violation. Query must include 'WHERE user_id = '{user_id}''."
+
+    try:
+        client = get_bq_client(pid)
+        
+        # Qualify SQL
+        dataset_ref = client.dataset(ds)
+        available_tables = [t.table_id for t in client.list_tables(dataset_ref)]
+        qualified_sql = sql
+        for table in available_tables:
+            if f" {table}" in qualified_sql or f"\n{table}" in qualified_sql:
+                qualified_sql = qualified_sql.replace(f" {table}", f" `{pid}.{ds}.{table}`")
+                qualified_sql = qualified_sql.replace(f"\n{table}", f"\n`{pid}.{ds}.{table}`")
+
+        job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+        query_job = client.query(qualified_sql, job_config=job_config)
+        
+        bytes_processed = query_job.total_bytes_processed
+        readable_size = _format_bytes(bytes_processed)
+        
+        log.info(f"🧪 Dry Run successful: {readable_size} estimated for query.")
+        return json.dumps({
+            "estimated_bytes_processed": bytes_processed,
+            "human_readable_estimate": readable_size,
+            "is_efficient": bytes_processed < 100 * 1024 * 1024  # Example: < 100MB
+        })
+    except Exception as e:
+        return f"Dry run failed: {e}"
+
+
+def _format_bytes(size: int) -> str:
+    """Formats bytes into human readable format."""
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
+
+
 @tool
 def get_bigquery_schema() -> str:
     """

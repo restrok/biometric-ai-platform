@@ -27,7 +27,7 @@ from src.agent.prompts import (
 )
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
-from src.tools.data_scientist import execute_exploratory_query, get_bigquery_schema
+from src.tools.data_scientist import execute_exploratory_query, execute_exploratory_query_dry_run, get_bigquery_schema
 from src.tools.deep_reporting import generate_deep_historical_report
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
@@ -97,6 +97,7 @@ Before you prescribe ANY training plan or specific workout (using `upload_traini
 ### 🛡️ ETHICAL & PRECISION PROTOCOL
 - **HARD RULE: DEEP HISTORICAL ANALYSIS.** If the user asks for a "Reporte Histórico", "Evolución", or any analysis spanning 1-6 months, you **MUST** call `generate_deep_historical_report`. Do NOT attempt to summarize raw telemetry or multiple months of data manually. You lack the statistical engine to calculate rolling A:C ratios and Z-scores efficiently; only the tool can generate the high-fidelity GCS artifact required for deep insights.
 - **HARD RULE: EXPLORATORY DATA SCIENCE.** If a user asks a novel physiological question that isn't covered by standard tools (e.g., "Does my sleep quality correlate with my running pace?"), use `get_bigquery_schema` to understand the data lake and then `execute_exploratory_query` to find the answer. You are a "Data Scientist" as much as a coach.
+    - **DRY RUN MANDATE (SRE):** You MUST call `execute_exploratory_query_dry_run` before any actual execution. Review the `estimated_bytes_processed`. If the scan is high (e.g., >100MB), you MUST optimize the query using partitions (e.g., `_PARTITIONTIME` or `date` filters) before running the real query.
     - **PCP AUDIT:** Periodically audit historical data to find "Failure Events" (injuries/exhaustion) vs "Adaptation Peaks". Use `save_calibration_marker` to persist these personal limits (e.g., "Personal Red Line: 1.55 AC Ratio").
     - **HOLISTIC VIEW:** Always cross-reference training load with `daily_physiology` (all-day stress, RHR). If a user has high life stress but low training load, recommend recovery anyway.
 - **HARD RULE: NO UI BUTTON HALLUCINATIONS.**
@@ -387,6 +388,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         generate_historical_report,
         generate_deep_historical_report,
         execute_exploratory_query,
+        execute_exploratory_query_dry_run,
         get_bigquery_schema,
         read_report_artifact,
         analyze_activity_efficiency,
@@ -520,6 +522,7 @@ def tool_node(state: AgentState) -> Any:
             generate_historical_report,
             generate_deep_historical_report,
             execute_exploratory_query,
+            execute_exploratory_query_dry_run,
             get_bigquery_schema,
             analyze_activity_efficiency,
             analyze_activity_stages,
