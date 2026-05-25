@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
 from src.agent.prompts import (
+    DATA_SCIENTIST_PROMPT,
     HEAD_COACH_SYSTEM_PROMPT,
     INJURY_PREVENTION_PROMPT,
     MEMORY_EXTRACTOR_PROMPT,
@@ -544,12 +545,67 @@ def tool_node(state: AgentState) -> Any:
     )
 
 
+class DataScientistOutput(BaseModel):
+    hypothesis: str = Field(..., description="The physiological or statistical hypothesis investigated.")
+    query_executed: str = Field(..., description="The final optimized SQL string that passed the Dry Run.")
+    pattern_detected: bool = Field(..., description="True if data validated the hypothesis; False otherwise.")
+    confidence_score: float = Field(..., ge=0.0, le=1.0, description="Statistical confidence level.")
+    raw_findings: str = Field(..., description="Technical summary of the resulting data.")
+    recommended_action: str = Field(..., description="Direct recommendation for the Head Coach.")
+    metric_type: Literal["hrv_stress", "aerobic_decoupling", "rhr_trend", "workload_anomaly", "other"]
+
+
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
-    """Specialized node for complex exploratory data analysis."""
-    log.info("🧪 DataScientist node activated for deep analysis...")
-    # This node could have its own specialized system prompt
-    # For now, it delegates to the main analyzer with the DataScientist tools
-    return node_analyze(state)
+    """Specialized node for autonomous physiological hypothesis testing."""
+    log.info("🧪 DataScientist node activated for autonomous discovery...")
+    model_name = "gemma-4-31b-it"
+    user_id = state.get("user_id", "unknown")
+
+    # Instantiate specialized LLM for Data Science
+    llm = ChatGoogleGenerativeAI(
+        model=model_name,
+        temperature=0,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
+
+    # Bind DS tools
+    ds_tools = [execute_exploratory_query_dry_run, execute_exploratory_query, get_bigquery_schema]
+    llm_with_tools = llm.bind_tools(ds_tools)
+
+    # Context preparation
+    messages: list[BaseMessage] = [
+        SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}")
+    ]
+
+    # Pass the last user interaction and biometric context for hypothesis formulation
+    # We serialize the context to JSON to ensure the LLM can parse it easily
+    context_str = json.dumps(state.get("biometric_context", {}), default=str)
+    messages.append(HumanMessage(content=f"Biometric Context: {context_str}"))
+    messages.append(state["messages"][-1])
+
+    # Initial call to formulate hypothesis and potentially call tools
+    response = llm_with_tools.invoke(messages)
+
+    # If the DS wants to use tools, we return them to the 'tools' node
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        log.info(f"🧪 DataScientist calling {len(response.tool_calls)} tools for discovery.")
+        # Mark this AI message to identify its tools in the router
+        response.additional_kwargs["is_ds_call"] = True
+        return {"messages": [response]}
+
+    # Once tools are done (or if no tools needed), force a structured output
+    structured_llm = llm.with_structured_output(DataScientistOutput)
+    try:
+        final_findings = structured_llm.invoke(messages + [response])
+        findings_msg = SystemMessage(
+            content=f"🧪 DATA SCIENTIST REPORT:\n{json.dumps(final_findings.model_dump(), indent=2)}",
+            additional_kwargs={"is_ds_report": True},
+        )
+        log.info("🧪 DataScientist generated structured report.")
+        return {"messages": [findings_msg]}
+    except Exception as e:
+        log.error(f"❌ DataScientist failed to generate structured report: {e}")
+        return {"messages": [SystemMessage(content=f"Data Scientist analysis failed: {e}")]}
 
 
 def node_validator(state: AgentState) -> dict[str, Any]:
@@ -640,8 +696,9 @@ def route_after_analysis(state: AgentState):
 
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         # Check if any tool call is for exploratory data science
-        exploratory_tools = ["execute_exploratory_query", "get_bigquery_schema"]
+        exploratory_tools = ["execute_exploratory_query", "get_bigquery_schema", "execute_exploratory_query_dry_run"]
         if any(tc["name"] in exploratory_tools for tc in last_message.tool_calls):
+            log.info("🧪 Routing to Data Scientist node...")
             return "data_scientist"
         return "tools"
 
@@ -727,6 +784,11 @@ def route_after_tools(state: AgentState):
     if "memory_extractor" in str(tags) or trigger_msg.additional_kwargs.get("is_memory_extraction"):
         log.info("🏁 Tools were from memory_extractor. Ending flow.")
         return END
+
+    # If the tools were triggered by data_scientist, go back to it to synthesize results
+    if trigger_msg.additional_kwargs.get("is_ds_call"):
+        log.info("🧪 Tools were from data_scientist. Back-rooting to DS node.")
+        return "data_scientist"
 
     # Otherwise, back to analyzer for recursion
     log.info("🔄 Tools were from analyzer. Back-rooting for recursion.")
