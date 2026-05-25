@@ -475,13 +475,13 @@ def _retrieve_biometric_data_cached(
                     AVG(gap) as avg_gap,
                     AVG(perf) as avg_perf,
                     AVG(rw_idx) as avg_rw_idx,
-                    -- Fractional Windows (First/Last 10% for Noise-Resistant Trends)
-                    AVG(CASE WHEN timestamp_ms <= seg_start + ((seg_end - seg_start) * 0.1) THEN hr_bpm END) as hr_start_avg,
-                    AVG(CASE WHEN timestamp_ms >= seg_end - ((seg_end - seg_start) * 0.1) THEN hr_bpm END) as hr_end_avg,
-                    AVG(CASE WHEN timestamp_ms <= seg_start + ((seg_end - seg_start) * 0.1) THEN gct END) as gct_start_avg,
-                    AVG(CASE WHEN timestamp_ms >= seg_end - ((seg_end - seg_start) * 0.1) THEN gct END) as gct_end_avg,
-                    AVG(CASE WHEN timestamp_ms <= seg_start + ((seg_end - seg_start) * 0.1) THEN power_w END) as pwr_start_avg,
-                    AVG(CASE WHEN timestamp_ms >= seg_end - ((seg_end - seg_start) * 0.1) THEN power_w END) as pwr_end_avg
+                    -- V4.0 Optimal Precision (Fixed 11s Windows for Noise-Resistant Trends)
+                    AVG(CASE WHEN timestamp_ms <= seg_start + 11000 THEN hr_bpm END) as hr_start_avg,
+                    AVG(CASE WHEN timestamp_ms >= seg_end - 11000 THEN hr_bpm END) as hr_end_avg,
+                    AVG(CASE WHEN timestamp_ms <= seg_start + 11000 THEN gct END) as gct_start_avg,
+                    AVG(CASE WHEN timestamp_ms >= seg_end - 11000 THEN gct END) as gct_end_avg,
+                    AVG(CASE WHEN timestamp_ms <= seg_start + 11000 THEN power_w END) as pwr_start_avg,
+                    AVG(CASE WHEN timestamp_ms >= seg_end - 11000 THEN power_w END) as pwr_end_avg
                 FROM segment_bounds
                 GROUP BY activity_id, activity_name, event_id, is_work, seg_start, seg_end
                 HAVING duration_sec >= 10
