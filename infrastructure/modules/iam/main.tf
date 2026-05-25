@@ -25,3 +25,10 @@ resource "google_project_iam_member" "api_gcs_viewer" {
   role    = "roles/storage.objectViewer"
   member  = "serviceAccount:${google_service_account.api_sa.email}"
 }
+
+# Grant Firestore User access
+resource "google_project_iam_member" "api_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.api_sa.email}"
+}

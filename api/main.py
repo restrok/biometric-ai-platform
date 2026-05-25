@@ -248,15 +248,25 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
     # 2. Handle Non-Streaming Mode
     try:
         result = await graph.ainvoke(cast(Any, initial_state), config=config)
-        ai_msg = result["messages"][-1]
-        ai_reply = ai_msg.content
+        
+        # Find the last AI message that actually has content (ignoring internal nodes like memory_extractor)
+        ai_reply = ""
+        for msg in reversed(result["messages"]):
+            if msg.type == "ai" and msg.content:
+                # If it's a list (rich response), join it
+                if isinstance(msg.content, list):
+                    text_parts = [item if isinstance(item, str) else item.get("text", "") for item in msg.content]
+                    ai_reply = "\n".join(filter(None, text_parts))
+                else:
+                    ai_reply = str(msg.content)
+                
+                # If we found a non-empty AI response, we're done
+                if ai_reply.strip():
+                    break
 
-        # Handle Gemini rich response formats (lists/dicts)
-        if isinstance(ai_reply, list):
-            text_parts = [item if isinstance(item, str) else item.get("text", "") for item in ai_reply]
-            ai_reply = "\n".join(filter(None, text_parts))
-        elif not isinstance(ai_reply, str):
-            ai_reply = str(ai_reply)
+        if not ai_reply:
+            log.warning("⚠️ No meaningful AI response found in graph state.")
+            ai_reply = "The coach prepared a report but it was empty. Please try again."
 
         return OpenAICompletionResponse(
             model=req.model,

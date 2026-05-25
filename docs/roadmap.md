@@ -22,6 +22,15 @@
 - [x] **Zombie Context Resolution:** 3-day expiration filter for health logs to prevent repetitive old reminders.
 - [x] **Full Tool Integration:** 100% of internal tools linked to the API to prevent model hallucinations.
 
+## Phase 3.5: Scaling & New User Onboarding (Current Focus 🚧)
+- [ ] **Data-Rich Onboarding (Existing Users):**
+    - [ ] Automated 3-6 month historical backfill (Activities, Sleep, HRV) upon first login.
+    - [x] **"First Look" Profile Audit:** DataScientist autonomously identifies baseline AeT and Max HR from history. (Completed ✅)
+- [ ] **Cold-Start Onboarding (New Athletes - e.g., Mercedes):**
+    - [ ] Guided calibration phase (2 weeks of Zone 2 only) to establish initial efficiency metrics.
+    - [ ] Manual baseline entry for RHR and perceived fitness levels via Health Logs.
+    - [ ] Synthetic baseline generation based on age/gender until real telemetry is available.
+
 ## Phase 4: Production Deployment & Ecosystem Expansion (Completed ✅)
 - [x] **Dockerization:** API and Worker logic containerized for streamlined deployment.
 - [x] **Proactive Notifications Agent:** Built-in standalone logic for daily summaries via the Orchestrator.
@@ -46,10 +55,6 @@
 - [ ] **Lifestyle Stress Auditor:** Correlate subjective 'Health Logs' with objective Stress/HRV data to identify non-training stressors (e.g., work, travel, diet).
 - [ ] **Injury Prevention Hub:** Track 'Niggles' and fatigue trends in mechanical metrics (GCT balance, Vertical Oscillation) to proactively prescribe mobility or rest.
 - [ ] **Multi-Sport Support (Swimming, Rollerblading):** Extend `upload_training_plan` schema to support alternative `sportType` and adapt biomechanical rules to handle low-impact metrics (e.g., SWOLF).
-- [ ] **Phase 3: New User Onboarding & Scalability**
-    - [ ] **Data-Rich Onboarding (Existing Users):**
-        - [ ] Automated 3-6 month historical backfill (Activities, Sleep, HRV) upon first login.
-        - [ ] "First Look" Profile Audit: DataScientist autonomously identifies baseline AeT and Max HR from history.
 
 ## Architecture Philosophy
 - **API as the Engine:** Complex logic (ETL, BQ, Auth) lives in Python.

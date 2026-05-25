@@ -23,6 +23,7 @@ dependencies = [
     "ragas>=0.2.0",
     "garmin-training-toolkit-sdk @ git+https://github.com/restrok/garmin-training-toolkit-sdk.git@v0.7.2#subdirectory=garmin_toolkit",
     "google-cloud-secret-manager>=2.27.0",
+    "google-cloud-firestore>=2.21.0",
 ]
 
 [dependency-groups]

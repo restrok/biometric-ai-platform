@@ -10,6 +10,7 @@ locals {
     "billingbudgets.googleapis.com", # Necesario para las alertas de presupuesto
     "iam.googleapis.com",            # Gestión de identidades y permisos
     "cloudquotas.googleapis.com",
+    "firestore.googleapis.com",      # Base de datos OLTP para memoria semántica
   ]
 }
 

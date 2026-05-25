@@ -61,3 +61,9 @@ module "billing" {
   billing_account_id = var.billing_account_id
 }
 
+module "firestore" {
+  source     = "./modules/firestore"
+  project_id = var.project_id
+  region     = var.region
+}
+

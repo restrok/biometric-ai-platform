@@ -13,6 +13,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
+from src.utils.firestore import get_firestore_client
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -378,6 +379,26 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
             return "scheduled_workouts", []
 
+    def fetch_semantic_memories() -> tuple[str, list[dict[str, Any]]]:
+        """Fetches active semantic memories from Firestore."""
+        try:
+            t0 = time.time()
+            db = get_firestore_client()
+            memories_ref = db.collection("user_memories")
+            query = memories_ref.where("user_id", "==", user_id).where("is_active", "==", True)
+            
+            memories = []
+            for doc in query.stream():
+                m = doc.to_dict()
+                m["id"] = doc.id  # Include the document ID for conflict resolution
+                memories.append(m)
+            
+            log.info(f"⏱️ Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s")
+            return "semantic_memories", memories
+        except Exception as e:
+            log.warning(f"❌ Semantic memory retrieval failed: {e}")
+            return "semantic_memories", []
+
     def fetch_telemetry(activity_ids: list[str]) -> tuple[str, str]:
         """Fetches and aggregates telemetry for the last 3 activities."""
         if not activity_ids:
@@ -536,6 +557,7 @@ def _retrieve_biometric_data_cached(
         f_daily = executor.submit(fetch_daily_physiology)
         f_calib = executor.submit(fetch_calibration_profile)
         f_sched = executor.submit(fetch_scheduled_workouts)
+        f_memories = executor.submit(fetch_semantic_memories)
 
         act_key, act_val = f_act.result()
         context[act_key] = act_val
@@ -553,6 +575,7 @@ def _retrieve_biometric_data_cached(
             f_daily,
             f_calib,
             f_sched,
+            f_memories,
             f_telemetry,
         ]:
             res: tuple[str, Any] = f.result()  # type: ignore

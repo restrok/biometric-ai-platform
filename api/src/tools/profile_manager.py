@@ -41,7 +41,7 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_i
             custom_z2_max = {z2_max},
             custom_z3_max = {z3_max},
             custom_z4_max = {z4_max},
-            updated_at = CURRENT_TIMESTAMP()
+            updated_at = CURRENT_DATETIME()
         {where_clause}
     """
 
@@ -96,6 +96,11 @@ def log_health_status(
     if user_id:
         on_clause += f" AND T.user_id = '{user_id}'"
 
+    # Escape single quotes
+    safe_feeling = feeling.replace("'", "''")
+    safe_notes = notes.replace("'", "''") if notes else None
+    safe_injury = injury_notes.replace("'", "''") if injury_notes else None
+
     # We use a MERGE (UPSERT) to ensure one entry per day
     query = f"""
         MERGE `{table_id}` T
@@ -103,14 +108,14 @@ def log_health_status(
         ON {on_clause}
         WHEN MATCHED THEN
             UPDATE SET 
-                feeling = '{feeling}',
-                notes = {f"'{notes}'" if notes else "NULL"},
+                feeling = '{safe_feeling}',
+                notes = {f"'{safe_notes}'" if safe_notes else "NULL"},
                 fatigue_level = {fatigue_level if fatigue_level is not None else "NULL"},
-                injury_notes = {f"'{injury_notes}'" if injury_notes else "NULL"},
+                injury_notes = {f"'{safe_injury}'" if safe_injury else "NULL"},
                 updated_at = CURRENT_TIMESTAMP()
         WHEN NOT MATCHED THEN
             INSERT (date, feeling, notes, fatigue_level, injury_notes, updated_at, user_id)
-            VALUES ('{target_date}', '{feeling}', {f"'{notes}'" if notes else "NULL"}, {fatigue_level if fatigue_level is not None else "NULL"}, {f"'{injury_notes}'" if injury_notes else "NULL"}, CURRENT_TIMESTAMP(), {f"'{user_id}'" if user_id else "NULL"})
+            VALUES ('{target_date}', '{safe_feeling}', {f"'{safe_notes}'" if safe_notes else "NULL"}, {fatigue_level if fatigue_level is not None else "NULL"}, {f"'{safe_injury}'" if safe_injury else "NULL"}, CURRENT_TIMESTAMP(), {f"'{user_id}'" if user_id else "NULL"})
     """
 
     try:
@@ -228,6 +233,10 @@ def manage_goals(
     goal_id = str(uuid.uuid4())[:8]
     created_at = datetime.utcnow().isoformat()
 
+    # Escape single quotes
+    safe_desc = description.replace("'", "''") if description else None
+    safe_val = target_value.replace("'", "''")
+
     # We use a MERGE to avoid duplicate active goals of the same type for the same date
     on_clause = "T.target_date = S.target_date AND T.goal_type = S.goal_type"
     if user_id:
@@ -239,12 +248,12 @@ def manage_goals(
         ON {on_clause}
         WHEN MATCHED THEN
             UPDATE SET 
-                target_value = '{target_value}',
-                description = {f"'{description}'" if description else "NULL"},
+                target_value = '{safe_val}',
+                description = {f"'{safe_desc}'" if safe_desc else "NULL"},
                 status = '{status}'
         WHEN NOT MATCHED THEN
             INSERT (id, created_at, target_date, goal_type, target_value, description, status, user_id)
-            VALUES ('{goal_id}', '{created_at}', '{target_date}', '{goal_type}', '{target_value}', {f"'{description}'" if description else "NULL"}, '{status}', {f"'{user_id}'" if user_id else "NULL"})
+            VALUES ('{goal_id}', '{created_at}', '{target_date}', '{goal_type}', '{safe_val}', {f"'{safe_desc}'" if safe_desc else "NULL"}, '{status}', {f"'{user_id}'" if user_id else "NULL"})
     """
 
     try:
@@ -288,6 +297,9 @@ def save_calibration_marker(
     if user_id:
         on_clause += f" AND T.user_id = '{user_id}'"
 
+    # Escape single quotes in context to avoid SQL errors
+    safe_context = context.replace("'", "''") if context else None
+
     query = f"""
         MERGE `{table_id}` T
         USING (SELECT '{marker_type}' as marker_type) S
@@ -295,11 +307,11 @@ def save_calibration_marker(
         WHEN MATCHED THEN
             UPDATE SET 
                 marker_value = {marker_value},
-                context = {f"'{context}'" if context else "NULL"},
+                context = {f"'{safe_context}'" if safe_context else "NULL"},
                 updated_at = CURRENT_TIMESTAMP()
         WHEN NOT MATCHED THEN
             INSERT (user_id, marker_type, marker_value, context, created_at, updated_at)
-            VALUES ({f"'{user_id}'" if user_id else "NULL"}, '{marker_type}', {marker_value}, {f"'{context}'" if context else "NULL"}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
+            VALUES ({f"'{user_id}'" if user_id else "NULL"}, '{marker_type}', {marker_value}, {f"'{safe_context}'" if safe_context else "NULL"}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
     """
 
     try:

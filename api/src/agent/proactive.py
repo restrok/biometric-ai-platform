@@ -125,7 +125,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
                 "intent": "full",
             },
         )
-        graph.invoke(initial_state)
+        # Use user_id as thread_id for continuity
+        config = {"configurable": {"thread_id": user_id}}
+        graph.invoke(initial_state, config=config)
 
     except Exception as e:
         log.error(f"❌ Proactive analysis/planning failed: {e}")
@@ -167,7 +169,8 @@ def _run_discovery_phase(user_id: str):
             },
         )
         # The graph will now route this to the DataScientist node because of the exploratory tool calls
-        graph.invoke(initial_state)
+        config = {"configurable": {"thread_id": user_id}}
+        graph.invoke(initial_state, config=config)
 
     except Exception as e:
         log.error(f"❌ Discovery Phase failed: {e}")
