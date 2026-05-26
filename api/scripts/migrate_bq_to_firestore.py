@@ -97,7 +97,7 @@ def migrate():
                 profile_data["personal_calibration_profile"][m_type] = {
                     "value": c.get("marker_value"),
                     "context": c.get("context"),
-                    "updated_at": c.get("updated_at").isoformat() if c.get("updated_at") else None,
+                    "updated_at": c["updated_at"].isoformat() if c.get("updated_at") else None,
                 }
             log.info(f"  ✅ {len(c_rows)} Calibration Markers extracted")
 

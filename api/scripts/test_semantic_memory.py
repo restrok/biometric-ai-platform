@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import uuid
+from typing import cast
 
 # Add parent directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
@@ -25,7 +26,8 @@ async def run_test_cycle(user_id: str, thread_id: str, message: str, description
         "loop_count": 0,
     }
 
-    config = {"configurable": {"thread_id": thread_id}}
+    from langchain_core.runnables import RunnableConfig
+    config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id}})
 
     async for output in graph.astream(inputs, config=config):
         for node_name, state in output.items():

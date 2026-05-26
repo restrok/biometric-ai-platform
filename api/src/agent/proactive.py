@@ -101,6 +101,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         from typing import cast
 
         from langchain_core.messages import HumanMessage
+        from langchain_core.runnables import RunnableConfig
 
         from src.agent.graph import AgentState, graph
 
@@ -136,7 +137,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             },
         )
         # Use user_id as thread_id for continuity
-        config = {"configurable": {"thread_id": user_id}}
+        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}})
         graph.invoke(initial_state, config=config)
 
     except Exception as e:
@@ -153,6 +154,7 @@ def _run_discovery_phase(user_id: str):
         from typing import cast
 
         from langchain_core.messages import HumanMessage
+        from langchain_core.runnables import RunnableConfig
 
         from src.agent.graph import AgentState, graph
 
@@ -179,7 +181,7 @@ def _run_discovery_phase(user_id: str):
             },
         )
         # The graph will now route this to the DataScientist node because of the exploratory tool calls
-        config = {"configurable": {"thread_id": user_id}}
+        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}})
         graph.invoke(initial_state, config=config)
 
     except Exception as e:

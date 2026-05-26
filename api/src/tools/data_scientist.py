@@ -139,7 +139,7 @@ def execute_exploratory_query_dry_run(sql: str, user_id: str) -> str:
         return f"Dry run failed: {e}"
 
 
-def _format_bytes(size: int) -> str:
+def _format_bytes(size: float) -> str:
     """Formats bytes into human readable format."""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size < 1024:

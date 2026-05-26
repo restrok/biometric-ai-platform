@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from langchain_core.messages import (
     BaseMessage,
@@ -598,7 +598,11 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     # Once tools are done (or if no tools needed), force a structured output
     structured_llm = llm.with_structured_output(DataScientistOutput)
     try:
-        final_findings = structured_llm.invoke(messages + [response])
+        raw_output = structured_llm.invoke(messages + [response])
+        if not raw_output:
+            raise ValueError("No output from Data Scientist LLM")
+
+        final_findings = cast(DataScientistOutput, raw_output)
         findings_msg = SystemMessage(
             content=f"🧪 DATA SCIENTIST REPORT:\n{json.dumps(final_findings.model_dump(), indent=2)}",
             additional_kwargs={"is_ds_report": True},

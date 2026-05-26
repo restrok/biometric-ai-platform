@@ -24,7 +24,7 @@ def list_available_models() -> list[str]:
         client = genai.Client(api_key=api_key)
         models = client.models.list()
         # Return simple slugs like 'gemini-2.0-flash' instead of 'models/gemini-2.0-flash'
-        return [m.name.replace("models/", "") for m in models]
+        return [m.name.replace("models/", "") for m in models if m.name]
     except Exception as e:
         log.error(f"Failed to list models: {e}")
         return [f"Error listing models: {str(e)}"]
