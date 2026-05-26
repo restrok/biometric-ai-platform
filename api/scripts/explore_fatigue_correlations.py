@@ -8,7 +8,7 @@ def run_analysis():
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
-    user_id = 'fsirio'
+    user_id = "fsirio"
 
     query = f"""
     WITH telemetry_base AS (
@@ -75,7 +75,7 @@ def run_analysis():
     )
     SELECT * FROM merged_data ORDER BY activity_date DESC
     """
-    
+
     print(f"Running query for user {user_id}...")
     try:
         query_job = client.query(query)
@@ -83,7 +83,7 @@ def run_analysis():
     except Exception as e:
         print(f"Error running query: {e}")
         return
-    
+
     if not results:
         print("No correlations found. (Maybe lack of matching HRV data for the day after the activity?)")
         return
@@ -91,7 +91,7 @@ def run_analysis():
     print(f"{'Date':<12} | {'Activity':<30} | {'Decoupling':<10} | {'GCT Drift':<10} | {'Next HRV':<8}")
     print("-" * 85)
     for row in results:
-        name = (row.activity_name[:30] if row.activity_name else "Unknown")
+        name = row.activity_name[:30] if row.activity_name else "Unknown"
         dec = row.decoupling_pct if row.decoupling_pct is not None else 0.0
         drift = row.gct_drift_pct if row.gct_drift_pct is not None else 0.0
         hrv = row.next_day_hrv if row.next_day_hrv is not None else 0.0
@@ -99,10 +99,10 @@ def run_analysis():
 
     # Summary analysis
     print("\nSummary Analysis (HRV the day after):")
-    
+
     # Filter results that have HRV data
     valid_results = [r for r in results if r.next_day_hrv is not None]
-    
+
     if not valid_results:
         print("No valid data points with next-day HRV found for summary.")
         return
@@ -113,7 +113,7 @@ def run_analysis():
         ("GCT Drift 2-5%", [r for r in valid_results if 2 <= r.gct_drift_pct < 5]),
         ("GCT Drift > 5%", [r for r in valid_results if r.gct_drift_pct >= 5]),
     ]
-    
+
     print("\n[GCT Drift Correlation]")
     for label, group in gct_buckets:
         if group:
@@ -128,7 +128,7 @@ def run_analysis():
         ("Decoupling 5-10%", [r for r in valid_results if 5 <= r.decoupling_pct < 10]),
         ("Decoupling > 10%", [r for r in valid_results if r.decoupling_pct >= 10]),
     ]
-    
+
     print("\n[Aerobic Decoupling Correlation]")
     for label, group in dec_buckets:
         if group:
@@ -136,6 +136,7 @@ def run_analysis():
             print(f"- {label:<20}: Avg HRV = {avg_hrv:.1f} (n={len(group)})")
         else:
             print(f"- {label:<20}: No data")
+
 
 if __name__ == "__main__":
     run_analysis()

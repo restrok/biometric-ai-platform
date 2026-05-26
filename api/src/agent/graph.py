@@ -192,7 +192,7 @@ def node_router(state: AgentState) -> dict[str, Any]:
     try:
         structured_llm = model.with_structured_output(IntentClassifier)
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
-        
+
         # Enhanced prompt to detect cross-user queries and out-of-scope requests
         prompt = (
             f"Current User Session: {current_user_id}\n\n"
@@ -205,9 +205,9 @@ def node_router(state: AgentState) -> dict[str, Any]:
             "If it's about coding (e.g., Python, Javascript), general world knowledge, math, or anything unrelated "
             "to being a professional running coach, classify intent as 'none' and state 'Scope: Out-of-scope request' in the rationale."
         )
-        
+
         classification = structured_llm.invoke(prompt)
-        
+
         if isinstance(classification, IntentClassifier):
             intent = classification.intent
             rationale = classification.rationale
@@ -228,7 +228,7 @@ def node_router(state: AgentState) -> dict[str, Any]:
         rationale = f"Error during classification: {e}"
 
     log.info(f"🔍 Intent Classified: {intent.upper()} | Rationale: {rationale}")
-    
+
     # Store the rationale in metadata for the analyzer
     return {"intent": intent, "loop_count": 0, "usage_stats": {"router_rationale": rationale}}
 
@@ -577,9 +577,7 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     llm_with_tools = llm.bind_tools(ds_tools)
 
     # Context preparation
-    messages: list[BaseMessage] = [
-        SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}")
-    ]
+    messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}")]
 
     # Pass the last user interaction and biometric context for hypothesis formulation
     # We serialize the context to JSON to ensure the LLM can parse it easily
@@ -678,7 +676,7 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
 
     # Invoke extractor
     response = llm_with_tools.invoke(messages, config={"tags": ["memory_extractor"]})
-    
+
     log.info(f"🧠 Extractor raw response: {response}")
     if hasattr(response, "tool_calls") and response.tool_calls:
         log.info(f"🧠 Extractor found {len(response.tool_calls)} nuggets!")
@@ -724,6 +722,7 @@ workflow.add_node("tools", tool_node)
 workflow.add_edge(START, "router")
 workflow.add_edge("router", "retriever")
 
+
 # Conditional fan-out: Short-circuit if intent is NONE
 def route_from_retriever(state: AgentState):
     """Short-circuits specialized agents if no biometric data is needed."""
@@ -731,19 +730,20 @@ def route_from_retriever(state: AgentState):
     if intent == "none":
         log.info("⏭️ Intent is NONE. Short-circuiting specialized agents.")
         return ["analyzer"]
-    
+
     log.info(f"🔀 Intent is {intent.upper()}. Fanning out to specialized agents.")
     return ["injury_prevention", "sleep_recovery", "metabolic_nutrition"]
 
+
 workflow.add_conditional_edges(
-    "retriever", 
+    "retriever",
     route_from_retriever,
     {
         "analyzer": "analyzer",
         "injury_prevention": "injury_prevention",
         "sleep_recovery": "sleep_recovery",
-        "metabolic_nutrition": "metabolic_nutrition"
-    }
+        "metabolic_nutrition": "metabolic_nutrition",
+    },
 )
 
 # Fan-in: All specialized agents flow into the analyzer

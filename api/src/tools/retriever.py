@@ -332,11 +332,9 @@ def _retrieve_biometric_data_cached(
             # Convert dict back to list format expected by graph
             calib_list = []
             for m_type, m_data in calib_dict.items():
-                calib_list.append({
-                    "marker_type": m_type,
-                    "marker_value": m_data.get("value"),
-                    "context": m_data.get("context")
-                })
+                calib_list.append(
+                    {"marker_type": m_type, "marker_value": m_data.get("value"), "context": m_data.get("context")}
+                )
             log.info(f"⏱️ Firestore: Calibration profile retrieved in {time.time() - t0:.2f}s")
             return "personal_calibration_profile", calib_list
         except Exception as e:
@@ -372,13 +370,13 @@ def _retrieve_biometric_data_cached(
             db = get_firestore_client()
             memories_ref = db.collection("user_memories")
             query = memories_ref.where("user_id", "==", user_id).where("is_active", "==", True)
-            
+
             memories = []
             for doc in query.stream():
                 m = doc.to_dict()
                 m["id"] = doc.id  # Include the document ID for conflict resolution
                 memories.append(m)
-            
+
             log.info(f"⏱️ Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s")
             return "semantic_memories", memories
         except Exception as e:
@@ -505,7 +503,9 @@ def _retrieve_biometric_data_cached(
                 gct_drift_str = ""
                 if row.duration_sec > 180:
                     hr_drift = ((row.hr_end_avg - row.hr_start_avg) / row.hr_start_avg * 100) if row.hr_start_avg else 0
-                    gct_drift = ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100) if row.gct_start_avg else 0
+                    gct_drift = (
+                        ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100) if row.gct_start_avg else 0
+                    )
                     hr_drift_str = f" ({hr_drift:+.1f}% drift)"
                     gct_drift_str = f" ({gct_drift:+.1f}% drift)"
 

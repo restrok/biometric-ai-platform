@@ -5,17 +5,18 @@ from src.tools.data_scientist import execute_exploratory_query, execute_explorat
 
 logging.basicConfig(level=logging.INFO)
 
+
 async def iterate_methodology():
-    user_id = 'fsirio'
-    latest_id = '22946951415'
-    pid = 'bio-intelligence-dev'
-    ds = 'biometric_data_dev'
-    
+    user_id = "fsirio"
+    latest_id = "22946951415"
+    pid = "bio-intelligence-dev"
+    ds = "biometric_data_dev"
+
     # Use standard BigQuery identifiers where possible or escape dots differently
     # Standard way to refer to tables in BQ without backticks: project_id.dataset_id.table_id
     # (actually BQ usually likes backticks if dots are involved, but we can try without if the identifiers are simple)
     # Actually, BQ allows backticks, we just need to avoid the SHELL seeing them.
-    
+
     query_compare = f"""
     WITH base AS (
         SELECT 
@@ -67,14 +68,15 @@ async def iterate_methodology():
     FROM window_comparison 
     LIMIT 5
     """
-    
+
     # Cost check
-    dry_run = execute_exploratory_query_dry_run.invoke({'sql': query_compare, 'user_id': user_id})
+    dry_run = execute_exploratory_query_dry_run.invoke({"sql": query_compare, "user_id": user_id})
     print(f"DRY_RUN_RESULT:{dry_run}")
-    
+
     # Actual execution
-    results = execute_exploratory_query.invoke({'sql': query_compare, 'user_id': user_id})
+    results = execute_exploratory_query.invoke({"sql": query_compare, "user_id": user_id})
     print(f"QUERY_RESULTS:{results}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(iterate_methodology())

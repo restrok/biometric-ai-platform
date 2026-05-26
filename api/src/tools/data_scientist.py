@@ -111,7 +111,7 @@ def execute_exploratory_query_dry_run(sql: str, user_id: str) -> str:
 
     try:
         client = get_bq_client(pid)
-        
+
         # Qualify SQL
         dataset_ref = client.dataset(ds)
         available_tables = [t.table_id for t in client.list_tables(dataset_ref)]
@@ -123,16 +123,18 @@ def execute_exploratory_query_dry_run(sql: str, user_id: str) -> str:
 
         job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
         query_job = client.query(qualified_sql, job_config=job_config)
-        
+
         bytes_processed = query_job.total_bytes_processed
         readable_size = _format_bytes(bytes_processed)
-        
+
         log.info(f"🧪 Dry Run successful: {readable_size} estimated for query.")
-        return json.dumps({
-            "estimated_bytes_processed": bytes_processed,
-            "human_readable_estimate": readable_size,
-            "is_efficient": bytes_processed < 100 * 1024 * 1024  # Example: < 100MB
-        })
+        return json.dumps(
+            {
+                "estimated_bytes_processed": bytes_processed,
+                "human_readable_estimate": readable_size,
+                "is_efficient": bytes_processed < 100 * 1024 * 1024,  # Example: < 100MB
+            }
+        )
     except Exception as e:
         return f"Dry run failed: {e}"
 

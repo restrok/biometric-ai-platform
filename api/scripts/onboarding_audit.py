@@ -40,5 +40,6 @@ async def run_audit():
                 last_msg = state["messages"][-1]
                 print(f"💬 Response:\n{last_msg.content}")
 
+
 if __name__ == "__main__":
     asyncio.run(run_audit())

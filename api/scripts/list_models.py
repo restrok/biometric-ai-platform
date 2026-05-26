@@ -8,6 +8,7 @@ from src.utils.config import setup_environment
 
 log = logging.getLogger(__name__)
 
+
 @tool
 def list_available_models() -> list[str]:
     """
@@ -27,6 +28,7 @@ def list_available_models() -> list[str]:
     except Exception as e:
         log.error(f"Failed to list models: {e}")
         return [f"Error listing models: {str(e)}"]
+
 
 if __name__ == "__main__":
     # If run as a script, just print the list

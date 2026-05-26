@@ -248,7 +248,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
     # 2. Handle Non-Streaming Mode
     try:
         result = await graph.ainvoke(cast(Any, initial_state), config=config)
-        
+
         # Find the last AI message that actually has content (ignoring internal nodes like memory_extractor)
         ai_reply = ""
         for msg in reversed(result["messages"]):
@@ -263,7 +263,7 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
                     ai_reply = "\n".join(filter(None, text_parts))
                 else:
                     ai_reply = str(msg.content)
-                
+
                 # If we found a non-empty AI response, we're done
                 if ai_reply.strip():
                     break

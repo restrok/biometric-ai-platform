@@ -81,11 +81,13 @@ def update_semantic_memory(memory_id: str, new_text: str) -> str:
         if not doc.exists:
             return f"Error: Memory with ID {memory_id} not found."
 
-        doc_ref.update({
-            "memory_text": new_text,
-            "updated_at": now,
-            "is_active": True  # Ensure it's active if updated
-        })
+        doc_ref.update(
+            {
+                "memory_text": new_text,
+                "updated_at": now,
+                "is_active": True,  # Ensure it's active if updated
+            }
+        )
         log.info(f"✅ Semantic memory updated: {memory_id}")
         return f"Successfully updated memory {memory_id} to: {new_text}"
     except Exception as e:
@@ -113,10 +115,7 @@ def retire_semantic_memory(memory_id: str) -> str:
         if not doc.exists:
             return f"Error: Memory with ID {memory_id} not found."
 
-        doc_ref.update({
-            "is_active": False,
-            "updated_at": now
-        })
+        doc_ref.update({"is_active": False, "updated_at": now})
         log.info(f"✅ Semantic memory retired: {memory_id}")
         return f"Successfully retired memory {memory_id}."
     except Exception as e:

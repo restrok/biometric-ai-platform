@@ -41,7 +41,7 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_i
                 "z3_max": z3_max,
                 "z4_max": z4_max,
             },
-            "updated_at": "auto" # update_user_profile could handle this or we pass it
+            "updated_at": "auto",  # update_user_profile could handle this or we pass it
         }
         update_user_profile(user_id, zone_data)
         log.info(f"✅ Firestore: Updated zones for {user_id}")
@@ -260,24 +260,29 @@ def manage_goals(
 
     # 1. Update Firestore (Current Goals)
     try:
-        # We store goals in a sub-collection or a list in the profile. 
+        # We store goals in a sub-collection or a list in the profile.
         # For simplicity in retrieval, a list 'active_goals' in the profile works well for small counts.
         profile = get_user_profile(user_id)
         current_goals = profile.get("active_goals", [])
-        
+
         new_goal = {
             "id": goal_id,
             "target_date": target_date,
             "goal_type": goal_type,
             "target_value": target_value,
             "description": description,
-            "status": status
+            "status": status,
         }
-        
+
         # Replace if same type/date exists
-        updated_goals = [g for m in [new_goal] for g in current_goals if not (g["target_date"] == m["target_date"] and g["goal_type"] == m["goal_type"])]
+        updated_goals = [
+            g
+            for m in [new_goal]
+            for g in current_goals
+            if not (g["target_date"] == m["target_date"] and g["goal_type"] == m["goal_type"])
+        ]
         updated_goals.append(new_goal)
-        
+
         update_user_profile(user_id, {"active_goals": updated_goals})
         log.info(f"✅ Firestore: Managed goal {goal_type} for {user_id}")
     except Exception as e:
@@ -347,7 +352,7 @@ def save_calibration_marker(
         current_pcp[marker_type] = {
             "value": marker_value,
             "context": context,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
         }
         update_user_profile(user_id, {"personal_calibration_profile": current_pcp})
         log.info(f"✅ Firestore: Saved calibration marker {marker_type} for {user_id}")

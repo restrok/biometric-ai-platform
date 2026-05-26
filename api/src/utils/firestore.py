@@ -8,6 +8,7 @@ log = logging.getLogger(__name__)
 
 _firestore_client = None
 
+
 def get_firestore_client():
     """Returns a singleton Firestore client."""
     global _firestore_client

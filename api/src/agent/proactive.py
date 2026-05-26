@@ -248,7 +248,9 @@ def _check_health_pre_symptoms(user_id):
 
                 # 2. RHR Z-Score
                 physiology = data.get("daily_physiology_7d", [])
-                rhr_values = [p.get("resting_heart_rate") for p in physiology if p.get("resting_heart_rate") is not None]
+                rhr_values = [
+                    p.get("resting_heart_rate") for p in physiology if p.get("resting_heart_rate") is not None
+                ]
 
                 if len(rhr_values) >= 5:
                     today_rhr = rhr_values[0]

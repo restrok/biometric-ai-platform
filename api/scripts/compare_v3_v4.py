@@ -17,9 +17,10 @@ PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
 DATASET_ID = os.getenv("DATASET_ID", "biometric_data_dev")
 USER_ID = "fsirio"
 
+
 def compare_v3_v4_v35():
     client = bigquery.Client(project=PROJECT_ID)
-    
+
     # 1. Get the latest activity ID for the user
     query_latest = f"""
         SELECT activity_id 
@@ -163,22 +164,22 @@ def compare_v3_v4_v35():
     log.info(f"{'Metric':<20} | {'V3 (Current)':<15} | {'V4 (DS)':<15} | {'V3.5 (Hybrid)':<15}")
     log.info("-" * 75)
     log.info(f"{'Total Segments':<20} | {len(rows_v3):<15} | {len(rows_v4):<15} | {len(rows_v35):<15}")
-    
+
     total_dur_v3 = sum(r.duration_sec for r in rows_v3)
     total_dur_v4 = sum(r.duration_sec for r in rows_v4)
     total_dur_v35 = sum(r.duration_sec for r in rows_v35)
     log.info(f"{'Total Duration (s)':<20} | {total_dur_v3:<15.0f} | {total_dur_v4:<15.0f} | {total_dur_v35:<15.0f}")
-    
+
     avg_seg_v3 = total_dur_v3 / len(rows_v3) if rows_v3 else 0
     avg_seg_v4 = total_dur_v4 / len(rows_v4) if rows_v4 else 0
     avg_seg_v35 = total_dur_v35 / len(rows_v35) if rows_v35 else 0
     log.info(f"{'Avg Segment Len (s)':<20} | {avg_seg_v3:<15.1f} | {avg_seg_v4:<15.1f} | {avg_seg_v35:<15.1f}")
-    
+
     log.info("\n📝 --- SAMPLE SEGMENTS (V3) ---")
     for r in rows_v3[:3]:
         status = "WORK" if r.is_work else "REST"
         log.info(f"  {status}: {r.duration_sec:>4.0f}s | HR: {r.avg_hr:>5.1f} | PWR: {r.avg_pwr:>5.1f}W")
-        
+
     log.info("\n🚀 --- SAMPLE SEGMENTS (V4) ---")
     for r in rows_v4[:1]:
         status = "WORK" if r.is_work else "REST"
@@ -188,6 +189,7 @@ def compare_v3_v4_v35():
     for r in rows_v35[:5]:
         status = "WORK" if r.is_work else "REST"
         log.info(f"  {status}: {r.duration_sec:>4.0f}s | HR: {r.avg_hr:>5.1f} | PWR: {r.avg_pwr:>5.1f}W")
+
 
 if __name__ == "__main__":
     compare_v3_v4_v35()
