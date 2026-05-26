@@ -253,6 +253,10 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
         ai_reply = ""
         for msg in reversed(result["messages"]):
             if msg.type == "ai" and msg.content:
+                # Skip internal messages
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                    continue
+
                 # If it's a list (rich response), join it
                 if isinstance(msg.content, list):
                     text_parts = [item if isinstance(item, str) else item.get("text", "") for item in msg.content]

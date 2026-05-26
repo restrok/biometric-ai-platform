@@ -686,17 +686,16 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     # Invoke extractor
     response = llm_with_tools.invoke(messages, config={"tags": ["memory_extractor"]})
     
-    # Tag the message explicitly to break loops in route_after_tools
-    response.additional_kwargs["is_memory_extraction"] = True
-    
     log.info(f"🧠 Extractor raw response: {response}")
     if hasattr(response, "tool_calls") and response.tool_calls:
         log.info(f"🧠 Extractor found {len(response.tool_calls)} nuggets!")
+        # Tag the message explicitly to break loops in route_after_tools
+        response.additional_kwargs["is_memory_extraction"] = True
+        return {"messages": [response]}
     else:
         log.info("🧠 No nuggets extracted.")
-
-    # The extractor node returns its tool calls directly to the graph's tools node
-    return {"messages": [response]}
+        # Return as SystemMessage so main.py ignores it as a final assistant reply
+        return {"messages": [SystemMessage(content="No nuggets found.", additional_kwargs={"is_memory_extraction": True})]}
 
 
 # Conditional edges from analyzer
