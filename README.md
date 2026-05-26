@@ -9,17 +9,17 @@ Stop guessing with generic training plans. The **Biometric AI Platform** transfo
 
 Experience how the AI Coach reasons across multiple biometric domains. Run these in your preferred OpenAI-compatible client (like OpenCode or Chatbox).
 
-### 1. Holistic Recovery & Readiness (Gemini 2.5 Flash)
+### 1. Holistic Recovery & Readiness (Gemini 3.1 Flash Lite)
 > "Look at my sleep quality from last night and my HRV trend. Given today's workout, am I ready for a high-intensity session tomorrow?"
 *Highlights: Multi-domain context retrieval (Sleep + HRV + Activity).*
 ![Recovery Readiness Analysis](./docs/assets/screenshots/telemetry-analysis.png)
 
-### 2. Deep Telemetry & Sprint Analysis (Gemma 4 31B)
+### 2. Deep Telemetry & Sprint Analysis (Gemini 3.1 Flash Lite)
 > "Analyze my last run activity. How was my efficiency during that final sprint?"
 *Highlights: Stage analysis, mechanical cost vs. power output.*
 ![Sprint Efficiency](./docs/assets/screenshots/gemma-sprint-analysis.png)
 
-### 3. Scientific Grounding (RAG) (Gemini 3)
+### 3. Scientific Grounding (RAG) (Gemini 3.1 Flash Lite)
 > "Explain the 'Polarized 80/20' model and why you keep warning me about the 'Gray Zone.' Use my recent data to show my Z3 time."
 *Highlights: BigQuery Vector Search and exercise science principles.*
 ![Scientific RAG](./docs/assets/screenshots/scientific-rag.png)
@@ -80,6 +80,17 @@ We don't just look at your average heart rate. The platform analyzes your **Grou
 - **The "3-Run Rule":** The AI won't overreact to a single "hero run" or a bad day. It looks for reproducible physiological evidence across multiple activities before shifting your zones.
 - **Smart Calibration:** New to the platform? The engine initiates a "Discovery Mode," prescribing easy runs until your unique baseline is established.
 - **Recovery Overrides:** If your HRV tanks or your Sleep Score drops below 60, the AI intervenes, prioritizing rest over performance goals.
+
+---
+
+## 💎 Quality & Standards
+
+This project maintains high engineering standards to ensure reliability and performance.
+
+- **Type Safety:** All Python code is strictly typed and verified using `mypy`.
+- **Linting & Formatting:** We use `ruff` for ultra-fast Python linting and formatting.
+- **Infrastructure Safety:** Terraform configurations are formatted and validated with `terraform fmt`.
+- **English Standard:** All documentation, comments, and code are written in professional US English.
 
 ---
 

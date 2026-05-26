@@ -59,7 +59,7 @@ The platform's intelligence is modularized into **Skills**.
 *   **Ethical & Precision Protocol**: Mandatory rules for separating data facts from physiological interpretation and avoiding overconfidence.
 *   **State Graph Nodes (`api/src/agent/graph.py`):**
     - `retriever`: Fetches 7 context domains (Activities, Sleep, HRV, Scheduled Workouts, etc.) from BigQuery in parallel.
-    - `analyzer`: Uses **Gemini 2.0 Flash** with the coach skill to reason over the retrieved context.
+    - `analyzer`: Uses **Gemini 3.1 Flash Lite** with the coach skill to reason over the retrieved context.
     *   `tools`: Executes external actions. Standard tools include:
         *   `upload_training_plan`: Schedules tailored workouts on the user's device.
         *   `list_workouts`, `batch_remove_workouts`, `prune_unused_workouts`: Advanced workout library management leveraging SDK introspection to prevent capacity limits.
@@ -107,6 +107,24 @@ sequenceDiagram
 *   **Immune Radar (Statistical SRE):** Implements an anomaly detection algorithm in `api/src/agent/proactive.py`. It uses **Z-Scores** to compare daily HRV and RHR against a 21-day rolling average. Large deviations (e.g., HRV Z < -1.5) trigger a proactive alert for impending illness.
 *   **Data Scientist Dry Run (Cost Control):** The Data Scientist agent is mandated to call `execute_exploratory_query_dry_run` before any BigQuery execution. This allows the system to evaluate scan costs and enforce query optimization (partition filtering) before incurring analytical costs.
 *   **Semantic Memory Extraction:** A post-analysis node that extracts facts (preferences, constraints) from the conversation and persists them in Firestore, ensuring the coach maintains a long-term "Golden Nugget" profile for each athlete.
+
+        ---
+
+        ## 💎 Engineering Standards
+
+All contributions must adhere to the following quality gates:
+
+### 1. Python Standards
+- **Linter & Formatter:** We use `ruff`. Run `uv run ruff check --fix .` and `uv run ruff format .` before committing.
+- **Static Analysis:** `mypy` is mandatory for type checking. Run `uv run mypy .` to ensure type safety.
+- **Style Guide:** Follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
+
+### 2. Infrastructure Standards
+- **Terraform Formatting:** Always run `terraform fmt -recursive` in the `infrastructure/` directory.
+
+### 3. Language & Documentation
+- **Language:** Strictly English (US) for all code, comments, and documentation.
+- **Docs-as-Code:** Keep the `docs/` directory updated. Use Mermaid.js for architecture diagrams.
 
         ---
 

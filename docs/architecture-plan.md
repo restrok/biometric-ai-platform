@@ -118,13 +118,14 @@ The platform implements a sophisticated reasoning layer in LangGraph that bridge
 *   **Subjective Integration:** The agent integrates user feedback (e.g., "I feel sick", "I have back stress") via the **User Health Status** table. This subjective context is persisted in BigQuery and retrieved in every session to ensure contextually aware coaching (e.g., suggesting rest during a cold).
 *   **Longitudinal Analysis:** The platform supports **Interannual Analysis** through a date-aware retriever, allowing the agent to compare seasonal performance (e.g., April 2025 vs. April 2026) and quantify long-term fitness gains.
 *   **Detailed Telemetry Analysis:** The retriever provides compact, high-signal second-by-second summaries of the last 3 activities. This allows the AI to autonomously detect complex physiological trends like **Aerobic Decoupling** and **Efficiency Leaks**.
-*   **High-Performance Execution:** Context retrieval is optimized using `ThreadPoolExecutor` for parallel BigQuery queries. Inference is powered by `gemini-2.5-flash`, driving low request latencies.
+*   **Precision Context Retrieval:** The `retriever` tool has been optimized to merge redundant BigQuery calls into comprehensive domain-aware queries, significantly reducing latency and operational cost.
+*   **High-Performance Execution:** Context retrieval is optimized using `ThreadPoolExecutor` for parallel BigQuery queries. Inference is powered by `gemini-3.1-flash-lite`, driving low request latencies.
 
 ## 8. Current Project State & Accomplishments
 
 *   **SDK Integrated:** `garmin-toolkit` linked via `uv` as a local project dependency.
 *   **Fail-Safe Pipeline:** ETL handles missing data gracefully.
-*   **Zero-Cost Production Ready:** The entire stack runs within GCP Free Tier and Google AI Studio Free Tier (Gemini 2.5 Flash).
+*   **Zero-Cost Production Ready:** The entire stack runs within GCP Free Tier and Google AI Studio Free Tier (Gemini 3.1 Flash Lite).
 *   **Infrastructure as Code:** Terraform modules ready for Storage, IAM, and Service Accounts.
 
 ## 11. Specialized Parallel Multi-Agent Topology (LangGraph)

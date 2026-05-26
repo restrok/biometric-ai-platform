@@ -174,4 +174,4 @@ docker-compose up -d --build
 docker-compose logs -f api
 ```
 
-The container automatically manages the **hourly Garmin token refresh loop**, ensuring your connection stays alive 24/7.
+The container automatically manages the **2-hour Garmin token refresh loop**, ensuring your connection stays alive 24/7.
