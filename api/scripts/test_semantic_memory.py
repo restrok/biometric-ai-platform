@@ -27,6 +27,7 @@ async def run_test_cycle(user_id: str, thread_id: str, message: str, description
     }
 
     from langchain_core.runnables import RunnableConfig
+
     config = cast(RunnableConfig, {"configurable": {"thread_id": thread_id}})
 
     async for output in graph.astream(inputs, config=config):
