@@ -1,6 +1,6 @@
 import logging
 
-from google.cloud import firestore
+import google.cloud.firestore as firestore  # type: ignore[attr-defined]
 
 from src.utils.config import get_config
 

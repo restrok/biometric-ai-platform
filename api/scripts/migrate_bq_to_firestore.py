@@ -3,8 +3,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import google.cloud.firestore as firestore  # type: ignore[attr-defined]
 from dotenv import load_dotenv
-from google.cloud import bigquery, firestore
+from google.cloud import bigquery
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
