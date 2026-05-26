@@ -206,12 +206,12 @@ def _retrieve_biometric_data_cached(
             return "recent_activities", []
 
     def fetch_training_status() -> tuple[str, dict[str, Any] | None]:
-        """Fetches the latest training status."""
+        """Fetches the latest training status from BigQuery (OLAP)."""
         try:
             t0 = time.time()
             query_status = f"""
-                SELECT status, acute_load, training_load_balance, vo2max_precise, 
-                       primary_benefit, recovery_time_hours
+                SELECT status, acute_load, chronic_load, training_load_balance, 
+                       vo2max_precise, vo2max, primary_benefit, recovery_time_hours, load_focus
                 FROM `{project_id}.{dataset}.training_status` 
                 {user_where}
                 ORDER BY date DESC LIMIT 1
@@ -219,7 +219,8 @@ def _retrieve_biometric_data_cached(
             status_rows = list(client.query(query_status).result())
             log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
             return "training_status", (dict(status_rows[0]) if status_rows else None)
-        except Exception:
+        except Exception as e:
+            log.warning(f"❌ Training status retrieval failed: {e}")
             return "training_status", None
 
     def fetch_sleep_history() -> tuple[str, dict[str, Any] | None]:
@@ -321,23 +322,6 @@ def _retrieve_biometric_data_cached(
         except Exception as e:
             log.warning(f"❌ Daily physiology retrieval failed: {e}")
             return "daily_physiology_7d", []
-
-    def fetch_training_status() -> tuple[str, dict[str, Any]]:
-        """Fetches the latest training status from BigQuery (OLAP)."""
-        try:
-            t0 = time.time()
-            query_status = f"""
-                SELECT status, vo2max, acute_load, chronic_load, load_focus
-                FROM `{project_id}.{dataset}.training_status`
-                {user_where}
-                ORDER BY date DESC LIMIT 1
-            """
-            rows = list(client.query(query_status).result())
-            log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
-            return "training_status", (dict(rows[0]) if rows else {})
-        except Exception as e:
-            log.warning(f"❌ Training status retrieval failed: {e}")
-            return "training_status", {}
 
     def fetch_calibration_profile() -> tuple[str, list[dict[str, Any]]]:
         """Fetches personal calibration markers (PCP) from Firestore."""

@@ -18,6 +18,7 @@ from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
+from scripts.list_models import list_available_models
 from src.agent.prompts import (
     DATA_SCIENTIST_PROMPT,
     HEAD_COACH_SYSTEM_PROMPT,
@@ -42,7 +43,6 @@ from src.tools.garmin_uploader import (
 from src.tools.historical_biometrics import generate_historical_report
 from src.tools.memory_manager import retire_semantic_memory, save_semantic_memory, update_semantic_memory
 from src.tools.predictive_modeler import project_training_impact
-from scripts.list_models import list_available_models
 from src.tools.profile_manager import (
     configure_proactive_coaching,
     log_health_status,
@@ -178,7 +178,6 @@ def node_router(state: AgentState) -> dict[str, Any]:
     Returns:
         Updated state with classified intent.
     """
-    model_name = MODEL_NAME
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     model = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
@@ -257,7 +256,6 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
 def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     """Specialized node for injury risk analysis."""
     log.info("🛡️ Injury Prevention Agent scanning biometrics...")
-    model_name = MODEL_NAME
     model = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         temperature=0,
@@ -292,7 +290,6 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
 def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     """Specialized node for sleep and recovery analysis."""
     log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
-    model_name = MODEL_NAME
     model = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         temperature=0,
@@ -329,7 +326,6 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
 def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     """Specialized node for metabolic nutrition analysis."""
     log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
-    model_name = MODEL_NAME
     model = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         temperature=0,
@@ -379,7 +375,6 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         Updated state with LLM response and usage stats.
     """
     t0 = time.time()
-    model_name = MODEL_NAME
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     llm = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
@@ -470,7 +465,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     if token_usage:
         in_t = getattr(token_usage, "input_tokens", 0)
         out_t = getattr(token_usage, "output_tokens", 0)
-        finops_row = log_llm_call(model_name, in_t, out_t, latency_ms, node_name="analyzer")
+        finops_row = log_llm_call(MODEL_NAME, in_t, out_t, latency_ms, node_name="analyzer")
 
         usage["total_tokens"] += in_t + out_t
         usage["total_cost_usd"] += finops_row["cost_usd"]
@@ -568,7 +563,6 @@ class DataScientistOutput(BaseModel):
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
     """Specialized node for autonomous physiological hypothesis testing."""
     log.info("🧪 DataScientist node activated for autonomous discovery...")
-    model_name = MODEL_NAME
     user_id = state.get("user_id", "unknown")
 
     # Instantiate specialized LLM for Data Science
@@ -634,7 +628,6 @@ def node_validator(state: AgentState) -> dict[str, Any]:
 def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     """Dedicated node to extract 'Golden Nuggets' from the interaction."""
     log.info("🧠 Semantic Memory Extractor node activated...")
-    model_name = MODEL_NAME
     user_id = state.get("user_id", "unknown")
 
     # Use a standard config for extraction
@@ -692,10 +685,9 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
         # Tag the message explicitly to break loops in route_after_tools
         response.additional_kwargs["is_memory_extraction"] = True
         return {"messages": [response]}
-    else:
-        log.info("🧠 No nuggets extracted.")
-        # Return as SystemMessage so main.py ignores it as a final assistant reply
-        return {"messages": [SystemMessage(content="No nuggets found.", additional_kwargs={"is_memory_extraction": True})]}
+    log.info("🧠 No nuggets extracted.")
+    # Return as SystemMessage so main.py ignores it as a final assistant reply
+    return {"messages": [SystemMessage(content="No nuggets found.", additional_kwargs={"is_memory_extraction": True})]}
 
 
 # Conditional edges from analyzer

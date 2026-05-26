@@ -1,9 +1,9 @@
-import os
 import logging
-import json
-from google.cloud import bigquery
-from dotenv import load_dotenv
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+from google.cloud import bigquery
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")

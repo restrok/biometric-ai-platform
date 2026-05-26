@@ -1,5 +1,7 @@
 import logging
+
 from google.cloud import firestore
+
 from src.utils.config import get_config
 
 log = logging.getLogger(__name__)

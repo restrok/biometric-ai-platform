@@ -1,8 +1,9 @@
-import os
 import logging
-from google.cloud import firestore
-from dotenv import load_dotenv
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+from google.cloud import firestore
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

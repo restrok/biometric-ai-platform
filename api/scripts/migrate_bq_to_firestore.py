@@ -1,10 +1,10 @@
-import os
 import logging
-from google.cloud import bigquery
-from google.cloud import firestore
-from dotenv import load_dotenv
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
+
+from dotenv import load_dotenv
+from google.cloud import bigquery, firestore
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -50,7 +50,7 @@ def migrate():
                 'z3_max': p.get('custom_z3_max'),
                 'z4_max': p.get('custom_z4_max')
             }
-            log.info(f"  ✅ Profile & Zones extracted")
+            log.info("  ✅ Profile & Zones extracted")
 
         # --- B. Active Goals ---
         query_g = f"SELECT id, target_date, goal_type, target_value, description, status FROM `{PROJECT_ID}.{DATASET_ID}.user_goals` WHERE user_id = '{user_id}' AND status = 'active'"

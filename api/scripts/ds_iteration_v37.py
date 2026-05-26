@@ -1,8 +1,6 @@
 import asyncio
-import json
 import logging
-import os
-from google.cloud import bigquery
+
 from src.tools.data_scientist import execute_exploratory_query, execute_exploratory_query_dry_run
 
 logging.basicConfig(level=logging.INFO)

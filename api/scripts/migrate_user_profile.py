@@ -1,5 +1,7 @@
 from google.cloud import bigquery
+
 from src.utils.config import get_config, setup_environment
+
 
 def migrate_schema():
     setup_environment()

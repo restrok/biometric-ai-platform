@@ -1,7 +1,7 @@
-import os
-import logging
 from google.cloud import bigquery
+
 from src.utils.config import get_config, setup_environment
+
 
 def run_analysis():
     setup_environment()

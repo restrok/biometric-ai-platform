@@ -1,8 +1,10 @@
-import os
 import logging
+import os
+
 from google import genai
 from langchain_core.tools import tool
-from src.utils.config import get_config, setup_environment
+
+from src.utils.config import setup_environment
 
 log = logging.getLogger(__name__)
 

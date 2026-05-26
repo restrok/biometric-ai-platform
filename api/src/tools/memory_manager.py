@@ -1,9 +1,8 @@
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
-from google.cloud import firestore
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
@@ -39,7 +38,7 @@ def save_semantic_memory(
     """
     db = get_firestore_client()
     doc_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     memory_data = {
         "user_id": user_id,
@@ -74,7 +73,7 @@ def update_semantic_memory(memory_id: str, new_text: str) -> str:
     Use this when a user contradicts or refines a previously stored fact.
     """
     db = get_firestore_client()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     try:
         doc_ref = db.collection(COLLECTION_NAME).document(memory_id)
@@ -106,7 +105,7 @@ def retire_semantic_memory(memory_id: str) -> str:
     Use this when a fact is no longer relevant or was saved in error.
     """
     db = get_firestore_client()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     try:
         doc_ref = db.collection(COLLECTION_NAME).document(memory_id)

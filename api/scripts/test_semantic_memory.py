@@ -7,8 +7,10 @@ import uuid
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.messages import HumanMessage
+
 from src.agent.graph import graph
 from src.utils.config import setup_environment
+
 
 async def run_test_cycle(user_id: str, thread_id: str, message: str, description: str):
     print(f"\n🚀 {description}")
