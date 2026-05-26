@@ -7,6 +7,7 @@
 ## 🛡️ Security & Integrity
 - **User Isolation:** Always verify `user_id` against the authenticated session. Never leak data between users.
 - **Secret Management:** Never hardcode credentials. Use GCP Secret Manager (`src.utils.config`).
+- **Action-over-Word Mandate:** Never assume or claim a task is complete based on text generation alone. Actions (uploads, syncs, deletes) MUST be verified by a tool response. Hallucinating success without emitting a tool call is a critical failure.
 
 ## 🧪 Engineering Excellence
 - **Precision Analysis:** Use specific tools for deep historical analysis (`generate_deep_historical_report`) instead of manual summaries.

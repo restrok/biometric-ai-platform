@@ -73,15 +73,10 @@ def upload_training_plan(workouts: list[Workout], user_id: str | None = None):
     """Uploads a training plan with support for repeats, distances, and typed targets."""
     log.info(f"📤 Uploading {len(workouts)} workouts via Provider (user: {user_id})...")
 
-    # DEBUG: Print the payload being sent to the SDK
-    import json
-
-    log.debug(f"DEBUG: Workout payload: {json.dumps([w.model_dump(exclude_none=True) for w in workouts], indent=2)}")
-
     provider = get_provider(user_id=user_id, refresh=True)
 
     try:
-        # The SDK's WorkoutPlan will now handle the mapping of these new structures
+        # Direct pass to SDK - the models are now aligned
         plan_data = [w.model_dump(exclude_none=True) for w in workouts]
         workout_plan = WorkoutPlan(root=cast(Any, plan_data))
 

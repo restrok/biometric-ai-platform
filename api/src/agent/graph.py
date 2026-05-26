@@ -616,13 +616,25 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
 
 def node_validator(state: AgentState) -> dict[str, Any]:
     """Validates the output of the analyzer to ensure physiological accuracy and formatting."""
-    last_msg = state["messages"][-1].content
+    last_msg = state["messages"][-1]
+    text = str(last_msg.content).lower()
     log.info("🧐 Validator node reviewing response...")
 
-    # Simple validation logic: check if the response is too short or lacks context
-    if len(str(last_msg)) < 100 and "artifact_uri" not in str(last_msg):
+    # --- 1. Discrepancy Detection (Hallucination Guardrail) ---
+    action_keywords = ["agendado", "subido", "scheduled", "sincronizado", "synced", "borrado", "deleted"]
+    has_action_text = any(kw in text for kw in action_keywords)
+    has_tool_calls = hasattr(last_msg, "tool_calls") and bool(last_msg.tool_calls)
+
+    if has_action_text and not has_tool_calls:
+        log.warning("🚫 DISCREPANCY DETECTED: Agent claimed an action but didn't emit a tool call.")
+        error_msg = SystemMessage(
+            content="CRITICAL SYSTEM ERROR: You claimed to have performed an action (scheduled/synced/deleted) in your text response, but you DID NOT emit the required tool call. This is a hallucination. You MUST emit the tool call (e.g., upload_training_plan) and DO NOT confirm the action in text until the tool has executed. Please try again."
+        )
+        return {"messages": [error_msg], "loop_count": state.get("loop_count", 0) + 1}
+
+    # --- 2. Brevity Check ---
+    if len(text) < 100 and "artifact_uri" not in text:
         log.warning("⚠️ Response seems too brief. Requesting elaboration.")
-        # This could trigger a retry or a feedback message
 
     return {"loop_count": state.get("loop_count", 0)}
 
@@ -709,6 +721,15 @@ def route_after_analysis(state: AgentState):
     return "validator"
 
 
+def route_after_validation(state: AgentState):
+    """Routes to memory_extractor or back to analyzer if validation failed."""
+    last_msg = state["messages"][-1]
+    if isinstance(last_msg, SystemMessage) and "CRITICAL SYSTEM ERROR" in str(last_msg.content):
+        log.info("🔄 Validation failed. Routing back to analyzer for correction.")
+        return "analyzer"
+    return "memory_extractor"
+
+
 memory = MemorySaver()
 
 workflow = StateGraph(AgentState)
@@ -760,7 +781,9 @@ workflow.add_conditional_edges(
 )
 
 # After validator (the final coaching response is ready), run the memory extractor
-workflow.add_edge("validator", "memory_extractor")
+workflow.add_conditional_edges(
+    "validator", route_after_validation, {"analyzer": "analyzer", "memory_extractor": "memory_extractor"}
+)
 
 # The memory extractor calls tools directly if it finds nuggets
 workflow.add_conditional_edges(
