@@ -238,21 +238,22 @@ def _check_health_pre_symptoms(user_id):
         # 1. HRV Z-Score (Last 7-21 days)
         hrv_history = data.get("hrv", [])
         if len(hrv_history) >= 7:
-            hrv_values = [h.get("avg_hrv", 0) for h in hrv_history]
-            today_hrv = hrv_values[0]
-            mean_hrv = statistics.mean(hrv_values[1:])
-            std_hrv = statistics.stdev(hrv_values[1:])
+            hrv_values = [h.get("avg_hrv") for h in hrv_history if h.get("avg_hrv") is not None]
+            if len(hrv_values) >= 5:
+                today_hrv = hrv_values[0]
+                mean_hrv = statistics.mean(hrv_values[1:])
+                std_hrv = statistics.stdev(hrv_values[1:])
 
-            hrv_z = (today_hrv - mean_hrv) / std_hrv if std_hrv > 0 else 0
+                hrv_z = (today_hrv - mean_hrv) / std_hrv if std_hrv > 0 else 0
 
-            # 2. RHR Z-Score
-            physiology = data.get("daily_physiology_7d", [])
-            rhr_values = [p.get("resting_heart_rate", 0) for p in physiology if p.get("resting_heart_rate")]
+                # 2. RHR Z-Score
+                physiology = data.get("daily_physiology_7d", [])
+                rhr_values = [p.get("resting_heart_rate") for p in physiology if p.get("resting_heart_rate") is not None]
 
-            if len(rhr_values) >= 5:
-                today_rhr = rhr_values[0]
-                mean_rhr = statistics.mean(rhr_values[1:])
-                std_rhr = statistics.stdev(rhr_values[1:])
+                if len(rhr_values) >= 5:
+                    today_rhr = rhr_values[0]
+                    mean_rhr = statistics.mean(rhr_values[1:])
+                    std_rhr = statistics.stdev(rhr_values[1:])
 
                 rhr_z = (today_rhr - mean_rhr) / std_rhr if std_rhr > 0 else 0
 

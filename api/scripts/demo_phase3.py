@@ -14,7 +14,7 @@ async def run_demo():
     print("🚀 Initiating Multi-Agent Biometric Analysis (Phase 3 Demo)...")
 
     # User's real question
-    user_message = "Ayer corrí casi 10k y me sentí muy bien. Mi HRV está un poco bajo (37ms) pero me siento con energía. ¿Puedo salir a correr hoy domingo unos 12k en Z2 para seguir sumando hacia mi carrera del 15 de julio?"
+    user_message = "Yesterday I ran almost 10k and felt great. My HRV is a bit low (37ms) but I feel energetic. Can I go for a 12k Z2 run today (Sunday) to keep building toward my race on July 15th?"
 
     inputs: AgentState = {
         "messages": [HumanMessage(content=user_message)],

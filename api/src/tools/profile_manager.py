@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, date
 from typing import Literal
 
 from google.cloud import bigquery
@@ -6,7 +7,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
-from src.utils.firestore import update_user_profile
+from src.utils.firestore import get_user_profile, update_user_profile
 
 log = logging.getLogger(__name__)
 
@@ -99,7 +100,6 @@ def log_health_status(
     dataset = config["dataset_id"]
     user_id = user_id or "fsirio"
 
-    from datetime import date
     target_date = status_date if status_date else date.today().isoformat()
 
     # 1. Update Firestore (Immediate State)
@@ -254,7 +254,6 @@ def manage_goals(
     user_id = user_id or "fsirio"
 
     import uuid
-    from datetime import datetime
 
     goal_id = str(uuid.uuid4())[:8]
     created_at = datetime.utcnow().isoformat()

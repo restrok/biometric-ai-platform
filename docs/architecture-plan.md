@@ -141,6 +141,11 @@ To reduce latency and improve reasoning depth, the platform utilizes a **Paralle
 ### System Workflow (Parallel Flow)
 ```mermaid
 graph TD
+    %% Data Ingestion Flow
+    Garmin[(Garmin Connect)] -- 1. Webhook/Sync --> ETL[[⚙️ Sync / ETL Job]]
+    ETL -- 2. Historical/OLAP --> BQ
+    ETL -- 3. Profile/OLTP --> FS
+
     User([User Request]) --> Router{Semantic Router}
     Router -- Tool Need --> Retriever[Hybrid Context Retriever]
     
@@ -178,3 +183,18 @@ The system now implements a **Proactive Discovery Loop**. During every synchroni
 1.  **Continuity Check:** Reads existing Success Markers from the `user_calibration_profile` (Firestore).
 2.  **Hypothesis Testing:** Executes exploratory queries to find shifts in physiological truths (e.g., "Is my heat sensitivity improving?").
 3.  **Persistence:** Updates numerical values and context in BigQuery and Firestore, ensuring that the **Head Coach** has immediate access to these 'rare' insights during real-time planning without re-calculating them.
+
+## 13. Architectural Challenges & Mitigations (Feedback Loop)
+
+Based on architectural reviews, the following design decisions address key distributed systems and LLM orchestration challenges:
+
+### 1. The Dual-Write "Eventual Consistency" Risk
+**Challenge:** The system writes operational state to Firestore and historical data to BigQuery. If the BQ worker fails, the systems desync.
+**Mitigation:** The system relies on an **ETL Self-Healing Mechanism** rather than strict distributed transactions. Firestore acts as the ultimate source of truth for immediate coaching state. The BigQuery synchronization (`sync_biometric_data`) operates on a delta-fetch based on BigQuery's `MAX(date)`. If a write fails, the next sync cycle will naturally pick up the missing delta, effectively acting as an asynchronous outbox pattern without the operational overhead.
+
+### 2. Context Window Bloat in Fan-In (Head Coach)
+**Challenge:** In the parallel topology, the Head Coach receives context from the Retriever plus reports from three specialist agents. If specialists output verbose text, the Head Coach's prompt becomes diluted, increasing cost and reducing attention precision.
+**Mitigation:** To preserve clinical precision without the token bloat, specialists are constrained to **High-Signal Structured Outputs (Noise Reduction)**. 
+* Specialists do not reiterate raw metrics (as the Head Coach already has the `biometric_context`).
+* Specialists output strictly formatted internal reports containing only derived insights (e.g., calculated Z-scores, physiological interpretation, and hard constraints).
+* This eliminates conversational filler while maintaining 100% of the rigorous analytical depth required for the final synthesis.

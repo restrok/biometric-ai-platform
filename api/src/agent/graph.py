@@ -42,6 +42,7 @@ from src.tools.garmin_uploader import (
 from src.tools.historical_biometrics import generate_historical_report
 from src.tools.memory_manager import retire_semantic_memory, save_semantic_memory, update_semantic_memory
 from src.tools.predictive_modeler import project_training_impact
+from scripts.list_models import list_available_models
 from src.tools.profile_manager import (
     configure_proactive_coaching,
     log_health_status,
@@ -49,6 +50,9 @@ from src.tools.profile_manager import (
     save_calibration_marker,
     update_user_zones,
 )
+
+MODEL_NAME = "gemini-3.1-flash-lite"
+
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -146,10 +150,14 @@ You have access to a massive stream of high-resolution biometric data (captured 
 Analyze the following metrics to provide a holistic view of the runner's economy:
 - **Performance:** Power (Avg/Max Watts), Pace (min/km), GAP (Grade Adjusted Pace), Elevation, Vertical Speed.
 - **Biomechanics:** Vertical Oscillation (cm), Ground Contact Time (ms), Vertical Ratio (%), Stride Length (m), Cadence (SPM with fractional precision).
-- **Physiological State:** Heart Rate (Avg/Max BPM), Body Battery (drenaje de energía), Performance Condition, Temperature, Run/Walk Index.
+- **Physiological State:** Heart Rate (Avg/Max BPM), Body Battery (energy drain), Performance Condition, Temperature, Run/Walk Index.
 
 **Analytical Command:** Use the `PACE` vs `GAP` difference to detect effort on inclines. Monitor `Body Battery` drop per segment to identify metabolic efficiency. Use `Vertical Ratio` to evaluate "bounce" vs "forward drive."
 
+
+### 🌍 LANGUAGE ### RESPONSE STRUCTURE (STRICT FORMATTING): RESPONSE PROTOCOL (CRITICAL)
+- **ADAPTIVE RESPONSE:** You MUST always respond in the same language the user is speaking. If the user speaks Spanish, respond in Spanish. If the user switches to English, you MUST switch to English immediately.
+- **TECHNICAL STANDARD:** While your responses adapt to the user, all internal thought processes, tool logs, and repository-bound metadata must remain in English.
 
 ### RESPONSE STRUCTURE (STRICT FORMATTING):
 - Use **Markdown Tables** for heart rate zones or plan summaries.
@@ -170,10 +178,10 @@ def node_router(state: AgentState) -> dict[str, Any]:
     Returns:
         Updated state with classified intent.
     """
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     model = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -249,9 +257,9 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
 def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     """Specialized node for injury risk analysis."""
     log.info("🛡️ Injury Prevention Agent scanning biometrics...")
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     model = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -284,9 +292,9 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
 def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     """Specialized node for sleep and recovery analysis."""
     log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     model = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -321,9 +329,9 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
 def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     """Specialized node for metabolic nutrition analysis."""
     log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     model = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -371,10 +379,10 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         Updated state with LLM response and usage stats.
     """
     t0 = time.time()
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     llm = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0.2,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -405,6 +413,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         get_garmin_auth_url,
         complete_garmin_auth,
         configure_proactive_coaching,
+        list_available_models,
     ]
     llm_with_tools = llm.bind_tools(tools)
 
@@ -541,6 +550,7 @@ def tool_node(state: AgentState) -> Any:
             save_semantic_memory,
             update_semantic_memory,
             retire_semantic_memory,
+            list_available_models,
         ]
     )
 
@@ -558,12 +568,12 @@ class DataScientistOutput(BaseModel):
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
     """Specialized node for autonomous physiological hypothesis testing."""
     log.info("🧪 DataScientist node activated for autonomous discovery...")
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     user_id = state.get("user_id", "unknown")
 
     # Instantiate specialized LLM for Data Science
     llm = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -624,12 +634,12 @@ def node_validator(state: AgentState) -> dict[str, Any]:
 def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     """Dedicated node to extract 'Golden Nuggets' from the interaction."""
     log.info("🧠 Semantic Memory Extractor node activated...")
-    model_name = "gemma-4-31b-it"
+    model_name = MODEL_NAME
     user_id = state.get("user_id", "unknown")
 
     # Use a standard config for extraction
     llm = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=MODEL_NAME,
         temperature=0,
         model_kwargs={
             "automatic_function_calling": {"disable": True},

@@ -16,8 +16,8 @@ async def run_audit():
     user_id = "mercedes"
     user_message = (
         "Haz un 'First Look' audit de mi perfil. Analiza mi historial de actividades "
-        "(especialmente 'Tigre Carrera') para identificar mi Umbral Aeróbico (AeT) y mi "
-        "Frecuencia Cardíaca Máxima real. Guarda estos valores como calibration markers "
+        "(especially 'Tigre Carrera') to identify my Aerobic Threshold (AeT) and my "
+        "actual Max Heart Rate. Save these values as calibration markers "
         "y actualiza mis zonas si es necesario."
     )
 
