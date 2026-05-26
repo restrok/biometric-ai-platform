@@ -87,17 +87,28 @@ biometric-ai-platform/
 
 This structure allows SRE teams to work centrally in `infrastructure/` while AI Engineers develop the FastAPI server and agents in `api/`.
 
-## 6. Storage Architecture (Data Lakehouse) - Optimized
+## 6. Storage Architecture (Hybrid Lakehouse): Firestore (OLTP) & BigQuery (OLAP)
 
-To ensure high performance for AI workloads while strictly adhering to Google Cloud's Free Tier limits, the Data Pipeline has evolved into a **Native BigQuery Lakehouse** with Incremental Sync:
+To ensure high performance for AI workloads while strictly adhering to Google Cloud's Free Tier limits, the platform utilizes a **Hybrid Storage Architecture**. This design follows the [Database Design Guidelines](./database-design-guidelines.md) to separate real-time state from analytical history.
 
-*   **Extraction:** The `garmin_toolkit` SDK retrieves data as typed Pydantic objects.
-*   **Power Analytics:** The ETL job now extracts `avg_power` from second-by-second telemetry and stores it in the `recent_activities` summary table for historical trend analysis.
-*   **Incremental Sync Logic:** The ETL pipeline queries BigQuery for the `MAX(date)` of existing records and only fetches new data (deltas) from the Garmin API. This prevents rate limiting and redundant data transfer.
-*   **Native BigQuery Tables:** We have moved from External GCS tables to Native BigQuery tables for:
-    *   **Append Support:** Efficiently adding new activities and telemetry without rewriting the entire dataset.
-    *   **High-Speed Retrieval:** Native tables provide faster response times for the LangGraph agent's retrieval tool.
-*   **Archival & Audit:** Every sync archives a timestamped Parquet file to **GCS** before loading into BigQuery, serving as an immutable audit log and backup.
+### Firestore: Transactional & State Layer (OLTP)
+Firestore serves as the primary source of truth for the real-time operational functioning of the agents.
+*   **User Profiles & Zones:** Real-time athlete parameters and heart rate zones.
+*   **Operational State:** Control flags like `full_etl_synced` and active session tokens.
+*   **Active Goals & Health Status:** Immediate subjective context and current training targets.
+*   **Semantic Memory (`user_memories`):** Factual "Golden Nuggets" extracted from conversations.
+*   **Personal Calibration Profile (PCP):** Discovered physiological markers (e.g., lactate thresholds).
+
+### BigQuery: Analytical & Data Lake Layer (OLAP)
+BigQuery serves as the immutable data lake for massive analysis and historical intelligence.
+*   **Pure Biometric Telemetry:** High-resolution time-series of HRV, RHR, and activity metrics.
+*   **Historical Execution Logs:** Traceability of agent responses and FinOps metrics.
+*   **Physiological Aggregations:** Pre-calculated rolling averages used for statistical anomaly detection (e.g., 21-day baselines).
+
+### Data Pipeline & Synchronization
+*   **Incremental Sync:** The ETL job fetches only new data (deltas) based on BigQuery's `MAX(date)`.
+*   **Asynchronous Onboarding:** For new users, a 90-day historical backfill is triggered asynchronously in the background via Firestore state management, ensuring the proactive loop remains unblocked.
+*   **Dual-Write Pattern:** Operational tools (e.g., `update_user_zones`) perform low-latency writes to Firestore while asynchronously maintaining historical consistency in BigQuery.
 
 ## 7. AI Reasoning & Personalization (Advanced Agentic RAG)
 
@@ -116,35 +127,52 @@ The platform implements a sophisticated reasoning layer in LangGraph that bridge
 *   **Zero-Cost Production Ready:** The entire stack runs within GCP Free Tier and Google AI Studio Free Tier (Gemini 2.5 Flash).
 *   **Infrastructure as Code:** Terraform modules ready for Storage, IAM, and Service Accounts.
 
-## 11. Specialized Multi-Agent Topology (LangGraph)
+## 11. Specialized Parallel Multi-Agent Topology (LangGraph)
 
-To handle the increasing complexity of biometric analysis, the platform has transitioned from a monolithic agent to a **Specialized Multi-Agent Graph**. This architecture delegates domain-specific reasoning to expert nodes before synthesizing a final coaching response.
+To reduce latency and improve reasoning depth, the platform utilizes a **Parallel Multi-Agent Architecture**. This topology leverages LangGraph to trigger domain-specific experts simultaneously (Fan-out) before synthesizing a unified response (Fan-in).
 
 ### Agent Roles & Specialized Mandates
-*   **🛡️ Injury Prevention Agent:** Focuses on mechanical and volume-based risk. Monitors rolling A:C Ratios, Ground Contact Time (GCT) drift, and Vertical Oscillation.
-*   **🧬 Sleep & Circadian Agent:** Analyzes recovery quality (Deep/REM cycles), HRV trends, and sleep-debt impact on readiness.
-*   **⚖️ Metabolic Nutrition Agent:** Calculates energy cost (Metabolic Cost/HR per Step) and prescribes specific glycogen replenishment strategies.
-*   **🧪 Data Scientist:** An autonomous node that handles exploratory SQL queries. It discovers non-obvious correlations (e.g., Temperature vs. Efficiency) and persists them in the **Personal Calibration Profile**.
+*   **🛡️ Injury Prevention Agent:** Monitors mechanical risk and volume progression. Calculates A:C Ratios and detects form breakdown (GCT drift).
+*   **🧬 Sleep & Circadian Agent:** Analyzes recovery quality. Implements the **Immune Radar** using Z-scores of HRV and RHR to detect systemic stress/impending illness.
+*   **⚖️ Metabolic Nutrition Agent:** Calculates energy cost and replenishment strategies based on real activity intensity.
+*   **🧪 Data Scientist Agent:** Autonomously executes exploratory SQL. Follows an **SRE Dry Run Mandate** to evaluate query cost before execution, ensuring efficient data operations.
+*   **🧠 Semantic Memory Extractor:** Silently captures "Golden Nuggets" from interactions and persists them in Firestore for cross-session continuity.
 
-### System Workflow
+### System Workflow (Parallel Flow)
 ```mermaid
 graph TD
+    %% Data Ingestion Flow
+    Garmin[(Garmin Connect)] -- 1. Webhook/Sync --> ETL[[⚙️ Sync / ETL Job]]
+    ETL -- 2. Historical/OLAP --> BQ
+    ETL -- 3. Profile/OLTP --> FS
+
     User([User Request]) --> Router{Semantic Router}
-    Router -- Tool Need --> Retriever[Biometric Retriever]
-    Retriever --> Injury[Injury Prevention Agent]
-    Injury --> Sleep[Sleep & Circadian Agent]
-    Sleep --> Nutrition[Metabolic Nutrition Agent]
-    Nutrition --> Analyzer[Head Coach / Analyzer]
+    Router -- Tool Need --> Retriever[Hybrid Context Retriever]
     
-    Analyzer -- Exploratory Query --> DS[Data Scientist]
-    DS -- SQL Execution --> BQ[(BigQuery Lakehouse)]
-    BQ --> DS
-    DS -- Pattern Found --> PCP[(Personal Calibration Profile)]
+    subgraph Parallel Analysis Phase
+        Retriever --> Injury[🛡️ Injury Prevention]
+        Retriever --> Sleep[🧬 Sleep & Circadian]
+        Retriever --> Nutrition[⚖️ Metabolic Nutrition]
+    end
+    
+    Injury --> Analyzer[Head Coach / Analyzer]
+    Sleep --> Analyzer
+    Nutrition --> Analyzer
+    
+    Analyzer -- Exploratory Query --> DS[🧪 Data Scientist]
+    DS -- 1. Dry Run --> BQ[(BigQuery Lakehouse)]
+    BQ -- 2. Estimated Cost --> DS
+    DS -- 3. Exec SQL --> BQ
+    BQ -- 4. Results --> DS
     DS --> Analyzer
     
     Analyzer -- Action Required --> Tools[Action Tools]
-    Tools -- Upload/Sync --> Provider[Garmin/Hardware]
+    Tools -- State Update --> FS[(Firestore OLTP)]
+    Tools -- Backup Write --> BQ
+    
     Analyzer --> Validator[Response Validator]
+    Validator --> Extractor[🧠 Memory Extractor]
+    Extractor -- Save Nuggets --> FS
     Validator --> User
 ```
 
@@ -152,6 +180,21 @@ graph TD
 
 The system now implements a **Proactive Discovery Loop**. During every synchronization cycle, the **Data Scientist** agent performs an autonomous audit of the user's historical data (30-90 days). 
 
-1.  **Continuity Check:** Reads existing Success Markers from the `user_calibration_profile`.
+1.  **Continuity Check:** Reads existing Success Markers from the `user_calibration_profile` (Firestore).
 2.  **Hypothesis Testing:** Executes exploratory queries to find shifts in physiological truths (e.g., "Is my heat sensitivity improving?").
-3.  **Persistence:** Updates numerical values and context in BigQuery, ensuring that the **Head Coach** has immediate access to these 'rare' insights during real-time planning without re-calculating them.
+3.  **Persistence:** Updates numerical values and context in BigQuery and Firestore, ensuring that the **Head Coach** has immediate access to these 'rare' insights during real-time planning without re-calculating them.
+
+## 13. Architectural Challenges & Mitigations (Feedback Loop)
+
+Based on architectural reviews, the following design decisions address key distributed systems and LLM orchestration challenges:
+
+### 1. The Dual-Write "Eventual Consistency" Risk
+**Challenge:** The system writes operational state to Firestore and historical data to BigQuery. If the BQ worker fails, the systems desync.
+**Mitigation:** The system relies on an **ETL Self-Healing Mechanism** rather than strict distributed transactions. Firestore acts as the ultimate source of truth for immediate coaching state. The BigQuery synchronization (`sync_biometric_data`) operates on a delta-fetch based on BigQuery's `MAX(date)`. If a write fails, the next sync cycle will naturally pick up the missing delta, effectively acting as an asynchronous outbox pattern without the operational overhead.
+
+### 2. Context Window Bloat in Fan-In (Head Coach)
+**Challenge:** In the parallel topology, the Head Coach receives context from the Retriever plus reports from three specialist agents. If specialists output verbose text, the Head Coach's prompt becomes diluted, increasing cost and reducing attention precision.
+**Mitigation:** To preserve clinical precision without the token bloat, specialists are constrained to **High-Signal Structured Outputs (Noise Reduction)**. 
+* Specialists do not reiterate raw metrics (as the Head Coach already has the `biometric_context`).
+* Specialists output strictly formatted internal reports containing only derived insights (e.g., calculated Z-scores, physiological interpretation, and hard constraints).
+* This eliminates conversational filler while maintaining 100% of the rigorous analytical depth required for the final synthesis.

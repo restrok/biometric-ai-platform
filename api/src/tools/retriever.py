@@ -13,6 +13,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
+from src.utils.firestore import get_firestore_client, get_user_profile
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -205,12 +206,12 @@ def _retrieve_biometric_data_cached(
             return "recent_activities", []
 
     def fetch_training_status() -> tuple[str, dict[str, Any] | None]:
-        """Fetches the latest training status."""
+        """Fetches the latest training status from BigQuery (OLAP)."""
         try:
             t0 = time.time()
             query_status = f"""
-                SELECT status, acute_load, training_load_balance, vo2max_precise, 
-                       primary_benefit, recovery_time_hours
+                SELECT status, acute_load, chronic_load, training_load_balance, 
+                       vo2max_precise, vo2max, primary_benefit, recovery_time_hours, load_focus
                 FROM `{project_id}.{dataset}.training_status` 
                 {user_where}
                 ORDER BY date DESC LIMIT 1
@@ -218,7 +219,8 @@ def _retrieve_biometric_data_cached(
             status_rows = list(client.query(query_status).result())
             log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
             return "training_status", (dict(status_rows[0]) if status_rows else None)
-        except Exception:
+        except Exception as e:
+            log.warning(f"❌ Training status retrieval failed: {e}")
             return "training_status", None
 
     def fetch_sleep_history() -> tuple[str, dict[str, Any] | None]:
@@ -255,22 +257,18 @@ def _retrieve_biometric_data_cached(
             return "hrv", []
 
     def fetch_user_profile() -> tuple[str, dict[str, Any] | None]:
-        """Fetches user profile information."""
+        """Fetches user profile information from Firestore."""
         try:
             t0 = time.time()
-            query_profile = (
-                f"SELECT gender, age, height_cm, weight_kg, max_hr, resting_hr, "
-                f"custom_z1_max, custom_z2_max, custom_z3_max, custom_z4_max "
-                f"FROM `{project_id}.{dataset}.user_profile` {user_where} LIMIT 1"
-            )
-            profile_rows = list(client.query(query_profile).result())
-            log.info(f"⏱️ BigQuery: User profile retrieved in {time.time() - t0:.2f}s")
-            return "user_profile", (dict(profile_rows[0]) if profile_rows else None)
-        except Exception:
+            profile = get_user_profile(user_id)
+            log.info(f"⏱️ Firestore: User profile retrieved in {time.time() - t0:.2f}s")
+            return "user_profile", profile
+        except Exception as e:
+            log.warning(f"❌ Firestore profile retrieval failed: {e}")
             return "user_profile", None
 
     def fetch_body_composition() -> tuple[str, dict[str, Any] | None]:
-        """Fetches the latest body composition data."""
+        """Fetches the latest body composition data from BigQuery (OLAP)."""
         try:
             t0 = time.time()
             query_body = (
@@ -285,48 +283,31 @@ def _retrieve_biometric_data_cached(
             return "latest_body_composition", None
 
     def fetch_health_status() -> tuple[str, dict[str, Any] | None]:
-        """Fetches the latest health status from the last 3 days."""
-        t0 = time.time()
+        """Fetches the latest health status from Firestore."""
         try:
-            where_clauses = ["date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)"]
-            if user_id:
-                where_clauses.append(f"user_id = '{user_id}'")
-
-            where_str = "WHERE " + " AND ".join(where_clauses)
-
-            query_health = f"""
-                SELECT date, feeling, notes, fatigue_level, injury_notes
-                FROM `{project_id}.{dataset}.user_health_status`
-                {where_str}
-                ORDER BY date DESC LIMIT 1
-            """
-
-            health_rows = list(client.query(query_health).result())
-            log.info(f"⏱️ BigQuery: Health status retrieved in {time.time() - t0:.2f}s")
-            return "latest_health_status", (dict(health_rows[0]) if health_rows else None)
+            t0 = time.time()
+            profile = get_user_profile(user_id)
+            health = profile.get("latest_health_status")
+            log.info(f"⏱️ Firestore: Health status retrieved in {time.time() - t0:.2f}s")
+            return "latest_health_status", health
         except Exception as e:
-            log.warning(f"❌ Health status retrieval failed: {e}")
+            log.warning(f"❌ Firestore health status retrieval failed: {e}")
             return "latest_health_status", None
 
     def fetch_user_goals() -> tuple[str, list[dict[str, Any]]]:
-        """Fetches active user goals."""
+        """Fetches active user goals from Firestore."""
         try:
             t0 = time.time()
-            user_filter = f" AND user_id = '{user_id}'" if user_id else ""
-            query_goals = (
-                f"SELECT target_date, goal_type, target_value, description "
-                f"FROM `{project_id}.{dataset}.user_goals` "
-                f"WHERE status = 'active'{user_filter} ORDER BY target_date ASC"
-            )
-            goal_rows = [dict(row) for row in client.query(query_goals).result()]
-            log.info(f"⏱️ BigQuery: Active goals retrieved in {time.time() - t0:.2f}s")
-            return "active_goals", goal_rows
+            profile = get_user_profile(user_id)
+            goals = profile.get("active_goals", [])
+            log.info(f"⏱️ Firestore: Active goals retrieved in {time.time() - t0:.2f}s")
+            return "active_goals", goals
         except Exception as e:
-            log.warning(f"❌ Goals retrieval failed: {e}")
+            log.warning(f"❌ Firestore goals retrieval failed: {e}")
             return "active_goals", []
 
     def fetch_daily_physiology() -> tuple[str, list[dict[str, Any]]]:
-        """Fetches recent daily physiology (RHR, Stress, Body Battery)."""
+        """Fetches recent daily physiology (RHR, Stress, Body Battery) from BigQuery (OLAP)."""
         try:
             t0 = time.time()
             query_daily = f"""
@@ -338,22 +319,26 @@ def _retrieve_biometric_data_cached(
             daily_rows = [dict(row) for row in client.query(query_daily).result()]
             log.info(f"⏱️ BigQuery: Daily physiology retrieved in {time.time() - t0:.2f}s")
             return "daily_physiology_7d", daily_rows
-        except Exception:
+        except Exception as e:
+            log.warning(f"❌ Daily physiology retrieval failed: {e}")
             return "daily_physiology_7d", []
 
     def fetch_calibration_profile() -> tuple[str, list[dict[str, Any]]]:
-        """Fetches personal calibration markers (PCP)."""
+        """Fetches personal calibration markers (PCP) from Firestore."""
         try:
             t0 = time.time()
-            query_calib = f"""
-                SELECT marker_type, marker_value, context
-                FROM `{project_id}.{dataset}.user_calibration_profile` 
-                {user_where}
-            """
-            calib_rows = [dict(row) for row in client.query(query_calib).result()]
-            log.info(f"⏱️ BigQuery: Calibration profile retrieved in {time.time() - t0:.2f}s")
-            return "personal_calibration_profile", calib_rows
-        except Exception:
+            profile = get_user_profile(user_id)
+            calib_dict = profile.get("personal_calibration_profile", {})
+            # Convert dict back to list format expected by graph
+            calib_list = []
+            for m_type, m_data in calib_dict.items():
+                calib_list.append(
+                    {"marker_type": m_type, "marker_value": m_data.get("value"), "context": m_data.get("context")}
+                )
+            log.info(f"⏱️ Firestore: Calibration profile retrieved in {time.time() - t0:.2f}s")
+            return "personal_calibration_profile", calib_list
+        except Exception as e:
+            log.warning(f"❌ Firestore calibration profile retrieval failed: {e}")
             return "personal_calibration_profile", []
 
     def fetch_scheduled_workouts() -> tuple[str, list[dict[str, Any]]]:
@@ -378,6 +363,26 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
             return "scheduled_workouts", []
 
+    def fetch_semantic_memories() -> tuple[str, list[dict[str, Any]]]:
+        """Fetches active semantic memories from Firestore."""
+        try:
+            t0 = time.time()
+            db = get_firestore_client()
+            memories_ref = db.collection("user_memories")
+            query = memories_ref.where("user_id", "==", user_id).where("is_active", "==", True)
+
+            memories = []
+            for doc in query.stream():
+                m = doc.to_dict()
+                m["id"] = doc.id  # Include the document ID for conflict resolution
+                memories.append(m)
+
+            log.info(f"⏱️ Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s")
+            return "semantic_memories", memories
+        except Exception as e:
+            log.warning(f"❌ Semantic memory retrieval failed: {e}")
+            return "semantic_memories", []
+
     def fetch_telemetry(activity_ids: list[str]) -> tuple[str, str]:
         """Fetches and aggregates telemetry for the last 3 activities."""
         if not activity_ids:
@@ -387,87 +392,89 @@ def _retrieve_biometric_data_cached(
             ids_str = ", ".join([f"'{i}'" for i in activity_ids])
             thirty_days_ago_ms = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
 
-            # Implementation of Event-Based Aggregation (V3 - Unabridged)
+            # V3.6 Precision Hybrid (Event-Aware Trend Detection)
             query_tel_series = f"""
-            WITH raw_15s AS (
+            WITH base AS (
                 SELECT 
-                    activity_id,
-                    activity_name,
-                    TIMESTAMP_SECONDS(CAST(FLOOR(timestamp_ms / 15000) * 15 AS INT64)) as time_block,
-                    AVG(hr_bpm) as hr,
-                    MAX(hr_bpm) as max_hr,
-                    AVG(power_w) as pwr,
-                    MAX(power_w) as max_pwr,
-                    AVG(cadence_spm + IFNULL(fractional_cadence, 0)) as cad,
-                    AVG(stride_length_mm) as stride,
-                    AVG(vertical_oscillation_cm) as osc,
-                    AVG(ground_contact_time_ms) as gct,
-                    AVG(vertical_ratio) as v_ratio,
-                    AVG(vertical_speed) as v_speed,
-                    AVG(body_battery) as battery,
-                    AVG(temperature_c) as temp,
-                    AVG(elevation_m) as elev,
-                    AVG(speed_mps) as speed,
-                    AVG(gap_mps) as gap,
-                    AVG(performance_condition) as perf,
-                    AVG(run_walk_index) as rw_idx
-                FROM `{project_id}.{dataset}.latest_activity_telemetry`
-                WHERE activity_id IN ({ids_str}) 
-                  AND timestamp_ms >= {thirty_days_ago_ms}
-                  {f" AND user_id = '{user_id}'" if user_id else ""}
-                GROUP BY 1, 2, 3
-            ),
-            classified AS (
-                SELECT 
-                    activity_id, activity_name, time_block, hr, max_hr, pwr, max_pwr, cad, 
-                    stride, osc, gct, v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx,
-                    CASE WHEN pwr > 180 OR cad > 145 THEN 1 ELSE 0 END as is_work,
-                    CAST(FLOOR(UNIX_SECONDS(time_block) / 300) AS INT64) as time_bucket
-                FROM raw_15s
+                    t.activity_id, 
+                    t.activity_name,
+                    t.timestamp_ms, 
+                    t.hr_bpm, 
+                    t.power_w,
+                    t.ground_contact_time_ms as gct,
+                    t.cadence_spm + IFNULL(t.fractional_cadence, 0) as cad,
+                    t.vertical_oscillation_cm as osc,
+                    t.vertical_ratio as v_ratio,
+                    t.vertical_speed as v_speed,
+                    t.body_battery as battery,
+                    t.temperature_c as temp,
+                    t.elevation_m as elev,
+                    t.speed_mps as speed,
+                    t.gap_mps as gap,
+                    t.performance_condition as perf,
+                    t.run_walk_index as rw_idx,
+                    CASE WHEN t.power_w > 180 OR t.hr_bpm > p.custom_z2_max THEN 1 ELSE 0 END as is_work
+                FROM `{project_id}.{dataset}.latest_activity_telemetry` t
+                JOIN `{project_id}.{dataset}.user_profile` p ON t.user_id = p.user_id
+                WHERE t.activity_id IN ({ids_str}) 
+                  AND t.timestamp_ms >= {thirty_days_ago_ms}
+                  {f" AND t.user_id = '{user_id}'" if user_id else ""}
             ),
             state_changes AS (
                 SELECT 
-                    activity_id, activity_name, time_block, hr, max_hr, pwr, max_pwr, cad, 
-                    stride, osc, gct, v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx,
-                    is_work, time_bucket,
-                    CASE 
-                        WHEN is_work != LAG(is_work) OVER(PARTITION BY activity_id ORDER BY time_block) THEN 1 
-                        WHEN time_bucket != LAG(time_bucket) OVER(PARTITION BY activity_id ORDER BY time_block) THEN 1
-                        ELSE 0 
-                    END as state_change
-                FROM classified
+                    activity_id, activity_name, timestamp_ms, hr_bpm, power_w, gct, cad, osc, 
+                    v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx, is_work,
+                    CASE WHEN is_work != LAG(is_work) OVER (PARTITION BY activity_id ORDER BY timestamp_ms) THEN 1 ELSE 0 END as state_change
+                FROM base
             ),
             segments AS (
-                SELECT 
-                    activity_id, activity_name, time_block, hr, max_hr, pwr, max_pwr, cad, 
-                    stride, osc, gct, v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx,
-                    is_work,
-                    SUM(state_change) OVER(PARTITION BY activity_id ORDER BY time_block) as segment_id
+                SELECT *,
+                    SUM(state_change) OVER (PARTITION BY activity_id ORDER BY timestamp_ms) as event_id
                 FROM state_changes
+            ),
+            segment_bounds AS (
+                SELECT *,
+                    MIN(timestamp_ms) OVER (PARTITION BY activity_id, event_id) as seg_start,
+                    MAX(timestamp_ms) OVER (PARTITION BY activity_id, event_id) as seg_end
+                FROM segments
+            ),
+            windowed_metrics AS (
+                SELECT 
+                    activity_id, activity_name, event_id, is_work,
+                    MIN(timestamp_ms) as start_time_ms,
+                    MAX(timestamp_ms) as end_time_ms,
+                    (MAX(timestamp_ms) - MIN(timestamp_ms)) / 1000 as duration_sec,
+                    AVG(hr_bpm) as avg_hr,
+                    AVG(power_w) as avg_pwr,
+                    AVG(cad) as avg_cad,
+                    AVG(osc) as avg_osc,
+                    AVG(v_ratio) as avg_v_ratio,
+                    AVG(v_speed) as avg_v_speed,
+                    AVG(battery) as avg_battery,
+                    AVG(temp) as avg_temp,
+                    AVG(elev) as avg_elev,
+                    AVG(speed) as avg_speed,
+                    AVG(gap) as avg_gap,
+                    AVG(perf) as avg_perf,
+                    AVG(rw_idx) as avg_rw_idx,
+                    -- V4.0 Optimal Precision (Fixed 11s Windows for Noise-Resistant Trends)
+                    AVG(CASE WHEN timestamp_ms <= seg_start + 11000 THEN hr_bpm END) as hr_start_avg,
+                    AVG(CASE WHEN timestamp_ms >= seg_end - 11000 THEN hr_bpm END) as hr_end_avg,
+                    AVG(CASE WHEN timestamp_ms <= seg_start + 11000 THEN gct END) as gct_start_avg,
+                    AVG(CASE WHEN timestamp_ms >= seg_end - 11000 THEN gct END) as gct_end_avg,
+                    AVG(CASE WHEN timestamp_ms <= seg_start + 11000 THEN power_w END) as pwr_start_avg,
+                    AVG(CASE WHEN timestamp_ms >= seg_end - 11000 THEN power_w END) as pwr_end_avg
+                FROM segment_bounds
+                GROUP BY activity_id, activity_name, event_id, is_work, seg_start, seg_end
+                HAVING duration_sec >= 10
             )
             SELECT 
-                activity_id, activity_name, is_work,
-                MIN(time_block) as start_time,
-                COUNT(*) * 15 as duration_sec,
-                AVG(hr) as avg_hr, MAX(max_hr) as max_hr,
-                AVG(pwr) as avg_pwr, MAX(max_pwr) as max_pwr,
-                AVG(cad) as avg_cad,
-                AVG(stride) as avg_stride,
-                AVG(osc) as avg_osc,
-                AVG(gct) as avg_gct,
-                AVG(v_ratio) as avg_v_ratio,
-                AVG(v_speed) as avg_v_speed,
-                AVG(battery) as avg_battery,
-                AVG(temp) as avg_temp,
-                AVG(elev) as avg_elev,
-                AVG(speed) as avg_speed,
-                AVG(gap) as avg_gap,
-                AVG(perf) as avg_perf,
-                AVG(rw_idx) as avg_rw_idx
-            FROM segments
-            GROUP BY 1, 2, 3, segment_id
-            HAVING duration_sec >= 10
-            ORDER BY activity_id, start_time ASC
+                activity_id, activity_name, event_id, is_work, start_time_ms, end_time_ms, duration_sec,
+                avg_hr, avg_pwr, avg_cad, avg_osc, avg_v_ratio, avg_v_speed, avg_battery, avg_temp,
+                avg_elev, avg_speed, avg_gap, avg_perf, avg_rw_idx,
+                hr_start_avg, hr_end_avg, gct_start_avg, gct_end_avg, pwr_start_avg, pwr_end_avg
+            FROM windowed_metrics 
+            ORDER BY activity_id, start_time_ms ASC
             """
             rows = list(client.query(query_tel_series).result())
 
@@ -478,7 +485,7 @@ def _retrieve_biometric_data_cached(
                     series_data[key] = []
 
                 label = "WORK" if row.is_work else "REST"
-                dur = f"{int(row.duration_sec)}s"
+                dur_min = round(row.duration_sec / 60, 1)
 
                 def mps_to_pace(mps: float) -> str:
                     if not mps or mps < 0.5:
@@ -486,22 +493,31 @@ def _retrieve_biometric_data_cached(
                     total_seconds = 1000 / mps
                     return f"{int(total_seconds // 60)}:{int(total_seconds % 60):02d}"
 
+                # Core Trends
+                hr_trend = f"{int(row.hr_start_avg or 0)}->{int(row.hr_end_avg or 0)}"
+                pwr_trend = f"{int(row.pwr_start_avg or 0)}->{int(row.pwr_end_avg or 0)}"
+                gct_trend = f"{int(row.gct_start_avg or 0)}->{int(row.gct_end_avg or 0)}"
+
+                # Calculate Drift Percentages only for segments > 3 minutes
+                hr_drift_str = ""
+                gct_drift_str = ""
+                if row.duration_sec > 180:
+                    hr_drift = ((row.hr_end_avg - row.hr_start_avg) / row.hr_start_avg * 100) if row.hr_start_avg else 0
+                    gct_drift = (
+                        ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100) if row.gct_start_avg else 0
+                    )
+                    hr_drift_str = f" ({hr_drift:+.1f}% drift)"
+                    gct_drift_str = f" ({gct_drift:+.1f}% drift)"
+
                 metrics = [
-                    f"DUR:{dur}",
-                    f"HR:{int(row.avg_hr or 0)} (max {int(row.max_hr or 0)})",
-                    f"PWR:{int(row.avg_pwr or 0)}W (max {int(row.max_pwr or 0)}W)",
-                    f"PACE:{mps_to_pace(row.avg_speed or 0)} (GAP:{mps_to_pace(row.avg_gap or 0)})",
+                    f"DUR:{dur_min}min",
+                    f"HR:{hr_trend}{hr_drift_str}",
+                    f"PWR:{pwr_trend}W",
+                    f"PACE:{mps_to_pace(row.avg_speed or 0)}",
+                    f"GCT:{gct_trend}ms{gct_drift_str}",
                     f"CAD:{round(row.avg_cad or 0, 1)}spm",
-                    f"STRIDE:{round((row.avg_stride or 0) / 1000, 2)}m",
-                    f"GCT:{int(row.avg_gct or 0)}ms",
                     f"VOSC:{round(row.avg_osc or 0, 1)}cm",
-                    f"VRATIO:{round(row.avg_v_ratio or 0, 1)}%",
-                    f"VSPD:{round(row.avg_v_speed or 0, 2)}m/s",
-                    f"ELEV:{round(row.avg_elev or 0, 1)}m",
                     f"BBAT:{int(row.avg_battery or 0)}",
-                    f"TEMP:{int(row.avg_temp or 0)}C",
-                    f"PERF:{int(row.avg_perf or 0)}",
-                    f"RW:{int(row.avg_rw_idx or 0)}",
                 ]
 
                 series_data[key].append(f"{label}[{'|'.join(metrics)}]")
@@ -536,6 +552,7 @@ def _retrieve_biometric_data_cached(
         f_daily = executor.submit(fetch_daily_physiology)
         f_calib = executor.submit(fetch_calibration_profile)
         f_sched = executor.submit(fetch_scheduled_workouts)
+        f_memories = executor.submit(fetch_semantic_memories)
 
         act_key, act_val = f_act.result()
         context[act_key] = act_val
@@ -553,6 +570,7 @@ def _retrieve_biometric_data_cached(
             f_daily,
             f_calib,
             f_sched,
+            f_memories,
             f_telemetry,
         ]:
             res: tuple[str, Any] = f.result()  # type: ignore

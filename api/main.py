@@ -148,7 +148,7 @@ class OpenAIChatMessage(BaseModel):
 
 
 class OpenAICompletionRequest(BaseModel):
-    model: str = "gemma-4-31b-it"
+    model: str = "gemini-3.1-flash-lite"
     messages: list[OpenAIChatMessage]
     stream: bool = False
     temperature: float = 0.2
@@ -248,15 +248,29 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
     # 2. Handle Non-Streaming Mode
     try:
         result = await graph.ainvoke(cast(Any, initial_state), config=config)
-        ai_msg = result["messages"][-1]
-        ai_reply = ai_msg.content
 
-        # Handle Gemini rich response formats (lists/dicts)
-        if isinstance(ai_reply, list):
-            text_parts = [item if isinstance(item, str) else item.get("text", "") for item in ai_reply]
-            ai_reply = "\n".join(filter(None, text_parts))
-        elif not isinstance(ai_reply, str):
-            ai_reply = str(ai_reply)
+        # Find the last AI message that actually has content (ignoring internal nodes like memory_extractor)
+        ai_reply = ""
+        for msg in reversed(result["messages"]):
+            if msg.type == "ai" and msg.content:
+                # Skip internal messages
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                    continue
+
+                # If it's a list (rich response), join it
+                if isinstance(msg.content, list):
+                    text_parts = [item if isinstance(item, str) else item.get("text", "") for item in msg.content]
+                    ai_reply = "\n".join(filter(None, text_parts))
+                else:
+                    ai_reply = str(msg.content)
+
+                # If we found a non-empty AI response, we're done
+                if ai_reply.strip():
+                    break
+
+        if not ai_reply:
+            log.warning("⚠️ No meaningful AI response found in graph state.")
+            ai_reply = "The coach prepared a report but it was empty. Please try again."
 
         return OpenAICompletionResponse(
             model=req.model,

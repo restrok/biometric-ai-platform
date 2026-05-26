@@ -1,4 +1,5 @@
 import logging
+import statistics
 import time
 
 from google.cloud import bigquery
@@ -6,6 +7,7 @@ from google.cloud import bigquery
 from src.tools.analytics import analyze_activity_efficiency
 from src.tools.retriever import retrieve_biometric_data
 from src.utils.config import get_config
+from src.utils.firestore import get_user_profile, update_user_profile
 from src.utils.notifications import send_proactive_notification
 
 log = logging.getLogger(__name__)
@@ -21,6 +23,14 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
     dataset = config["dataset_id"]
 
     log.info(f"🧠 Starting proactive analysis and autonomous planning for user: {user_id}")
+
+    # --- 0. Onboarding Check (Asynchronous ETL) ---
+    profile = get_user_profile(user_id)
+    if not profile.get("full_etl_synced"):
+        log.info(f"🆕 User {user_id} is new or has no full sync. Triggering background historical ETL...")
+        _trigger_async_historical_backfill(user_id)
+        # Exit gracefully to avoid analyzing incomplete data
+        return
 
     # 1. Physical Analysis (Telemetry-based)
     activities_to_process = []
@@ -91,6 +101,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         from typing import cast
 
         from langchain_core.messages import HumanMessage
+        from langchain_core.runnables import RunnableConfig
 
         from src.agent.graph import AgentState, graph
 
@@ -125,7 +136,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
                 "intent": "full",
             },
         )
-        graph.invoke(initial_state)
+        # Use user_id as thread_id for continuity
+        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}})
+        graph.invoke(initial_state, config=config)
 
     except Exception as e:
         log.error(f"❌ Proactive analysis/planning failed: {e}")
@@ -141,6 +154,7 @@ def _run_discovery_phase(user_id: str):
         from typing import cast
 
         from langchain_core.messages import HumanMessage
+        from langchain_core.runnables import RunnableConfig
 
         from src.agent.graph import AgentState, graph
 
@@ -167,7 +181,8 @@ def _run_discovery_phase(user_id: str):
             },
         )
         # The graph will now route this to the DataScientist node because of the exploratory tool calls
-        graph.invoke(initial_state)
+        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}})
+        graph.invoke(initial_state, config=config)
 
     except Exception as e:
         log.error(f"❌ Discovery Phase failed: {e}")
@@ -214,29 +229,70 @@ def _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_timest
 
 
 def _check_health_pre_symptoms(user_id):
-    log.info(f"🩺 Checking for pre-symptom health markers for {user_id}...")
+    """
+    Immune Radar: Statistical anomaly detection using Z-scores for HRV and RHR.
+    Detects systemic stress that often precedes illness.
+    """
+    log.info(f"🩺 Checking for pre-symptom health markers for {user_id} (Z-Score analysis)...")
     try:
         data = retrieve_biometric_data.invoke({"user_id": user_id})
+
+        # 1. HRV Z-Score (Last 7-21 days)
         hrv_history = data.get("hrv", [])
+        if len(hrv_history) >= 7:
+            hrv_values = [h.get("avg_hrv") for h in hrv_history if h.get("avg_hrv") is not None]
+            if len(hrv_values) >= 5:
+                today_hrv = hrv_values[0]
+                mean_hrv = statistics.mean(hrv_values[1:])
+                std_hrv = statistics.stdev(hrv_values[1:])
 
-        if len(hrv_history) >= 2:
-            latest = hrv_history[0]
-            prev = hrv_history[1]
+                hrv_z = (today_hrv - mean_hrv) / std_hrv if std_hrv > 0 else 0
 
-            hrv_drop = prev.get("avg_hrv", 0) - latest.get("avg_hrv", 0)
-            # Placeholder for RHR check - in a real scenario we would fetch RHR specifically
-            # For now, we use HRV trend which is a strong proxy.
-            if hrv_drop > 15:  # Significant drop
-                msg = (
-                    f"🩺 *Early Warning: Immune System Stress*\n\n"
-                    f"Your HRV dropped significantly ({hrv_drop}ms) compared to yesterday.\n\n"
-                    f"📅 *Plan for Tomorrow:* This often precedes a cold or overtraining. "
-                    f"I have adjusted your plan to prioritize rest. Focus on hydration and extra sleep tonight."
-                )
-                if send_proactive_notification(user_id, msg):
-                    _log_notification(user_id, "health", "pre_symptom", msg)
+                # 2. RHR Z-Score
+                physiology = data.get("daily_physiology_7d", [])
+                rhr_values = [
+                    p.get("resting_heart_rate") for p in physiology if p.get("resting_heart_rate") is not None
+                ]
+
+                if len(rhr_values) >= 5:
+                    today_rhr = rhr_values[0]
+                    mean_rhr = statistics.mean(rhr_values[1:])
+                    std_rhr = statistics.stdev(rhr_values[1:])
+
+                rhr_z = (today_rhr - mean_rhr) / std_rhr if std_rhr > 0 else 0
+
+                log.info(f"📊 Z-Scores for {user_id}: HRV Z={hrv_z:.2f}, RHR Z={rhr_z:.2f}")
+
+                # Thresholds: HRV significantly LOW (Z < -1.5) AND RHR significantly HIGH (Z > 1.5)
+                if hrv_z < -1.5 and rhr_z > 1.5:
+                    msg = (
+                        f"🩺 *Immune Radar Alert: Critical Deviation*\n\n"
+                        f"My statistical analysis detected a significant anomaly in your recovery metrics today:\n"
+                        f"• HRV is **{abs(hrv_z):.1f}σ below** your recent average.\n"
+                        f"• RHR is **{rhr_z:.1f}σ above** your recent average.\n\n"
+                        f"⚠️ *Warning:* This combination strongly suggests impending illness (cold/flu) or extreme systemic fatigue. "
+                        f"I strongly recommend **cancelling any high-intensity training** tomorrow and prioritizing 8+ hours of sleep."
+                    )
+                    if send_proactive_notification(user_id, msg):
+                        _log_notification(user_id, "health", "immune_radar", msg)
+                elif hrv_z < -1.2:
+                    # Mild warning
+                    msg = (
+                        f"🩺 *Health Warning: Low Readiness*\n\n"
+                        f"Your HRV is trending significantly lower than your baseline (Z={hrv_z:.2f}). "
+                        f"Listen to your body tomorrow; if you feel sluggish, consider a Zone 1 recovery run instead of your planned session."
+                    )
+                    if not _has_been_notified(
+                        bigquery.Client(project=get_config()["project_id"]),
+                        get_config()["dataset_id"],
+                        user_id,
+                        hrv_history[0].get("date"),
+                        "hrv_warning",
+                    ):
+                        if send_proactive_notification(user_id, msg):
+                            _log_notification(user_id, hrv_history[0].get("date"), "hrv_warning", msg)
     except Exception as e:
-        log.error(f"❌ Health pre-symptom check failed: {e}")
+        log.error(f"❌ Immune Radar analysis failed: {e}")
 
 
 def _has_been_notified(client, dataset, user_id, entity_id, notification_type):
@@ -395,3 +451,30 @@ def _request_rpe(user_id, activity_id, activity_name):
     if send_proactive_notification(user_id, msg):
         _log_notification(user_id, activity_id, "rpe_request", msg)
         log.info(f"✅ RPE request sent for {activity_id}")
+
+
+def _trigger_async_historical_backfill(user_id: str):
+    """Spawns a background thread to perform the 90-day historical sync."""
+    import threading
+
+    from src.tools.etl_job import run_etl
+
+    def backfill_task():
+        try:
+            log.info(f"⏳ Background ETL: Starting 90-day backfill for {user_id}...")
+            # Perform a deep sync (90 days)
+            run_etl(user_id=user_id, days_back=90)
+            # Update Firestore flag on success
+            update_user_profile(user_id, {"full_etl_synced": True})
+            log.info(f"✅ Background ETL: Historical sync complete for {user_id}.")
+
+            # Send a welcome notification
+            msg = (
+                "👋 *Welcome to the platform!* I've finished importing your last 90 days of Garmin history. "
+                "I'm now ready to provide precision training advice based on your full physiological profile."
+            )
+            send_proactive_notification(user_id, msg)
+        except Exception as e:
+            log.error(f"❌ Background ETL failed for {user_id}: {e}")
+
+    threading.Thread(target=backfill_task, daemon=True).start()

@@ -4,46 +4,44 @@ This guide explains the internal architecture and development workflows for the 
 
 ## 🏗️ Core Architecture
 
-The platform is designed as an **Agentic RAG** system, decoupled into several specialized layers.
+The platform is designed as a **Parallel Agentic RAG** system, leveraging a hybrid storage engine.
 
 ```mermaid
 graph TD
-    User([User Query]) --> Router{Intent Classifier}
-    Router -- "full/profile" --> Retriever[Context Retriever]
-    Router -- "none" --> Analyzer
+    User([User Request]) --> Router{Intent Classifier}
+    Router -- Tool Need --> Retriever[Hybrid Context Retriever]
     
-    subgraph "Data Layer"
-        Retriever --> BQ[(BigQuery Lakehouse)]
-        BQ --> Activities[(Recent Activities)]
-        BQ --> Health[(Health Status)]
-        BQ --> RAG[(Vector Knowledge Base)]
+    subgraph "Parallel Analysis Phase (Fan-out)"
+        Retriever --> Injury[🛡️ Injury Prevention]
+        Retriever --> Sleep[🧬 Sleep & Circadian]
+        Retriever --> Nutrition[⚖️ Metabolic Nutrition]
     end
     
-    Retriever --> Analyzer[AI Coach / Analyzer]
-    Analyzer --> Skills{{Biometric Coach Skill}}
+    Injury --> Analyzer[Head Coach / Analyzer]
+    Sleep --> Analyzer
+    Nutrition --> Analyzer
     
-    subgraph "Tool Execution"
-        Analyzer -- "Evolution/Trends" --> HistTool[Historical Biometrics Tool]
-        HistTool --> BQ
-        HistTool --> GCS[[GCS Report Bucket]]
-        GCS --> Artifact[Signed URL Report]
-        Artifact --> User
-        
-        Analyzer -- "Plan/Workouts" --> SyncTool[Device Sync Tool]
-        SyncTool --> Garmin((Garmin Connect))
+    subgraph "Data & State Layer"
+        Retriever --> FS[(Firestore OLTP)]
+        Retriever --> BQ[(BigQuery OLAP)]
+        FS --> Profiles[(User Profiles)]
+        FS --> Memories[(Semantic Memory)]
+        BQ --> Telemetry[(Biometric Telemetry)]
     end
     
-    Analyzer --> Response([Final Response])
+    Analyzer -- "Action" --> Tools[Action Tools]
+    Tools -- "State Update" --> FS
+    Tools -- "Historical Backup" --> BQ
+    
+    Analyzer --> Validator[Response Validator]
+    Validator --> User
 ```
 
-### 1. Data Layer (BigQuery Lakehouse)
-*   **Native Tables:** All biometric data is stored in Native BigQuery tables for sub-second retrieval.
-*   **Schema Consistency:** The `etl_job.py` enforces schema rules (e.g., casting `run_walk_index` to float) to prevent load failures.
-*   **Vector Database (RAG):** We use BigQuery's native `VECTOR_SEARCH` capabilities for the exercise science knowledge base.
-    *   **Implementation:** The knowledge base is stored in the `biometric_data_dev.knowledge_base` table.
-    *   **Embeddings:** We use the `models/gemini-embedding-001` model via Google Generative AI to generate 768-dimensional embeddings for Markdown chunks.
-    *   **Knowledge Sync (`upload_knowledge.py`):** This script manages the RAG data lifecycle. It uses `DirectoryLoader` to parse Markdown files, `RecursiveCharacterTextSplitter` (chunk size 1000, overlap 100) for chunking, and uploads the results to BigQuery.
-    *   **Retrieval:** The agent uses a `search_knowledge_base` tool that performs a `VECTOR_SEARCH` on BigQuery using the user query's embedding.
+### 1. Hybrid Data Layer (Firestore & BigQuery)
+The system separates real-time operational state from massive analytical data following the [Database Design Guidelines](./database-design-guidelines.md).
+*   **Firestore (OLTP):** The source of truth for the agent's immediate context. Stores user profiles, custom heart rate zones, active goals, and **Semantic Memories** ("Golden Nuggets"). Access is optimized for sub-30ms point lookups.
+*   **BigQuery (OLAP):** The analytical data lake. Stores millions of rows of high-resolution biometric telemetry and historical execution logs. Optimized for the **Data Scientist** agent's exploratory SQL queries and long-term trend analysis.
+*   **Asynchronous Onboarding:** New users trigger an automated 90-day historical backfill via the `etl_job.py`. This process runs in the background and is tracked via the `full_etl_synced` flag in Firestore.
 
 ### 2. SDK Layer (`garmin-toolkit`)
 *   Acts as an **Anti-Corruption Layer**.
@@ -103,11 +101,12 @@ sequenceDiagram
 *   **Automated Lifecycle:** A background loop in `api/main.py` refreshes all active user sessions every 2 hours, rotating `di_client_id` to ensure high availability and pushing updated tokens back to the cloud.
 *   **Zero-State Architecture:** The API is designed to be stateless; it can be restarted or redeployed without losing user sessions as long as GCP Secret Manager is accessible.
 
-### 7. Intelligence Implementation (Safety & Stability)
+### 7. Intelligence Implementation (Phase 6)
 
-        *   **Noise Reduction (Windowing):** The `analyzer` node is prompted to look for reproducibility. It must compare multiple telemetry segments from the `retriever` before suggesting a profile update.
-        *   **Cold Start Logic:** If `biometric_context['recent_activities']` is empty or only contains info messages, the `analyzer` is programmed to switch to "Calibration Mode." It will refuse to call `upload_training_plan` with high-intensity workouts and instead recommend a 2-week baseline-gathering phase.
-        *   **Scientific Grounding:** The system uses the `Karvonen Formula` as a fallback when empirical Aerobic Threshold (AeT) data is unavailable.
+*   **Parallel Expert Analysis (Fan-out):** Domain specialists (**Injury, Sleep, Nutrition**) analyze the context in parallel, significantly reducing request latency while providing multi-dimensional insights.
+*   **Immune Radar (Statistical SRE):** Implements an anomaly detection algorithm in `api/src/agent/proactive.py`. It uses **Z-Scores** to compare daily HRV and RHR against a 21-day rolling average. Large deviations (e.g., HRV Z < -1.5) trigger a proactive alert for impending illness.
+*   **Data Scientist Dry Run (Cost Control):** The Data Scientist agent is mandated to call `execute_exploratory_query_dry_run` before any BigQuery execution. This allows the system to evaluate scan costs and enforce query optimization (partition filtering) before incurring analytical costs.
+*   **Semantic Memory Extraction:** A post-analysis node that extracts facts (preferences, constraints) from the conversation and persists them in Firestore, ensuring the coach maintains a long-term "Golden Nugget" profile for each athlete.
 
         ---
 

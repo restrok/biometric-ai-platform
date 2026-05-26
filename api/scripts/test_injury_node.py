@@ -15,7 +15,7 @@ async def test_agent():
     state: AgentState = {
         "messages": [
             HumanMessage(
-                content="Ayer corrí 10k fuerte. ¿Qué debería comer hoy para recuperar bien y cómo estoy para entrenar?"
+                content="Yesterday I ran a hard 10k. What should I eat today to recover well and how am I for training?"
             )
         ],
         "biometric_context": {

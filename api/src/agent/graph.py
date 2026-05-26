@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from langchain_core.messages import (
     BaseMessage,
@@ -18,15 +18,18 @@ from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
+from scripts.list_models import list_available_models
 from src.agent.prompts import (
+    DATA_SCIENTIST_PROMPT,
     HEAD_COACH_SYSTEM_PROMPT,
     INJURY_PREVENTION_PROMPT,
+    MEMORY_EXTRACTOR_PROMPT,
     METABOLIC_NUTRITION_AGENT_PROMPT,
     SLEEP_CIRCADIAN_PROMPT,
 )
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
-from src.tools.data_scientist import execute_exploratory_query, get_bigquery_schema
+from src.tools.data_scientist import execute_exploratory_query, execute_exploratory_query_dry_run, get_bigquery_schema
 from src.tools.deep_reporting import generate_deep_historical_report
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
@@ -38,6 +41,7 @@ from src.tools.garmin_uploader import (
     upload_training_plan,
 )
 from src.tools.historical_biometrics import generate_historical_report
+from src.tools.memory_manager import retire_semantic_memory, save_semantic_memory, update_semantic_memory
 from src.tools.predictive_modeler import project_training_impact
 from src.tools.profile_manager import (
     configure_proactive_coaching,
@@ -46,6 +50,9 @@ from src.tools.profile_manager import (
     save_calibration_marker,
     update_user_zones,
 )
+
+MODEL_NAME = "gemini-3.1-flash-lite"
+
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
@@ -67,14 +74,14 @@ class AgentState(TypedDict):
 
 
 class IntentClassifier(BaseModel):
-    """Classifies the user's intent to optimize data retrieval."""
+    """Classifies the user's intent regarding biometric data needs."""
 
-    intent: Literal["full", "profile_only", "none"] = Field(
+    intent: Literal["none", "full", "activities", "sleep", "hrv", "nutrition"] = Field(
         ...,
-        description="Select 'full' if the query needs activity history/telemetry. "
-        "Select 'profile_only' if it only needs zones/profile info. "
-        "Select 'none' for general greetings or science questions without user data.",
+        description="The type of biometric data needed to answer the query. "
+        "Use 'none' if the query is general chitchat OR if it asks about another user's data (privacy violation).",
     )
+    rationale: str = Field(..., description="Brief explanation of why this intent was chosen.")
 
 
 # System prompt incorporating legacy_logic rules (summarized)
@@ -95,6 +102,7 @@ Before you prescribe ANY training plan or specific workout (using `upload_traini
 ### 🛡️ ETHICAL & PRECISION PROTOCOL
 - **HARD RULE: DEEP HISTORICAL ANALYSIS.** If the user asks for a "Reporte Histórico", "Evolución", or any analysis spanning 1-6 months, you **MUST** call `generate_deep_historical_report`. Do NOT attempt to summarize raw telemetry or multiple months of data manually. You lack the statistical engine to calculate rolling A:C ratios and Z-scores efficiently; only the tool can generate the high-fidelity GCS artifact required for deep insights.
 - **HARD RULE: EXPLORATORY DATA SCIENCE.** If a user asks a novel physiological question that isn't covered by standard tools (e.g., "Does my sleep quality correlate with my running pace?"), use `get_bigquery_schema` to understand the data lake and then `execute_exploratory_query` to find the answer. You are a "Data Scientist" as much as a coach.
+    - **DRY RUN MANDATE (SRE):** You MUST call `execute_exploratory_query_dry_run` before any actual execution. Review the `estimated_bytes_processed`. If the scan is high (e.g., >100MB), you MUST optimize the query using partitions (e.g., `_PARTITIONTIME` or `date` filters) before running the real query.
     - **PCP AUDIT:** Periodically audit historical data to find "Failure Events" (injuries/exhaustion) vs "Adaptation Peaks". Use `save_calibration_marker` to persist these personal limits (e.g., "Personal Red Line: 1.55 AC Ratio").
     - **HOLISTIC VIEW:** Always cross-reference training load with `daily_physiology` (all-day stress, RHR). If a user has high life stress but low training load, recommend recovery anyway.
 - **HARD RULE: NO UI BUTTON HALLUCINATIONS.**
@@ -142,52 +150,14 @@ You have access to a massive stream of high-resolution biometric data (captured 
 Analyze the following metrics to provide a holistic view of the runner's economy:
 - **Performance:** Power (Avg/Max Watts), Pace (min/km), GAP (Grade Adjusted Pace), Elevation, Vertical Speed.
 - **Biomechanics:** Vertical Oscillation (cm), Ground Contact Time (ms), Vertical Ratio (%), Stride Length (m), Cadence (SPM with fractional precision).
-- **Physiological State:** Heart Rate (Avg/Max BPM), Body Battery (drenaje de energía), Performance Condition, Temperature, Run/Walk Index.
+- **Physiological State:** Heart Rate (Avg/Max BPM), Body Battery (energy drain), Performance Condition, Temperature, Run/Walk Index.
 
 **Analytical Command:** Use the `PACE` vs `GAP` difference to detect effort on inclines. Monitor `Body Battery` drop per segment to identify metabolic efficiency. Use `Vertical Ratio` to evaluate "bounce" vs "forward drive."
 
 
-### TOOLS & ACTIONS:
-- **generate_deep_historical_report:** MANDATORY for 'Historical Reports', 'Evolución', or long-term trends (1-6 months). Performs multi-domain analysis (Cardio, Sleep, HRV, Subjective Health) and creates a GCS HTML artifact.
-- **execute_exploratory_query:** Executes sandboxed, read-only SQL for novel hypothesis testing. MUST include `WHERE user_id = '{user_id}'`.
-- **get_bigquery_schema:** Retrieves the table and column definitions for the Biometric Data Lake.
-- **upload_training_plan:** You MUST call this tool whenever the user asks for a training plan, recovery plan, or workout upload. **MANDATORY:** Perform a Pre-Flight Health Scan before calling this.
-- **clear_calendar:** You MUST call this tool before `upload_training_plan` to clear the target date range. This prevents duplicates.
-- **remove_workout:** Use this to delete a specific workout template if requested.
-- **list_workouts:** Lists all workout templates currently in the user's Garmin library.
-- **batch_remove_workouts:** Deletes multiple workout templates at once.
-- **prune_unused_workouts:** Automatically removes workout templates from the library that are NOT currently scheduled in the calendar.
-- **sync_biometric_data:** Triggers a background data refresh from Garmin to BigQuery. Inform the user that data will update in ~60s.
-- **generate_historical_report:** MANDATORY for 'Historical Reports', 'Evolución', or long-term trends. Calling this tool creates a formal Markdown analysis in GCS. You MUST present the Signed URL it returns to the user.
-- **read_report_artifact:** ONLY use this if the user explicitly asks to "read the full report" or "give more details from the artifact" after you've provided the link.
-- **retrieve_biometric_data:** Use this for a quick look at the latest context (last 5-20 activities). This is NOT a historical report.
-- **analyze_activity_efficiency:** Performs high-precision analysis of a specific activity (Aerobic Decoupling, Metabolic Cost, Form Efficiency).
-- **analyze_activity_stages:** Granular analysis of an activity's stages (Intervals vs. Rest).
-- **update_user_zones:** Updates the user's custom heart rate zones (Z1-Z4 max). Use this when telemetry suggests a shift in physiological thresholds.
-- **log_health_status:** Persists subjective health info (feeling, fatigue, injury notes). Use this whenever the user reports how they feel.
-- **manage_goals:** Adds or updates long-term goals (races, weight targets, volume goals).
-- **configure_proactive_coaching:** Configures the proactive coach (enable/disable, sync interval). Use this when the user wants to change how often the coach syncs or check their recovery.
-- **search_exercise_science:** Retrieves foundational exercise science knowledge to justify recommendations or interpret metrics.
-- **get_garmin_auth_url:** Call this when a user wants to connect their Garmin account or re-authenticate. It provides a login link.
-- **complete_garmin_auth:** Call this after the user provides the ticket or URL from the Garmin login. It completes the connection and saves tokens.
-
-### 🛠️ TRAINING PLAN SCHEMA RULES (STRICT):
-When using `upload_training_plan`, follow these rules exactly to avoid validation errors:
-1. **Step Type:** `type` MUST be one of: `'warmup'`, `'run'`, `'recovery'`, `'cooldown'`, or `'interval'`.
-2. **Duration:** ALWAYS use `duration_mins` (float) for time-based steps.
-3. **Repeats:** Use the `repeat` structure for interval sets (iterations + steps list).
-4. **Targets (CRITICAL):** 
-   - **Run/Interval Steps:** MUST strictly follow the requested intensity. Use `{"target_type": "heart.rate", "min_bpm": X, "max_bpm": Y}`.
-   - **Warmup/Cooldown Steps:** Generally use NO target (empty `{}`) to allow for natural adaptation. 
-   - **Exception:** If the user explicitly asks to 'avoid alerts' or set a floor/ceiling for the *entire* session, apply a broad, non-restrictive target to the Warmup/Cooldown (e.g., `60-180 bpm`) to satisfy the watch's technical requirements without forcing a pace.
-   - **Example:** If Zone 2 (140-150 bpm) is requested:
-     - Warmup: `target: {}` (or `60-180` if avoiding alerts).
-     - Run: `target: {"target_type": "heart.rate", "min_bpm": 140, "max_bpm": 150}`.
-     - Cooldown: `target: {}`.
-
-- **CRITICAL:** Do NOT just describe the plan in markdown. You MUST call the tool with the structured JSON arguments. 
-- Your primary output should be the tool call if one is needed. ONCE the tool results are available (or if no tool is needed), you MUST provide a comprehensive analysis in text.
-- NEVER return an empty text response if you have been provided with tool results or biometric context.
+### 🌍 LANGUAGE ### RESPONSE STRUCTURE (STRICT FORMATTING): RESPONSE PROTOCOL (CRITICAL)
+- **ADAPTIVE RESPONSE:** You MUST always respond in the same language the user is speaking. If the user speaks Spanish, respond in Spanish. If the user switches to English, you MUST switch to English immediately.
+- **TECHNICAL STANDARD:** While your responses adapt to the user, all internal thought processes, tool logs, and repository-bound metadata must remain in English.
 
 ### RESPONSE STRUCTURE (STRICT FORMATTING):
 - Use **Markdown Tables** for heart rate zones or plan summaries.
@@ -208,30 +178,59 @@ def node_router(state: AgentState) -> dict[str, Any]:
     Returns:
         Updated state with classified intent.
     """
-    model_name = "gemma-4-31b-it"
-    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
+    model = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
     last_msg = state["messages"][-1].content
+    current_user_id = state.get("user_id", "unknown")
 
     log.info(f"🧠 Classifying intent for: {last_msg[:50]}...")
 
     try:
         structured_llm = model.with_structured_output(IntentClassifier)
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
-        classification = structured_llm.invoke(
-            f"Classify the following user query for biometric data retrieval needs: {content_to_classify}"
+
+        # Enhanced prompt to detect cross-user queries and out-of-scope requests
+        prompt = (
+            f"Current User Session: {current_user_id}\n\n"
+            f"Analyze this query: '{content_to_classify}'\n"
+            "1. Determine what biometric data is needed.\n"
+            f"2. SECURITY CHECK: Is the user asking about anyone OTHER than '{current_user_id}'? "
+            "If they mention other names (e.g., 'Mercedes', 'John', 'another user'), classify intent as 'none' "
+            "and state 'Security: Cross-user query detected' in the rationale.\n"
+            "3. SCOPE CHECK: Is the query related to running, exercise physiology, health, or biometric data? "
+            "If it's about coding (e.g., Python, Javascript), general world knowledge, math, or anything unrelated "
+            "to being a professional running coach, classify intent as 'none' and state 'Scope: Out-of-scope request' in the rationale."
         )
+
+        classification = structured_llm.invoke(prompt)
+
         if isinstance(classification, IntentClassifier):
             intent = classification.intent
+            rationale = classification.rationale
         elif isinstance(classification, dict):
             intent = classification.get("intent", "full")
+            rationale = classification.get("rationale", "No rationale provided")
         else:
             intent = "full"
+            rationale = "Fallback to full"
+
+        # Explicit override if the LLM missed it but the rationale mentions it
+        if "cross-user" in rationale.lower() or "security" in rationale.lower():
+            intent = "none"
+
     except Exception as e:
         log.warning(f"⚠️ Intent classification failed ({e}). Falling back to 'full' data retrieval.")
         intent = "full"
+        rationale = f"Error during classification: {e}"
 
-    log.info(f"🔍 Intent Classified: {intent.upper()}")
-    return {"intent": intent, "loop_count": 0}
+    log.info(f"🔍 Intent Classified: {intent.upper()} | Rationale: {rationale}")
+
+    # Store the rationale in metadata for the analyzer
+    return {"intent": intent, "loop_count": 0, "usage_stats": {"router_rationale": rationale}}
 
 
 def node_retrieve_context(state: AgentState) -> dict[str, Any]:
@@ -257,8 +256,11 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
 def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     """Specialized node for injury risk analysis."""
     log.info("🛡️ Injury Prevention Agent scanning biometrics...")
-    model_name = "gemma-4-31b-it"
-    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    model = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
 
     context = state.get("biometric_context", {})
     context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
@@ -288,8 +290,11 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
 def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     """Specialized node for sleep and recovery analysis."""
     log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
-    model_name = "gemma-4-31b-it"
-    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    model = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
 
     context = state.get("biometric_context", {})
     context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
@@ -321,8 +326,11 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
 def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     """Specialized node for metabolic nutrition analysis."""
     log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
-    model_name = "gemma-4-31b-it"
-    model = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    model = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
 
     context = state.get("biometric_context", {})
     context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
@@ -367,9 +375,12 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         Updated state with LLM response and usage stats.
     """
     t0 = time.time()
-    model_name = "gemma-4-31b-it"
-    # Disable AFC via model_kwargs to let LangGraph's should_continue manage the tool loop without warnings
-    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0.2, model_kwargs={"enable_auto_call": False})
+    # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
+    llm = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0.2,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
 
     tools = [
         upload_training_plan,
@@ -381,6 +392,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         generate_historical_report,
         generate_deep_historical_report,
         execute_exploratory_query,
+        execute_exploratory_query_dry_run,
         get_bigquery_schema,
         read_report_artifact,
         analyze_activity_efficiency,
@@ -396,6 +408,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         get_garmin_auth_url,
         complete_garmin_auth,
         configure_proactive_coaching,
+        list_available_models,
     ]
     llm_with_tools = llm.bind_tools(tools)
 
@@ -440,12 +453,19 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     latency_ms = (time.time() - t0) * 1000
     token_usage = getattr(response, "usage_metadata", {})
 
-    usage = state.get("usage_stats", {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0})
+    usage = state.get("usage_stats", {})
+    if not isinstance(usage, dict):
+        usage = {}
+
+    # Ensure keys exist
+    usage.setdefault("total_tokens", 0)
+    usage.setdefault("calls", 0)
+    usage.setdefault("total_cost_usd", 0.0)
 
     if token_usage:
         in_t = getattr(token_usage, "input_tokens", 0)
         out_t = getattr(token_usage, "output_tokens", 0)
-        finops_row = log_llm_call(model_name, in_t, out_t, latency_ms, node_name="analyzer")
+        finops_row = log_llm_call(MODEL_NAME, in_t, out_t, latency_ms, node_name="analyzer")
 
         usage["total_tokens"] += in_t + out_t
         usage["total_cost_usd"] += finops_row["cost_usd"]
@@ -507,6 +527,7 @@ def tool_node(state: AgentState) -> Any:
             generate_historical_report,
             generate_deep_historical_report,
             execute_exploratory_query,
+            execute_exploratory_query_dry_run,
             get_bigquery_schema,
             analyze_activity_efficiency,
             analyze_activity_stages,
@@ -521,16 +542,76 @@ def tool_node(state: AgentState) -> Any:
             get_garmin_auth_url,
             complete_garmin_auth,
             configure_proactive_coaching,
+            save_semantic_memory,
+            update_semantic_memory,
+            retire_semantic_memory,
+            list_available_models,
         ]
     )
 
 
+class DataScientistOutput(BaseModel):
+    hypothesis: str = Field(..., description="The physiological or statistical hypothesis investigated.")
+    query_executed: str = Field(..., description="The final optimized SQL string that passed the Dry Run.")
+    pattern_detected: bool = Field(..., description="True if data validated the hypothesis; False otherwise.")
+    confidence_score: float = Field(..., ge=0.0, le=1.0, description="Statistical confidence level.")
+    raw_findings: str = Field(..., description="Technical summary of the resulting data.")
+    recommended_action: str = Field(..., description="Direct recommendation for the Head Coach.")
+    metric_type: Literal["hrv_stress", "aerobic_decoupling", "rhr_trend", "workload_anomaly", "other"]
+
+
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
-    """Specialized node for complex exploratory data analysis."""
-    log.info("🧪 DataScientist node activated for deep analysis...")
-    # This node could have its own specialized system prompt
-    # For now, it delegates to the main analyzer with the DataScientist tools
-    return node_analyze(state)
+    """Specialized node for autonomous physiological hypothesis testing."""
+    log.info("🧪 DataScientist node activated for autonomous discovery...")
+    user_id = state.get("user_id", "unknown")
+
+    # Instantiate specialized LLM for Data Science
+    llm = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        model_kwargs={"automatic_function_calling": {"disable": True}},
+    )
+
+    # Bind DS tools
+    ds_tools = [execute_exploratory_query_dry_run, execute_exploratory_query, get_bigquery_schema]
+    llm_with_tools = llm.bind_tools(ds_tools)
+
+    # Context preparation
+    messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}")]
+
+    # Pass the last user interaction and biometric context for hypothesis formulation
+    # We serialize the context to JSON to ensure the LLM can parse it easily
+    context_str = json.dumps(state.get("biometric_context", {}), default=str)
+    messages.append(HumanMessage(content=f"Biometric Context: {context_str}"))
+    messages.append(state["messages"][-1])
+
+    # Initial call to formulate hypothesis and potentially call tools
+    response = llm_with_tools.invoke(messages)
+
+    # If the DS wants to use tools, we return them to the 'tools' node
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        log.info(f"🧪 DataScientist calling {len(response.tool_calls)} tools for discovery.")
+        # Mark this AI message to identify its tools in the router
+        response.additional_kwargs["is_ds_call"] = True
+        return {"messages": [response]}
+
+    # Once tools are done (or if no tools needed), force a structured output
+    structured_llm = llm.with_structured_output(DataScientistOutput)
+    try:
+        raw_output = structured_llm.invoke(messages + [response])
+        if not raw_output:
+            raise ValueError("No output from Data Scientist LLM")
+
+        final_findings = cast(DataScientistOutput, raw_output)
+        findings_msg = SystemMessage(
+            content=f"🧪 DATA SCIENTIST REPORT:\n{json.dumps(final_findings.model_dump(), indent=2)}",
+            additional_kwargs={"is_ds_report": True},
+        )
+        log.info("🧪 DataScientist generated structured report.")
+        return {"messages": [findings_msg]}
+    except Exception as e:
+        log.error(f"❌ DataScientist failed to generate structured report: {e}")
+        return {"messages": [SystemMessage(content=f"Data Scientist analysis failed: {e}")]}
 
 
 def node_validator(state: AgentState) -> dict[str, Any]:
@@ -546,6 +627,71 @@ def node_validator(state: AgentState) -> dict[str, Any]:
     return {"loop_count": state.get("loop_count", 0)}
 
 
+def node_memory_extractor(state: AgentState) -> dict[str, Any]:
+    """Dedicated node to extract 'Golden Nuggets' from the interaction."""
+    log.info("🧠 Semantic Memory Extractor node activated...")
+    user_id = state.get("user_id", "unknown")
+
+    # Use a standard config for extraction
+    llm = ChatGoogleGenerativeAI(
+        model=MODEL_NAME,
+        temperature=0,
+        model_kwargs={
+            "automatic_function_calling": {"disable": True},
+        },
+    )
+
+    # Bind memory tools
+    llm_with_tools = llm.bind_tools([save_semantic_memory, update_semantic_memory, retire_semantic_memory])
+
+    # Construct messages: extractor prompt + last user message + last coach response
+    extractor_prompt = (
+        MEMORY_EXTRACTOR_PROMPT
+        + f"\n\n### 🛡️ USER CONTEXT (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** All `save_semantic_memory` calls MUST use this user_id."
+    )
+
+    messages: list[BaseMessage] = [SystemMessage(content=extractor_prompt)]
+
+    # Add existing memories from context if available for conflict resolution
+    context = state.get("biometric_context", {})
+    existing_memories = context.get("semantic_memories", [])
+    if existing_memories:
+        mem_str = "\n".join(
+            [f"[ID: {m['id']}] {m['memory_type'].upper()}: {m['memory_text']}" for m in existing_memories]
+        )
+        messages.append(SystemMessage(content=f"Existing Semantic Memories:\n{mem_str}"))
+
+    # Include ONLY the last Human message and the last AI response (the interaction to analyze)
+    # This reduces noise and helps Gemma focus on the dialogue
+    human_msg = next((m for m in reversed(state["messages"]) if m.type == "human"), None)
+    ai_msg = next((m for m in reversed(state["messages"]) if m.type == "ai" and m.content), None)
+
+    if human_msg:
+        messages.append(HumanMessage(content=f"USER SAID: {human_msg.content}"))
+    if ai_msg:
+        # Join list content if necessary
+        content = ai_msg.content
+        if isinstance(content, list):
+            content = "\n".join([str(p.get("text", "")) for p in content if isinstance(p, dict)])
+        messages.append(SystemMessage(content=f"COACH RESPONDED: {content}"))
+
+    # Debug log the messages
+    log.info(f"🧠 Extractor input messages (Cleaned): {messages}")
+
+    # Invoke extractor
+    response = llm_with_tools.invoke(messages, config={"tags": ["memory_extractor"]})
+
+    log.info(f"🧠 Extractor raw response: {response}")
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        log.info(f"🧠 Extractor found {len(response.tool_calls)} nuggets!")
+        # Tag the message explicitly to break loops in route_after_tools
+        response.additional_kwargs["is_memory_extraction"] = True
+        return {"messages": [response]}
+    log.info("🧠 No nuggets extracted.")
+    # Return as SystemMessage so main.py ignores it as a final assistant reply
+    return {"messages": [SystemMessage(content="No nuggets found.", additional_kwargs={"is_memory_extraction": True})]}
+
+
 # Conditional edges from analyzer
 def route_after_analysis(state: AgentState):
     messages = state["messages"]
@@ -553,8 +699,9 @@ def route_after_analysis(state: AgentState):
 
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         # Check if any tool call is for exploratory data science
-        exploratory_tools = ["execute_exploratory_query", "get_bigquery_schema"]
+        exploratory_tools = ["execute_exploratory_query", "get_bigquery_schema", "execute_exploratory_query_dry_run"]
         if any(tc["name"] in exploratory_tools for tc in last_message.tool_calls):
+            log.info("🧪 Routing to Data Scientist node...")
             return "data_scientist"
         return "tools"
 
@@ -573,21 +720,88 @@ workflow.add_node("metabolic_nutrition", node_metabolic_nutrition)
 workflow.add_node("analyzer", node_analyze)
 workflow.add_node("data_scientist", node_data_scientist)
 workflow.add_node("validator", node_validator)
+workflow.add_node("memory_extractor", node_memory_extractor)
 workflow.add_node("tools", tool_node)
 
 workflow.add_edge(START, "router")
 workflow.add_edge("router", "retriever")
-workflow.add_edge("retriever", "injury_prevention")
-workflow.add_edge("injury_prevention", "sleep_recovery")
-workflow.add_edge("sleep_recovery", "metabolic_nutrition")
+
+
+# Conditional fan-out: Short-circuit if intent is NONE
+def route_from_retriever(state: AgentState):
+    """Short-circuits specialized agents if no biometric data is needed."""
+    intent = state.get("intent", "full")
+    if intent == "none":
+        log.info("⏭️ Intent is NONE. Short-circuiting specialized agents.")
+        return ["analyzer"]
+
+    log.info(f"🔀 Intent is {intent.upper()}. Fanning out to specialized agents.")
+    return ["injury_prevention", "sleep_recovery", "metabolic_nutrition"]
+
+
+workflow.add_conditional_edges(
+    "retriever",
+    route_from_retriever,
+    {
+        "analyzer": "analyzer",
+        "injury_prevention": "injury_prevention",
+        "sleep_recovery": "sleep_recovery",
+        "metabolic_nutrition": "metabolic_nutrition",
+    },
+)
+
+# Fan-in: All specialized agents flow into the analyzer
+workflow.add_edge("injury_prevention", "analyzer")
+workflow.add_edge("sleep_recovery", "analyzer")
 workflow.add_edge("metabolic_nutrition", "analyzer")
 
 workflow.add_conditional_edges(
     "analyzer", route_after_analysis, {"tools": "tools", "data_scientist": "data_scientist", "validator": "validator"}
 )
-workflow.add_edge("tools", "analyzer")
+
+# After validator (the final coaching response is ready), run the memory extractor
+workflow.add_edge("validator", "memory_extractor")
+
+# The memory extractor calls tools directly if it finds nuggets
+workflow.add_conditional_edges(
+    "memory_extractor",
+    lambda state: "tools" if hasattr(state["messages"][-1], "tool_calls") and state["messages"][-1].tool_calls else END,
+)
+
+
+# Tool results go back to the analyzer OR if they come from memory_extractor, they finish
+def route_after_tools(state: AgentState):
+    """Routes back to analyzer for recursion or ends if coming from memory_extractor."""
+    # Find the AI message that triggered these tools
+    trigger_msg = None
+    for msg in reversed(state["messages"]):
+        if msg.type == "ai":
+            trigger_msg = msg
+            break
+
+    if not trigger_msg:
+        log.warning("⚠️ Could not find triggering AI message after tools. Ending flow.")
+        return END
+
+    # If the tools were triggered by memory_extractor, we are done
+    # We check both tags and the new explicit flag
+    tags = getattr(trigger_msg, "response_metadata", {}).get("tags", [])
+    if "memory_extractor" in str(tags) or trigger_msg.additional_kwargs.get("is_memory_extraction"):
+        log.info("🏁 Tools were from memory_extractor. Ending flow.")
+        return END
+
+    # If the tools were triggered by data_scientist, go back to it to synthesize results
+    if trigger_msg.additional_kwargs.get("is_ds_call"):
+        log.info("🧪 Tools were from data_scientist. Back-rooting to DS node.")
+        return "data_scientist"
+
+    # Otherwise, back to analyzer for recursion
+    log.info("🔄 Tools were from analyzer. Back-rooting for recursion.")
+    return "analyzer"
+
+
+workflow.add_conditional_edges("tools", route_after_tools)
 workflow.add_edge("data_scientist", "tools")
-workflow.add_edge("validator", END)
 
 # Compile
 graph = workflow.compile(checkpointer=memory)

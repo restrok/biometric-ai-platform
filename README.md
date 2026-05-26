@@ -84,17 +84,16 @@ We don't just look at your average heart rate. The platform analyzes your **Grou
 ---
 
 ## 🚀 Key Features
-- **Classroom of Agents Architecture:** Multi-agent orchestration using LangGraph. Complex decision-making is delegated to specialized expert nodes:
-    - **🛡️ Injury Prevention Agent:** Monitors A:C Ratio and mechanical form drifts (GCT, Oscillation).
-    - **🧬 Sleep & Circadian Agent:** Analyzes recovery quality and adjusts training intensity.
-    - **⚖️ Metabolic Nutrition Agent:** Calculates fueling needs and glycogen replenishment based on session cost.
-    - **🧪 Data Scientist Agent:** Autonomously discovers 'rare' physiological correlations via exploratory SQL.
+- **Parallel multi-agent Topology:** Optimized LangGraph orchestration. Specialist agents (**Injury, Sleep, Nutrition**) execute in parallel (Fan-out/Fan-in), reducing request latency by ~60%.
+- **Immune Radar (Statistical Detection):** Proactive health monitoring using **Z-Scores** (Standard Deviations). Detects systemic stress and impending illness by analyzing 21-day rolling averages of HRV and RHR.
+- **Hybrid Storage Engine (SRE Optimized):** Separates concerns using the [OLTP vs. OLAP Design Guidelines](./docs/database-design-guidelines.md):
+    - **Firestore (OLTP):** Ultra-low latency source of truth for agent context, user profiles, and active goals.
+    - **BigQuery (OLAP):** High-performance data lake for massive telemetry analysis and historical intelligence.
+- **SRE-Driven Data Science:** The Data Scientist agent autonomously evaluates BigQuery **Dry Runs** to estimate query costs and optimize partitioning before execution.
+- **Semantic Conversation Memory:** Persists factual "Golden Nuggets" (preferences, constraints, quirks) across sessions in Firestore, ending the "goldfish effect" of standard LLMs.
 - **Autonomous Discovery Phase:** Background engine that proactively audits the last 30-90 days of data during each sync to find hidden patterns and persistent 'Success Markers'.
-- **Dynamic Personal Calibration Profile (PCP):** Moves beyond static rules to personalized safety limits (e.g., dynamic 1.45 AC Ratio red-line) persisted in BigQuery.
-- **Deep Biometric Evolution:** Dynamic historical reporting (3-6 months) generating rich HTML dashboards with SVG trend visualizations stored in GCS.
-- **AgentSearch (Exploratory SQL):** Autonomous data exploration using sandboxed BigQuery queries to discover personalized physiological correlations.
+- **Asynchronous Onboarding:** Automated 90-day historical backfill for new users triggered via Firestore state, ensuring a seamless first-run experience without blocking the agent.
 - **Pre-Flight Health Scan:** Mandatory safety gating that cross-references A:C Ratio, HRV, and subjective logs before prescribing any workout.
-- **High-Performance Architecture:** Sub-second retrieval of 6 different biometric domains (Activities, Sleep, HRV, Status, Profile, Body Comp) via parallel BigQuery processing.
 - **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin.
 - **Zero-CLI Dynamic Auth:** Link your Garmin account directly through the chat interface using secure SSO.
 

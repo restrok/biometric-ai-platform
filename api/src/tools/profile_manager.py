@@ -1,4 +1,5 @@
 import logging
+from datetime import date, datetime
 from typing import Literal
 
 from google.cloud import bigquery
@@ -6,6 +7,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
+from src.utils.firestore import get_user_profile, update_user_profile
 
 log = logging.getLogger(__name__)
 
@@ -21,18 +23,34 @@ class ZoneUpdate(BaseModel):
 @tool(args_schema=ZoneUpdate)
 def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None):
     """
-    Updates the user's custom heart rate zones in BigQuery.
-    Use this tool whenever you analyze telemetry and determine that the user's
-    physiological zones have shifted or need correction.
+    Updates the user's custom heart rate zones.
+    Source of truth is Firestore for low-latency agent access.
+    Also updates BigQuery for historical and analytical consistency.
     """
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
+    user_id = user_id or "fsirio"
 
+    # 1. Update Firestore (OLTP - Source of Truth for Agent)
+    try:
+        zone_data = {
+            "custom_zones": {
+                "z1_max": z1_max,
+                "z2_max": z2_max,
+                "z3_max": z3_max,
+                "z4_max": z4_max,
+            },
+            "updated_at": "auto",  # update_user_profile could handle this or we pass it
+        }
+        update_user_profile(user_id, zone_data)
+        log.info(f"✅ Firestore: Updated zones for {user_id}")
+    except Exception as e:
+        log.warning(f"⚠️ Firestore zone update failed: {e}")
+
+    # 2. Update BigQuery (OLAP - Historical consistency)
     client = bigquery.Client(project=project_id)
     table_id = f"{project_id}.{dataset}.user_profile"
-
-    where_clause = f"WHERE user_id = '{user_id}'" if user_id else "WHERE TRUE"
 
     query = f"""
         UPDATE `{table_id}`
@@ -41,20 +59,17 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_i
             custom_z2_max = {z2_max},
             custom_z3_max = {z3_max},
             custom_z4_max = {z4_max},
-            updated_at = CURRENT_TIMESTAMP()
-        {where_clause}
+            updated_at = CURRENT_DATETIME()
+        WHERE user_id = '{user_id}'
     """
 
     try:
-        query_job = client.query(query)
-        query_job.result()
-        log.info(
-            f"✅ Successfully updated custom zones in BigQuery for {user_id or 'default'}: Z1:{z1_max}, Z2:{z2_max}, Z3:{z3_max}, Z4:{z4_max}"
-        )
+        client.query(query).result()
+        log.info(f"✅ BigQuery: Updated zones for {user_id}")
         return f"Successfully updated custom zones: Z1:{z1_max}, Z2:{z2_max}, Z3:{z3_max}, Z4:{z4_max}."
     except Exception as e:
-        log.error(f"❌ Failed to update custom zones: {e}")
-        return f"Error updating custom zones: {e}"
+        log.error(f"❌ BigQuery zone update failed: {e}")
+        return f"Updated zones in Firestore, but BigQuery sync failed: {e}"
 
 
 class HealthStatusInput(BaseModel):
@@ -76,25 +91,44 @@ def log_health_status(
     user_id: str | None = None,
 ):
     """
-    Logs the user's subjective health status and physical feeling into BigQuery.
-    Use this tool whenever the user reports feeling unwell, injured, tired, or particularly strong.
-    This ensures that the AI coach can persist and retrieve this context in future sessions.
+    Logs the user's subjective health status.
+    Source of truth for immediate agent context is Firestore.
+    Historical logs are maintained in BigQuery.
     """
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-
-    client = bigquery.Client(project=project_id)
-    table_id = f"{project_id}.{dataset}.user_health_status"
-
-    from datetime import date
+    user_id = user_id or "fsirio"
 
     target_date = status_date if status_date else date.today().isoformat()
 
+    # 1. Update Firestore (Immediate State)
+    try:
+        health_data = {
+            "latest_health_status": {
+                "date": target_date,
+                "feeling": feeling,
+                "notes": notes,
+                "fatigue_level": fatigue_level,
+                "injury_notes": injury_notes,
+            }
+        }
+        update_user_profile(user_id, health_data)
+        log.info(f"✅ Firestore: Logged health status for {user_id}")
+    except Exception as e:
+        log.warning(f"⚠️ Firestore health log failed: {e}")
+
+    # 2. Update BigQuery (Historical Log)
+    client = bigquery.Client(project=project_id)
+    table_id = f"{project_id}.{dataset}.user_health_status"
+
     # Merge condition must include user_id if present
-    on_clause = "T.date = S.date"
-    if user_id:
-        on_clause += f" AND T.user_id = '{user_id}'"
+    on_clause = f"T.date = S.date AND T.user_id = '{user_id}'"
+
+    # Escape single quotes
+    safe_feeling = feeling.replace("'", "''")
+    safe_notes = notes.replace("'", "''") if notes else None
+    safe_injury = injury_notes.replace("'", "''") if injury_notes else None
 
     # We use a MERGE (UPSERT) to ensure one entry per day
     query = f"""
@@ -103,24 +137,23 @@ def log_health_status(
         ON {on_clause}
         WHEN MATCHED THEN
             UPDATE SET 
-                feeling = '{feeling}',
-                notes = {f"'{notes}'" if notes else "NULL"},
+                feeling = '{safe_feeling}',
+                notes = {f"'{safe_notes}'" if safe_notes else "NULL"},
                 fatigue_level = {fatigue_level if fatigue_level is not None else "NULL"},
-                injury_notes = {f"'{injury_notes}'" if injury_notes else "NULL"},
+                injury_notes = {f"'{safe_injury}'" if safe_injury else "NULL"},
                 updated_at = CURRENT_TIMESTAMP()
         WHEN NOT MATCHED THEN
             INSERT (date, feeling, notes, fatigue_level, injury_notes, updated_at, user_id)
-            VALUES ('{target_date}', '{feeling}', {f"'{notes}'" if notes else "NULL"}, {fatigue_level if fatigue_level is not None else "NULL"}, {f"'{injury_notes}'" if injury_notes else "NULL"}, CURRENT_TIMESTAMP(), {f"'{user_id}'" if user_id else "NULL"})
+            VALUES ('{target_date}', '{safe_feeling}', {f"'{safe_notes}'" if safe_notes else "NULL"}, {fatigue_level if fatigue_level is not None else "NULL"}, {f"'{safe_injury}'" if safe_injury else "NULL"}, CURRENT_TIMESTAMP(), '{user_id}')
     """
 
     try:
-        query_job = client.query(query)
-        query_job.result()
-        log.info(f"✅ Successfully logged health status for {target_date} (user: {user_id}): {feeling}")
+        client.query(query).result()
+        log.info(f"✅ BigQuery: Logged health status for {user_id}")
         return f"Successfully logged health status for {target_date}: {feeling}."
     except Exception as e:
-        log.error(f"❌ Failed to log health status: {e}")
-        return f"Error logging health status: {e}"
+        log.error(f"❌ BigQuery health log failed: {e}")
+        return f"Logged health status in Firestore, but BigQuery sync failed: {e}"
 
 
 class ProactiveConfigInput(BaseModel):
@@ -211,27 +244,59 @@ def manage_goals(
     user_id: str | None = None,
 ):
     """
-    Adds or updates a user goal in BigQuery.
-    Use this tool when the user mentions a specific target, like a race date or a weight goal.
-    This allows the coach to keep track of long-term objectives.
+    Adds or updates a user goal.
+    Source of truth for agent context is Firestore.
+    Analytical history is maintained in BigQuery.
     """
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-
-    client = bigquery.Client(project=project_id)
-    table_id = f"{project_id}.{dataset}.user_goals"
+    user_id = user_id or "fsirio"
 
     import uuid
-    from datetime import datetime
 
     goal_id = str(uuid.uuid4())[:8]
     created_at = datetime.utcnow().isoformat()
 
-    # We use a MERGE to avoid duplicate active goals of the same type for the same date
-    on_clause = "T.target_date = S.target_date AND T.goal_type = S.goal_type"
-    if user_id:
-        on_clause += f" AND T.user_id = '{user_id}'"
+    # 1. Update Firestore (Current Goals)
+    try:
+        # We store goals in a sub-collection or a list in the profile.
+        # For simplicity in retrieval, a list 'active_goals' in the profile works well for small counts.
+        profile = get_user_profile(user_id)
+        current_goals = profile.get("active_goals", [])
+
+        new_goal = {
+            "id": goal_id,
+            "target_date": target_date,
+            "goal_type": goal_type,
+            "target_value": target_value,
+            "description": description,
+            "status": status,
+        }
+
+        # Replace if same type/date exists
+        updated_goals = [
+            g
+            for m in [new_goal]
+            for g in current_goals
+            if not (g["target_date"] == m["target_date"] and g["goal_type"] == m["goal_type"])
+        ]
+        updated_goals.append(new_goal)
+
+        update_user_profile(user_id, {"active_goals": updated_goals})
+        log.info(f"✅ Firestore: Managed goal {goal_type} for {user_id}")
+    except Exception as e:
+        log.warning(f"⚠️ Firestore goal management failed: {e}")
+
+    # 2. Update BigQuery (Historical/OLAP)
+    client = bigquery.Client(project=project_id)
+    table_id = f"{project_id}.{dataset}.user_goals"
+
+    # Escape single quotes
+    safe_desc = description.replace("'", "''") if description else None
+    safe_val = target_value.replace("'", "''")
+
+    on_clause = f"T.target_date = S.target_date AND T.goal_type = S.goal_type AND T.user_id = '{user_id}'"
 
     query = f"""
         MERGE `{table_id}` T
@@ -239,22 +304,21 @@ def manage_goals(
         ON {on_clause}
         WHEN MATCHED THEN
             UPDATE SET 
-                target_value = '{target_value}',
-                description = {f"'{description}'" if description else "NULL"},
+                target_value = '{safe_val}',
+                description = {f"'{safe_desc}'" if safe_desc else "NULL"},
                 status = '{status}'
         WHEN NOT MATCHED THEN
             INSERT (id, created_at, target_date, goal_type, target_value, description, status, user_id)
-            VALUES ('{goal_id}', '{created_at}', '{target_date}', '{goal_type}', '{target_value}', {f"'{description}'" if description else "NULL"}, '{status}', {f"'{user_id}'" if user_id else "NULL"})
+            VALUES ('{goal_id}', '{created_at}', '{target_date}', '{goal_type}', '{safe_val}', {f"'{safe_desc}'" if safe_desc else "NULL"}, '{status}', '{user_id}')
     """
 
     try:
-        query_job = client.query(query)
-        query_job.result()
-        log.info(f"✅ Successfully managed goal: {goal_type} on {target_date} ({status})")
+        client.query(query).result()
+        log.info(f"✅ BigQuery: Managed goal {goal_type} for {user_id}")
         return f"Successfully saved goal: {goal_type} for {target_date} with target {target_value}."
     except Exception as e:
-        log.error(f"❌ Failed to manage goal: {e}")
-        return f"Error managing goal: {e}"
+        log.error(f"❌ BigQuery goal management failed: {e}")
+        return f"Saved goal in Firestore, but BigQuery sync failed: {e}"
 
 
 class CalibrationMarkerInput(BaseModel):
@@ -272,21 +336,38 @@ def save_calibration_marker(
     user_id: str | None = None,
 ):
     """
-    Saves a Personal Calibration Profile (PCP) marker in BigQuery.
-    Use this tool (specifically the DataScientist) to persist discovered personal limits
-    or adaptation peaks found during historical data analysis.
+    Saves a Personal Calibration Profile (PCP) marker.
+    Source of truth for agent context is Firestore.
+    Analytical history is maintained in BigQuery.
     """
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
+    user_id = user_id or "fsirio"
 
+    # 1. Update Firestore (PCP Markers)
+    try:
+        profile = get_user_profile(user_id)
+        current_pcp = profile.get("personal_calibration_profile", {})
+        current_pcp[marker_type] = {
+            "value": marker_value,
+            "context": context,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        update_user_profile(user_id, {"personal_calibration_profile": current_pcp})
+        log.info(f"✅ Firestore: Saved calibration marker {marker_type} for {user_id}")
+    except Exception as e:
+        log.warning(f"⚠️ Firestore calibration marker save failed: {e}")
+
+    # 2. Update BigQuery (Analytical Lake)
     client = bigquery.Client(project=project_id)
     table_id = f"{project_id}.{dataset}.user_calibration_profile"
 
     # Merge on marker_type and user_id to update existing markers
-    on_clause = "T.marker_type = S.marker_type"
-    if user_id:
-        on_clause += f" AND T.user_id = '{user_id}'"
+    on_clause = f"T.marker_type = S.marker_type AND T.user_id = '{user_id}'"
+
+    # Escape single quotes in context to avoid SQL errors
+    safe_context = context.replace("'", "''") if context else None
 
     query = f"""
         MERGE `{table_id}` T
@@ -295,18 +376,17 @@ def save_calibration_marker(
         WHEN MATCHED THEN
             UPDATE SET 
                 marker_value = {marker_value},
-                context = {f"'{context}'" if context else "NULL"},
+                context = {f"'{safe_context}'" if safe_context else "NULL"},
                 updated_at = CURRENT_TIMESTAMP()
         WHEN NOT MATCHED THEN
             INSERT (user_id, marker_type, marker_value, context, created_at, updated_at)
-            VALUES ({f"'{user_id}'" if user_id else "NULL"}, '{marker_type}', {marker_value}, {f"'{context}'" if context else "NULL"}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
+            VALUES ('{user_id}', '{marker_type}', {marker_value}, {f"'{safe_context}'" if safe_context else "NULL"}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
     """
 
     try:
-        query_job = client.query(query)
-        query_job.result()
-        log.info(f"✅ Successfully saved calibration marker: {marker_type}={marker_value} (user: {user_id})")
+        client.query(query).result()
+        log.info(f"✅ BigQuery: Saved calibration marker {marker_type} for {user_id}")
         return f"Successfully saved calibration marker: {marker_type}={marker_value}."
     except Exception as e:
-        log.error(f"❌ Failed to save calibration marker: {e}")
-        return f"Error saving calibration marker: {e}"
+        log.error(f"❌ BigQuery calibration marker save failed: {e}")
+        return f"Saved marker in Firestore, but BigQuery sync failed: {e}"
