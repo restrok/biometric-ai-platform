@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import time
 from collections.abc import Sequence
 from typing import Annotated, Any, Literal, cast
@@ -12,6 +13,7 @@ from langchain_core.messages import (
     SystemMessage,
 )
 from langchain_google_genai import ChatGoogleGenerativeAI
+from src.utils.llm_factory import get_chat_model
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
@@ -51,7 +53,7 @@ from src.tools.profile_manager import (
     update_user_zones,
 )
 
-MODEL_NAME = "gemini-3.1-flash-lite"
+MODEL_NAME = os.getenv("CORE_MODEL_NAME", "gemma-4-31b-it")
 
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
@@ -76,10 +78,14 @@ class AgentState(TypedDict):
 class IntentClassifier(BaseModel):
     """Classifies the user's intent regarding biometric data needs."""
 
-    intent: Literal["none", "full", "activities", "sleep", "hrv", "nutrition"] = Field(
+    intent: Literal["none", "full", "activities", "sleep", "hrv", "nutrition", "sync", "planning", "discovery", "profile"] = Field(
         ...,
         description="The type of biometric data needed to answer the query. "
-        "Use 'none' if the query is general chitchat OR if it asks about another user's data (privacy violation).",
+        "Use 'sync' for commands like /garmin_sync. "
+        "Use 'planning' for workout management or training plan uploads. "
+        "Use 'discovery' for deep analysis, correlations, or custom SQL queries. "
+        "Use 'profile' for settings, goals, or wellness logging. "
+        "Use 'none' if the query is general chitchat.",
     )
     rationale: str = Field(..., description="Brief explanation of why this intent was chosen.")
 
@@ -178,9 +184,18 @@ def node_router(state: AgentState) -> dict[str, Any]:
     Returns:
         Updated state with classified intent.
     """
+    # HARDCODED OVERRIDES: Ensure critical commands never fail due to model confusion or bad memory
+    last_message = state["messages"][-1].content
+    last_msg_str = last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+    
+    sync_commands = ["/garmin_sync", "/garmin_sync_full", "/garmin_login", "sync garmin"]
+    if any(cmd in last_msg_str for cmd in sync_commands):
+        log.info(f"🎯 Hardcoded Override: SYNC intent detected for command: {last_msg_str}")
+        return {"intent": "sync", "loop_count": 0, "usage_stats": {"router_rationale": f"Hardcoded override for {last_msg_str}"}}
+
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
-    model = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    model = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -245,10 +260,32 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
     intent = state.get("intent", "full")
     user_id = state.get("user_id")
 
-    if intent == "none":
-        return {"biometric_context": {"info": "No user data retrieved for this query type."}}
+    if not user_id:
+        log.error("❌ No user_id found in state. Context retrieval aborted.")
+        return {"biometric_context": {"error": "Authentication required."}}
 
-    # Pass the user_id to the retriever tool
+    # OPTIMIZATION: For sync, profile, and planning, we don't need BigQuery history.
+    # For SYNC, we provide NO context to prevent the model from getting chatty/analytical.
+    if intent == "sync":
+        log.info("⚡ Zero-context retrieval for SYNC intent.")
+        return {"biometric_context": {"info": "Sync in progress. No analysis needed."}}
+
+    if intent in ["profile", "planning"]:
+        log.info(f"⚡ Lightweight retrieval for intent: {intent.upper()}")
+        from src.utils.firestore import get_user_profile
+        try:
+            profile = get_user_profile(user_id)
+            context = {
+                "user_profile": profile,
+                "latest_health_status": profile.get("latest_health_status"),
+                "active_goals": profile.get("active_goals", []),
+                "info": f"Lightweight context retrieved for {intent} intent."
+            }
+            return {"biometric_context": context}
+        except Exception as e:
+            log.warning(f"❌ Lightweight retrieval failed: {e}. Falling back to full.")
+
+    # Pass the user_id to the retriever tool for full context
     context = retrieve_biometric_data.invoke({"user_id": user_id})
     return {"biometric_context": context}
 
@@ -256,8 +293,8 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
 def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     """Specialized node for injury risk analysis."""
     log.info("🛡️ Injury Prevention Agent scanning biometrics...")
-    model = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    model = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -290,8 +327,8 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
 def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     """Specialized node for sleep and recovery analysis."""
     log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
-    model = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    model = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -326,8 +363,8 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
 def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     """Specialized node for metabolic nutrition analysis."""
     log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
-    model = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    model = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -376,40 +413,76 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     """
     t0 = time.time()
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    llm = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0.2,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
 
-    tools = [
-        upload_training_plan,
-        clear_calendar,
-        remove_workout,
-        search_exercise_science,
-        update_user_zones,
-        sync_biometric_data,
-        generate_historical_report,
-        generate_deep_historical_report,
-        execute_exploratory_query,
-        execute_exploratory_query_dry_run,
-        get_bigquery_schema,
-        read_report_artifact,
-        analyze_activity_efficiency,
-        analyze_activity_stages,
-        retrieve_biometric_data,
-        log_health_status,
-        prune_unused_workouts,
-        manage_goals,
-        save_calibration_marker,
-        project_training_impact,
-        list_workouts,
-        batch_remove_workouts,
-        get_garmin_auth_url,
-        complete_garmin_auth,
-        configure_proactive_coaching,
-        list_available_models,
-    ]
+    intent = state.get("intent", "full")
+
+    # SYNC OPTIMIZATION: Short-circuit or restrict tools for the sync intent
+    if intent == "sync":
+        last_message = state["messages"][-1].content
+        last_msg_str = last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+        
+        # 1. Check for Login Command
+        if "/garmin_login" in last_msg_str:
+            log.info("🔑 Login command detected. Restricting tools to Auth.")
+            tools = [get_garmin_auth_url, complete_garmin_auth]
+        else:
+            # 2. Check if sync has already been triggered (Short-circuit for standard/full sync)
+            sync_triggered = any(
+                (msg.type == "tool" and msg.name == "sync_biometric_data") or
+                (hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls))
+                for msg in state["messages"]
+            )
+            if sync_triggered:
+                log.info("🏁 Sync already triggered. Returning static confirmation.")
+                from langchain_core.messages import AIMessage
+                confirm_text = "🔄 Tu Garmin Sync ha comenzado en segundo plano. "
+                if "/garmin_sync_full" in last_msg_str:
+                    confirm_text = "🔄 Tu Sincronización COMPLETA (30 días) ha comenzado. "
+                
+                return {
+                    "messages": [AIMessage(content=confirm_text + "Los datos actualizados estarán listos en unos 30-60 segundos. Mientras tanto, ¿en qué más puedo ayudarte?")],
+                    "usage_stats": state.get("usage_stats", {}),
+                    "loop_count": state.get("loop_count", 0) + 1,
+                }
+            
+            # 3. First pass for sync (Normal or Full)
+            log.info("🔄 Sync command detected. Restricting tools to Sync.")
+            tools = [sync_biometric_data]
+    else:
+        tools = [
+            upload_training_plan,
+            clear_calendar,
+            remove_workout,
+            search_exercise_science,
+            update_user_zones,
+            sync_biometric_data,
+            generate_historical_report,
+            generate_deep_historical_report,
+            execute_exploratory_query,
+            execute_exploratory_query_dry_run,
+            get_bigquery_schema,
+            read_report_artifact,
+            analyze_activity_efficiency,
+            analyze_activity_stages,
+            retrieve_biometric_data,
+            log_health_status,
+            prune_unused_workouts,
+            manage_goals,
+            save_calibration_marker,
+            project_training_impact,
+            list_workouts,
+            batch_remove_workouts,
+            get_garmin_auth_url,
+            complete_garmin_auth,
+            configure_proactive_coaching,
+            list_available_models,
+        ]
+
     llm_with_tools = llm.bind_tools(tools)
 
     current_context = state.get("biometric_context", {})
@@ -436,9 +509,31 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
 
     # STRICT USER ISOLATION: Add a dedicated system instruction for the current user ID
     user_id = state.get("user_id", "unknown")
+    intent = state.get("intent", "full")
     isolation_prompt = f"\n\n### 🛡️ MULTI-TENANT ISOLATION (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** You are EXCLUSIVELY acting for user '{user_id}'. You MUST use this ID for all tool calls (e.g., `user_id='{user_id}'`). NEVER use 'fsirio' or any other ID unless the user ID is explicitly '{user_id}'."
 
-    messages = [SystemMessage(content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt)] + list(
+    # SYNC OPTIMIZATION: If intent is sync, add a high-priority instruction
+    sync_instruction = ""
+    if intent == "sync":
+        last_message = state["messages"][-1].content
+        last_msg_str = last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+        
+        if "/garmin_login" in last_msg_str:
+             sync_instruction = "\n\n### 🔑 LOGIN COMMAND DETECTED\n- **REQUIRED ACTION:** Call `get_garmin_auth_url` immediately with user_id. Do NOT ask for credentials or provide analysis."
+        elif "/garmin_sync_full" in last_msg_str:
+             sync_instruction = "\n\n### 🔄 FULL SYNC COMMAND DETECTED\n- **REQUIRED ACTION:** Call `sync_biometric_data` with `days_back=30` and user_id.\n- **REQUIRED RESPONSE:** Inform the user that a FULL 30-day sync has been triggered in the background. It will take ~60 seconds."
+        else:
+            # Standard sync (Check if already triggered)
+            sync_triggered = any(
+                msg.type == "tool" and msg.name == "sync_biometric_data"
+                for msg in state["messages"]
+            )
+            if not sync_triggered:
+                sync_instruction = "\n\n### 🔄 SYNC COMMAND DETECTED\n- **REQUIRED ACTION:** Call `sync_biometric_data` immediately with user_id.\n- **REQUIRED RESPONSE:** Inform the user that the Garmin sync has been triggered."
+            else:
+                sync_instruction = "\n\n### ✅ SYNC ALREADY TRIGGERED\n- **INSTRUCTION:** You have already triggered the sync. Provide the final confirmation message now."
+
+    messages = [SystemMessage(content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt + sync_instruction)] + list(
         state["messages"]
     )
 
@@ -566,8 +661,8 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     user_id = state.get("user_id", "unknown")
 
     # Instantiate specialized LLM for Data Science
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    llm = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -645,8 +740,8 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     user_id = state.get("user_id", "unknown")
 
     # Use a standard config for extraction
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
+    llm = get_chat_model(
+        model_name=MODEL_NAME,
         temperature=0,
         model_kwargs={
             "automatic_function_calling": {"disable": True},
@@ -748,12 +843,17 @@ workflow.add_edge(START, "router")
 workflow.add_edge("router", "retriever")
 
 
-# Conditional fan-out: Short-circuit if intent is NONE
+# Conditional fan-out: Short-circuit if intent is NONE, SYNC, PLANNING or PROFILE
 def route_from_retriever(state: AgentState):
     """Short-circuits specialized agents if no biometric data is needed."""
     intent = state.get("intent", "full")
-    if intent == "none":
-        log.info("⏭️ Intent is NONE. Short-circuiting specialized agents.")
+    
+    if intent == "discovery":
+        log.info("🧪 Intent is DISCOVERY. Routing to Data Scientist node.")
+        return ["data_scientist"]
+        
+    if intent in ["none", "sync", "planning", "profile"]:
+        log.info(f"⏭️ Intent is {intent.upper()}. Short-circuiting specialized agents.")
         return ["analyzer"]
 
     log.info(f"🔀 Intent is {intent.upper()}. Fanning out to specialized agents.")

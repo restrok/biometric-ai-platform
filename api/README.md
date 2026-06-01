@@ -5,7 +5,7 @@ This directory contains the core Agentic reasoning and backend services for the 
 ## Architecture
 
 *   **FastAPI:** Provides a high-performance, asynchronous REST API (`/chat`).
-*   **LangGraph:** Orchestrates the reasoning loop of the AI Agent (powered by `gemini-2.5-flash`).
+*   **LangGraph:** Orchestrates the reasoning loop of the AI Agent (powered by `gemma-4-31b-it`).
 *   **LangChain:** Used for embedding and Vector Store retrieval.
 
 ## Authentication (Garmin)
@@ -24,7 +24,7 @@ uv run python -m garmin_training_toolkit_sdk.auth
 *   **Persistent Health Tracking:** Subjective data (feeling, fatigue, injuries) is persisted via the `log_health_status` tool and BigQuery, ensuring the coach has multi-session physical context.
 *   **Interannual Analysis:** The retriever supports `start_date` and `end_date` parameters for longitudinal studies (e.g., comparing fitness between 2025 and 2026).
 *   **High-Signal Telemetry:** The retriever condenses second-by-second activity data into "mechanical summaries" (BPM, Watts, Vertical Oscillation, Ground Contact Time).
-*   **High-Performance Inference:** `gemini-2.5-flash` reasons over the dense telemetry to spot advanced physiological trends like **Aerobic Decoupling** and form breakdowns in just **~3.0 seconds**. Total request time: **~6.0s**.
+*   **High-Performance Inference:** `gemma-4-31b-it` reasons over the dense telemetry to spot advanced physiological trends like **Aerobic Decoupling** and form breakdowns in just **~3.0 seconds**. Total request time: **~6.0s**.
 *   **FinOps Tracking (`src/utils/finops.py`):** Asynchronously logs every LLM call's token usage, latency, and USD cost to a BigQuery `finops_logs` table.
 *   **Vector Search (`src/tools/research_assistant.py`):** A LangChain tool that searches a BigQuery Native Vector Database for exercise science principles to ground the AI's recommendations.
 

@@ -148,7 +148,7 @@ class OpenAIChatMessage(BaseModel):
 
 
 class OpenAICompletionRequest(BaseModel):
-    model: str = "gemini-3.1-flash-lite"
+    model: str = os.getenv("CORE_MODEL_NAME", "gemma-4-31b-it")
     messages: list[OpenAIChatMessage]
     stream: bool = False
     temperature: float = 0.2

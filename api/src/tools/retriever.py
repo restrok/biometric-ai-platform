@@ -162,8 +162,11 @@ def _retrieve_biometric_data_cached(
     context: dict[str, Any] = {}
     top_3_ids: list[str] = []
 
-    # STRICT USER ISOLATION: Default to 'fsirio' if not provided for safety
-    user_id = user_id or "fsirio"
+    # STRICT USER ISOLATION: Ensure user_id is provided
+    if not user_id:
+        log.error("❌ retrieve_biometric_data called without user_id.")
+        return {"error": "User ID is required for biometric retrieval."}
+    
     user_where = f"WHERE user_id = '{user_id}'"
 
     def fetch_activities() -> tuple[str, list[dict[str, Any]]]:
@@ -210,8 +213,7 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             query_status = f"""
-                SELECT status, acute_load, chronic_load, training_load_balance, 
-                       vo2max_precise, vo2max, primary_benefit, recovery_time_hours, load_focus
+                SELECT status, acute_load, chronic_load, load_focus, vo2max
                 FROM `{project_id}.{dataset}.training_status` 
                 {user_where}
                 ORDER BY date DESC LIMIT 1

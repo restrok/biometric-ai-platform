@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-06-01
+### Changed
+- **Model Rollback:** Reverted default model to `gemma-4-31b-it` due to free-tier rate limits on Gemini 3.1 Flash Lite.
+- **Configurable Models:** Implemented `CORE_MODEL_NAME` environment variable to allow dynamic model switching without code changes.
+
 ## [0.4.0] - 2026-05-25
 ### 🚀 Features
 - **Model Migration:** Successfully migrated to `gemini-3.1-flash-lite` as the default core model for all agent nodes.
