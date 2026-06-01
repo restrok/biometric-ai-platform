@@ -850,11 +850,11 @@ def route_from_retriever(state: AgentState):
     
     if intent == "discovery":
         log.info("🧪 Intent is DISCOVERY. Routing to Data Scientist node.")
-        return ["data_scientist"]
+        return "data_scientist"
         
     if intent in ["none", "sync", "planning", "profile"]:
         log.info(f"⏭️ Intent is {intent.upper()}. Short-circuiting specialized agents.")
-        return ["analyzer"]
+        return "analyzer"
 
     log.info(f"🔀 Intent is {intent.upper()}. Fanning out to specialized agents.")
     return ["injury_prevention", "sleep_recovery", "metabolic_nutrition"]
@@ -865,6 +865,7 @@ workflow.add_conditional_edges(
     route_from_retriever,
     {
         "analyzer": "analyzer",
+        "data_scientist": "data_scientist",
         "injury_prevention": "injury_prevention",
         "sleep_recovery": "sleep_recovery",
         "metabolic_nutrition": "metabolic_nutrition",
