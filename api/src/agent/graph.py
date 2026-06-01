@@ -111,6 +111,7 @@ Before you prescribe ANY training plan or specific workout (using `upload_traini
     - **DRY RUN MANDATE (SRE):** You MUST call `execute_exploratory_query_dry_run` before any actual execution. Review the `estimated_bytes_processed`. If the scan is high (e.g., >100MB), you MUST optimize the query using partitions (e.g., `_PARTITIONTIME` or `date` filters) before running the real query.
     - **PCP AUDIT:** Periodically audit historical data to find "Failure Events" (injuries/exhaustion) vs "Adaptation Peaks". Use `save_calibration_marker` to persist these personal limits (e.g., "Personal Red Line: 1.55 AC Ratio").
     - **HOLISTIC VIEW:** Always cross-reference training load with `daily_physiology` (all-day stress, RHR). If a user has high life stress but low training load, recommend recovery anyway.
+- **HARD RULE: SUBJECTIVE HEALTH PRIORITY.** If the user asks about symptoms (e.g., headaches, migraines, pain), you MUST prioritize analyzing `latest_health_status` and `semantic_memories` (like MRI reports or nutritional logs) BEFORE discussing running mechanics. Your mission is to bridge the gap between technical metrics (HRV/GCT) and physical wellbeing.
 - **HARD RULE: NO UI BUTTON HALLUCINATIONS.**
  We are an API-first system. If a user wants to connect their Garmin account, you **MUST** call `get_garmin_auth_url`. Do NOT tell the user to use a "Connect button" or "App settings" as they do not exist in the current interface.
 - **Separate Facts from Interpretation:** Always start by presenting raw data (e.g., "Observed: 5% Aerobic Decoupling, +2cm Vertical Oscillation"). Then, provide a physiological interpretation labeled as such (e.g., "Interpretation: This suggests potential mechanical fatigue").
@@ -672,7 +673,12 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     llm_with_tools = llm.bind_tools(ds_tools)
 
     # Context preparation
-    messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}")]
+    loop_count = state.get("loop_count", 0)
+    strict_instruction = ""
+    if loop_count > 1:
+        strict_instruction = "\n\n### ⚠️ STRICT LOOP CONTROL\nYou have already attempted discovery. You MUST NOT call any more tools. You MUST synthesize your final findings and provide the DataScientistOutput now."
+
+    messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}" + strict_instruction)]
 
     # Pass the last user interaction and biometric context for hypothesis formulation
     # We serialize the context to JSON to ensure the LLM can parse it easily
@@ -681,14 +687,19 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     messages.append(state["messages"][-1])
 
     # Initial call to formulate hypothesis and potentially call tools
-    response = llm_with_tools.invoke(messages)
+    # LOOP BREAKER: If we are already at the limit, do not allow more tool calls
+    if loop_count >= 2:
+        log.warning("⚠️ Loop limit reached in node_data_scientist. Forcing structured output pass.")
+        response = HumanMessage(content="Loop limit reached. Synthesize findings now.")
+    else:
+        response = llm_with_tools.invoke(messages)
 
     # If the DS wants to use tools, we return them to the 'tools' node
     if hasattr(response, "tool_calls") and response.tool_calls:
         log.info(f"🧪 DataScientist calling {len(response.tool_calls)} tools for discovery.")
         # Mark this AI message to identify its tools in the router
         response.additional_kwargs["is_ds_call"] = True
-        return {"messages": [response]}
+        return {"messages": [response], "loop_count": loop_count + 1}
 
     # Once tools are done (or if no tools needed), force a structured output
     structured_llm = llm.with_structured_output(DataScientistOutput)
@@ -703,10 +714,10 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
             additional_kwargs={"is_ds_report": True},
         )
         log.info("🧪 DataScientist generated structured report.")
-        return {"messages": [findings_msg]}
+        return {"messages": [findings_msg], "loop_count": loop_count + 1}
     except Exception as e:
         log.error(f"❌ DataScientist failed to generate structured report: {e}")
-        return {"messages": [SystemMessage(content=f"Data Scientist analysis failed: {e}")]}
+        return {"messages": [response], "loop_count": loop_count + 1}
 
 
 def node_validator(state: AgentState) -> dict[str, Any]:
@@ -916,7 +927,12 @@ def route_after_tools(state: AgentState):
 
     # If the tools were triggered by data_scientist, go back to it to synthesize results
     if trigger_msg.additional_kwargs.get("is_ds_call"):
-        log.info("🧪 Tools were from data_scientist. Back-rooting to DS node.")
+        # LOOP BREAKER: Prevent infinite DS tool loops
+        loop_count = state.get("loop_count", 0)
+        if loop_count >= 2:
+            log.warning(f"⚠️ DataScientist loop limit reached ({loop_count}). Forcing to analyzer.")
+            return "analyzer"
+        log.info(f"🧪 Tools were from data_scientist (Iteration {loop_count}). Back-rooting to DS node.")
         return "data_scientist"
 
     # Otherwise, back to analyzer for recursion
