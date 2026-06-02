@@ -53,7 +53,8 @@ from src.tools.profile_manager import (
     update_user_zones,
 )
 
-MODEL_NAME = os.getenv("CORE_MODEL_NAME", "gemini-1.5-flash-lite")
+MODEL_NAME = os.getenv("CORE_MODEL_NAME", "gemini-3.1-flash-lite")
+DS_MODEL_NAME = os.getenv("DS_MODEL_NAME", "gemini-pro")
 
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
@@ -661,9 +662,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     log.info("🧪 DataScientist node activated for autonomous discovery...")
     user_id = state.get("user_id", "unknown")
 
-    # Instantiate specialized LLM for Data Science - FORCING 'PRO' TIER
+    # Instantiate specialized LLM for Data Science
     llm = get_chat_model(
-        model_name="gemini-pro",
+        model_name=DS_MODEL_NAME,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
