@@ -679,20 +679,28 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     if loop_count > 1:
         strict_instruction = "\n\n### ⚠️ STRICT LOOP CONTROL\nYou have already attempted discovery. You MUST NOT call any more tools. You MUST synthesize your final findings and provide the DataScientistOutput now."
 
-    messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}" + strict_instruction)]
-
     # Context preparation - LEAN CONTEXT for Data Scientist
     raw_context = state.get("biometric_context", {})
+    
+    # PRE-FETCH SCHEMA: Inject schema immediately to save one iteration
+    try:
+        bq_schema = get_bigquery_schema.invoke({})
+        schema_info = f"\n\n### 🗺️ BIGQUERY DATABASE SCHEMA\n{bq_schema}"
+    except Exception as e:
+        log.warning(f"⚠️ Failed to pre-fetch BQ schema: {e}")
+        schema_info = ""
+
     lean_context = {
         "latest_health_status": raw_context.get("latest_health_status"),
         "user_profile": raw_context.get("user_profile"),
         "daily_physiology_7d": raw_context.get("daily_physiology_7d"), # Essential Stress/Battery trends
         "training_status": raw_context.get("training_status"),
         "semantic_memories": raw_context.get("semantic_memories"),
-        "info": "Lean context provided for hypothesis formulation. Use BigQuery tools to explore full telemetry if needed."
+        "info": "Lean context provided for hypothesis formulation. Full telemetry available via BigQuery tools."
     }
     
     context_str = json.dumps(lean_context, default=str)
+    messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}" + strict_instruction + schema_info)]
     messages.append(HumanMessage(content=f"Biometric Context (Filtered): {context_str}"))
     messages.append(state["messages"][-1])
 
