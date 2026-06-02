@@ -53,7 +53,7 @@ from src.tools.profile_manager import (
     update_user_zones,
 )
 
-MODEL_NAME = os.getenv("CORE_MODEL_NAME", "gemma-4-31b-it")
+MODEL_NAME = os.getenv("CORE_MODEL_NAME", "gemini-1.5-flash-lite")
 
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
