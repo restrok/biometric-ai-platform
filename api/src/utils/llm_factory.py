@@ -14,8 +14,8 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
         proxy_url = os.getenv("LLM_PROXY_URL", "http://172.17.0.1:8000/v1")
         return ChatOpenAI(
             model=model_name,
-            openai_api_base=proxy_url,
-            openai_api_key=os.getenv("OPENAI_API_KEY", "none"),
+            base_url=proxy_url,
+            api_key=os.getenv("OPENAI_API_KEY", "none"),
             temperature=temperature,
         )
     # For Google, we can pass through extra kwargs like automatic_function_calling
