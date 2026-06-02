@@ -681,10 +681,19 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
 
     messages: list[BaseMessage] = [SystemMessage(content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}" + strict_instruction)]
 
-    # Pass the last user interaction and biometric context for hypothesis formulation
-    # We serialize the context to JSON to ensure the LLM can parse it easily
-    context_str = json.dumps(state.get("biometric_context", {}), default=str)
-    messages.append(HumanMessage(content=f"Biometric Context: {context_str}"))
+    # Context preparation - LEAN CONTEXT for Data Scientist
+    raw_context = state.get("biometric_context", {})
+    lean_context = {
+        "latest_health_status": raw_context.get("latest_health_status"),
+        "user_profile": raw_context.get("user_profile"),
+        "daily_physiology_7d": raw_context.get("daily_physiology_7d"), # Essential Stress/Battery trends
+        "training_status": raw_context.get("training_status"),
+        "semantic_memories": raw_context.get("semantic_memories"),
+        "info": "Lean context provided for hypothesis formulation. Use BigQuery tools to explore full telemetry if needed."
+    }
+    
+    context_str = json.dumps(lean_context, default=str)
+    messages.append(HumanMessage(content=f"Biometric Context (Filtered): {context_str}"))
     messages.append(state["messages"][-1])
 
     # Initial call to formulate hypothesis and potentially call tools
