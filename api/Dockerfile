@@ -4,6 +4,10 @@ FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 # Set the working directory
 WORKDIR /app
 
+# Install git as it is required to download git-based dependencies (e.g., garmin-training-toolkit-sdk)
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Enable bytecode compilation for faster startup
 ENV UV_COMPILE_BYTECODE=1
 
