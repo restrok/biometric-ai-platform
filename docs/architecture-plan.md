@@ -119,7 +119,7 @@ The platform implements a sophisticated reasoning layer in LangGraph that bridge
 *   **Longitudinal Analysis:** The platform supports **Interannual Analysis** through a date-aware retriever, allowing the agent to compare seasonal performance (e.g., April 2025 vs. April 2026) and quantify long-term fitness gains.
 *   **Detailed Telemetry Analysis:** The retriever provides compact, high-signal second-by-second summaries of the last 3 activities. This allows the AI to autonomously detect complex physiological trends like **Aerobic Decoupling** and **Efficiency Leaks**.
 *   **Precision Context Retrieval:** The `retriever` tool has been optimized to merge redundant BigQuery calls into comprehensive domain-aware queries, significantly reducing latency and operational cost.
-*   **High-Performance Execution:** Context retrieval is optimized using `ThreadPoolExecutor` for parallel BigQuery queries. Inference is powered by `gemini-3.1-flash-lite`, driving low request latencies.
+*   **High-Performance Execution:** Context retrieval is optimized using `ThreadPoolExecutor` for parallel BigQuery queries. Inference is powered by `gemma-4-31b-it`, driving low request latencies.
 
 ## 8. Current Project State & Accomplishments
 
