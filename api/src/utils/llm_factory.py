@@ -2,6 +2,7 @@ import os
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 
 
 def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
@@ -15,7 +16,7 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
         return ChatOpenAI(
             model=model_name,
             base_url=proxy_url,
-            api_key=os.getenv("OPENAI_API_KEY", "none"),
+            api_key=SecretStr(os.getenv("OPENAI_API_KEY") or "none"),
             temperature=temperature,
         )
     # For Google, we can pass through extra kwargs like automatic_function_calling
