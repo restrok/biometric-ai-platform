@@ -661,9 +661,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     log.info("🧪 DataScientist node activated for autonomous discovery...")
     user_id = state.get("user_id", "unknown")
 
-    # Instantiate specialized LLM for Data Science
+    # Instantiate specialized LLM for Data Science - FORCING 'PRO' TIER
     llm = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name="gemini-pro",
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
