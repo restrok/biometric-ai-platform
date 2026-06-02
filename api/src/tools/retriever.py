@@ -166,7 +166,7 @@ def _retrieve_biometric_data_cached(
     if not user_id:
         log.error("❌ retrieve_biometric_data called without user_id.")
         return {"error": "User ID is required for biometric retrieval."}
-    
+
     user_where = f"WHERE user_id = '{user_id}'"
 
     def fetch_activities() -> tuple[str, list[dict[str, Any]]]:
