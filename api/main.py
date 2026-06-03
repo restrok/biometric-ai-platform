@@ -59,7 +59,6 @@ async def heartbeat_loop():
         await asyncio.sleep(600)  # Log every 10 minutes to keep it clean
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
