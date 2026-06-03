@@ -691,7 +691,7 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     active_ds_tools = [execute_exploratory_query_dry_run, execute_exploratory_query]
     if not bq_schema:
         active_ds_tools.append(get_bigquery_schema)
-    
+
     llm_with_tools = llm.bind_tools(active_ds_tools)
 
     # Context preparation

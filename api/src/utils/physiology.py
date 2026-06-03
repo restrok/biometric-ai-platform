@@ -33,12 +33,7 @@ def calculate_ac_ratio(activities: list[dict[str, Any]], metric_type: str = "wor
     df["dist_km"] = df["distance_m"].fillna(0) / 1000.0
 
     # Resample to daily to include zero-load days
-    df_daily = (
-        df.set_index("dt")
-        .resample("D")
-        .agg({"work_kj": "sum", "trimp": "sum", "dist_km": "sum"})
-        .fillna(0)
-    )
+    df_daily = df.set_index("dt").resample("D").agg({"work_kj": "sum", "trimp": "sum", "dist_km": "sum"}).fillna(0)
 
     # Choose metric
     col_map = {"work": "work_kj", "trimp": "trimp", "distance": "dist_km"}

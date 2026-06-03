@@ -583,7 +583,7 @@ def _retrieve_biometric_data_cached(
     # Fill in info for missing fields
     if not context.get("recent_activities"):
         context["recent_activities"] = [{"info": "No activity history found in Data Lake."}]
-    
+
     # AC Ratio Fallback Logic
     status = context.get("training_status")
     if not status or not status.get("acute_load") or status.get("acute_load") == "null":
@@ -592,7 +592,7 @@ def _retrieve_biometric_data_cached(
             log.info("🔄 Garmin Training Status missing. Calculating physiological fallback...")
             # Try to calculate using Power first, then TRIMP
             fallback = calculate_ac_ratio(activities, metric_type="work")
-            
+
             # Enrich training status with fallback data
             new_status = {
                 "status": "Calculated (Fallback)",
@@ -601,7 +601,7 @@ def _retrieve_biometric_data_cached(
                 "ac_ratio": fallback["ac_ratio"],
                 "metric_used": fallback["metric_used"],
                 "vo2max": status.get("vo2max") if status else None,
-                "info": f"Generated via {fallback['metric_used'].upper()} fallback algorithm."
+                "info": f"Generated via {fallback['metric_used'].upper()} fallback algorithm.",
             }
             context["training_status"] = new_status
         else:

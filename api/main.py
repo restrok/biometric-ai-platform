@@ -20,8 +20,10 @@ setup_environment()
 log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_name, logging.INFO)
 
+
 class JsonFormatter(logging.Formatter):
     """Custom formatter to output logs in JSON format for machine analysis."""
+
     def format(self, record):
         log_record = {
             "timestamp": self.formatTime(record, self.datefmt),
@@ -33,6 +35,7 @@ class JsonFormatter(logging.Formatter):
             log_record["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_record)
 
+
 # Console Handler (Human-readable)
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
@@ -42,11 +45,7 @@ file_handler = logging.FileHandler("api.log")
 file_handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S%z"))
 
 # Root configuration
-logging.basicConfig(
-    level=log_level,
-    force=True,
-    handlers=[stream_handler, file_handler]
-)
+logging.basicConfig(level=log_level, force=True, handlers=[stream_handler, file_handler])
 
 log = logging.getLogger("api")
 log.info(f"🚀 Logging initialized | Level: {log_level_name} | TZ: {os.getenv('TZ', 'UTC')}")
@@ -57,6 +56,7 @@ async def heartbeat_loop():
     while True:
         log.info("💓 Heartbeat: Biometric AI API is active and listening")
         await asyncio.sleep(600)  # Log every 10 minutes to keep it clean
+
 
 from contextlib import asynccontextmanager
 
