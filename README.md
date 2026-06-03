@@ -105,6 +105,7 @@ This project maintains high engineering standards to ensure reliability and perf
 - **Autonomous Discovery Phase:** Background engine that proactively audits the last 30-90 days of data during each sync to find hidden patterns and persistent 'Success Markers'.
 - **Asynchronous Onboarding:** Automated 90-day historical backfill for new users triggered via Firestore state, ensuring a seamless first-run experience without blocking the agent.
 - **Pre-Flight Health Scan:** Mandatory safety gating that cross-references A:C Ratio, HRV, and subjective logs before prescribing any workout.
+- **Physiological AC Ratio Fallback:** Automated multi-variable workload calculation (Power > TRIMP > Volume) that activates when device-native metrics are missing, ensuring 100% analytical continuity.
 - **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin.
 - **Zero-CLI Dynamic Auth:** Link your Garmin account directly through the chat interface using secure SSO.
 
