@@ -37,19 +37,15 @@ class JsonFormatter(logging.Formatter):
 stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
 
-# File Handler (Human-readable)
+# Unified File Handler (Machine-readable JSON)
 file_handler = logging.FileHandler("api.log")
-file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
-
-# JSON File Handler (Machine-readable)
-json_handler = logging.FileHandler("api.json.log")
-json_handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S%z"))
+file_handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S%z"))
 
 # Root configuration
 logging.basicConfig(
     level=log_level,
     force=True,
-    handlers=[stream_handler, file_handler, json_handler]
+    handlers=[stream_handler, file_handler]
 )
 
 log = logging.getLogger("api")
