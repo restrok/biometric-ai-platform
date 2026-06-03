@@ -9,17 +9,17 @@ Stop guessing with generic training plans. The **Biometric AI Platform** transfo
 
 Experience how the AI Coach reasons across multiple biometric domains. Run these in your preferred OpenAI-compatible client (like OpenCode or Chatbox).
 
-### 1. Holistic Recovery & Readiness (Gemma 31B)
+### 1. Holistic Recovery & Readiness (Gemini 2.5 Flash)
 > "Look at my sleep quality from last night and my HRV trend. Given today's workout, am I ready for a high-intensity session tomorrow?"
 *Highlights: Multi-domain context retrieval (Sleep + HRV + Activity).*
 ![Recovery Readiness Analysis](./docs/assets/screenshots/telemetry-analysis.png)
 
-### 2. Deep Telemetry & Sprint Analysis (Gemma 31B)
+### 2. Deep Telemetry & Sprint Analysis (Gemma 4 31B)
 > "Analyze my last run activity. How was my efficiency during that final sprint?"
 *Highlights: Stage analysis, mechanical cost vs. power output.*
 ![Sprint Efficiency](./docs/assets/screenshots/gemma-sprint-analysis.png)
 
-### 3. Scientific Grounding (RAG) (Gemma 31B)
+### 3. Scientific Grounding (RAG) (Gemini 3)
 > "Explain the 'Polarized 80/20' model and why you keep warning me about the 'Gray Zone.' Use my recent data to show my Z3 time."
 *Highlights: BigQuery Vector Search and exercise science principles.*
 ![Scientific RAG](./docs/assets/screenshots/scientific-rag.png)
@@ -105,6 +105,7 @@ This project maintains high engineering standards to ensure reliability and perf
 - **Autonomous Discovery Phase:** Background engine that proactively audits the last 30-90 days of data during each sync to find hidden patterns and persistent 'Success Markers'.
 - **Asynchronous Onboarding:** Automated 90-day historical backfill for new users triggered via Firestore state, ensuring a seamless first-run experience without blocking the agent.
 - **Pre-Flight Health Scan:** Mandatory safety gating that cross-references A:C Ratio, HRV, and subjective logs before prescribing any workout.
+- **Physiological AC Ratio Fallback:** Automated multi-variable workload calculation (Power > TRIMP > Volume) that activates when device-native metrics are missing, ensuring 100% analytical continuity.
 - **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin.
 - **Zero-CLI Dynamic Auth:** Link your Garmin account directly through the chat interface using secure SSO.
 

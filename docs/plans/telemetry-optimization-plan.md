@@ -1,5 +1,7 @@
 # Plan: High-Fidelity Telemetry Optimization
 
+> **Status:** ✅ DONE
+
 *Note: This plan has been fully implemented in v0.4.0.*
 
 ## Goal (Achieved ✅)

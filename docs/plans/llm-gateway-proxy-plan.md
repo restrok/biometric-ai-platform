@@ -1,5 +1,7 @@
 # LLM Gateway & Multi-Provider CLI Proxy Plan
 
+> **Status:** ❌ DISCARDED (Concept replaced by direct API usage due to proxy noise)
+
 ## 1. Background & Motivation
 Currently, the Biometric AI Platform relies on a direct connection to Google's Generative AI API using an API Key. While effective, this creates a dependency on a single provider and consumes API quota/tokens. 
 

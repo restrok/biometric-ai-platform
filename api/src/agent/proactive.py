@@ -161,12 +161,12 @@ def _run_discovery_phase(user_id: str):
         discovery_prompt = (
             "ROLE: Data Scientist. "
             "TASK: Perform an autonomous 'Discovery Audit' on the user's data from the last 30-90 days. "
-            "1. **Audit Continuity:** First, check `user_calibration_profile` for existing patterns or markers. "
-            "2. **Exploration:** Execute exploratory SQL queries to either (a) validate/update existing patterns with new data or (b) find 'rare' new correlations (e.g., HRV vs. Stride Length, Stress vs. Aerobic Decoupling). "
-            "3. **Persistence:** Use `save_calibration_marker` to persist your findings. If a pattern is confirmed or shifts, update its `marker_value` and `context`. "
-            "4. **Notification:** If you find a significant shift or a new critical pattern, SEND A PROACTIVE NOTIFICATION explaining the discovery and its impact on training. "
-            "5. If no significant changes or new patterns are found, exit silently. "
-            "Total freedom to explore, but absolute duty to persist and update identified physiological truths."
+            "1. **Audit Continuity:** Check `user_calibration_profile` for existing patterns. "
+            "2. **Identify Interventions:** Analyze `semantic_memories` to identify recent lifestyle changes, supplementation (like Centrum), or injuries that could act as variables in your analysis. "
+            "3. **Hypothesis & Exploration:** Formulate a hypothesis based on these interventions (e.g., 'Does the Magnesium in Centrum correlate with higher sleep HRV?') and execute exploratory SQL queries to validate them. "
+            "4. **Persistence:** Use `save_calibration_marker` to update findings or create new ones. "
+            "5. **Notification:** If a significant correlation or shift is found, SEND A PROACTIVE NOTIFICATION explaining the discovery. "
+            "Total freedom to explore. Be the brain that finds the 'Why' behind the 'What'."
         )
 
         initial_state = cast(

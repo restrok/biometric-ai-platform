@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 from src.utils.firestore import get_firestore_client, get_user_profile
+from src.utils.physiology import calculate_ac_ratio
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -194,7 +195,7 @@ def _retrieve_biometric_data_cached(
             query_act = f"""
                 SELECT id, 
                        FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date, 
-                       type, distance_m, avg_hr, vo2max 
+                       type, distance_m, avg_hr, vo2max, duration_sec, avg_power
                 FROM `{project_id}.{dataset}.recent_activities` 
                 {where_clause}
                 ORDER BY date DESC 
@@ -582,8 +583,30 @@ def _retrieve_biometric_data_cached(
     # Fill in info for missing fields
     if not context.get("recent_activities"):
         context["recent_activities"] = [{"info": "No activity history found in Data Lake."}]
-    if not context.get("training_status"):
-        context["training_status"] = {"info": "No training status available."}
+
+    # AC Ratio Fallback Logic
+    status = context.get("training_status")
+    if not status or not status.get("acute_load") or status.get("acute_load") == "null":
+        activities = context.get("recent_activities", [])
+        if isinstance(activities, list) and len(activities) > 1 and "info" not in activities[0]:
+            log.info("🔄 Garmin Training Status missing. Calculating physiological fallback...")
+            # Try to calculate using Power first, then TRIMP
+            fallback = calculate_ac_ratio(activities, metric_type="work")
+
+            # Enrich training status with fallback data
+            new_status = {
+                "status": "Calculated (Fallback)",
+                "acute_load": str(fallback["acute_load"]),
+                "chronic_load": str(fallback["chronic_load"]),
+                "ac_ratio": fallback["ac_ratio"],
+                "metric_used": fallback["metric_used"],
+                "vo2max": status.get("vo2max") if status else None,
+                "info": f"Generated via {fallback['metric_used'].upper()} fallback algorithm.",
+            }
+            context["training_status"] = new_status
+        else:
+            context["training_status"] = {"info": "No training status available and insufficient history for fallback."}
+
     if not context.get("sleep"):
         context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}
     if not context.get("hrv"):

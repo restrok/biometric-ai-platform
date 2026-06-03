@@ -36,7 +36,8 @@ This roadmap tracks the evolution of the platform from a simple Garmin extractor
 ## Phase 6: Advanced Intelligence & Predictive SRE (Current Focus 🚧)
 - [x] **Immune Radar**: Statistical anomaly detection using **Z-Scores** (Standard Deviations) to predict illness based on HRV and RHR shifts.
 - [x] **Asynchronous Onboarding**: Automated 90-day historical backfill managed via Firestore state without blocking the agent.
-- [x] **SRE-Driven Data Science**: BigQuery **Dry Run** evaluation to ensure query cost efficiency and partitioning optimization.
+- [x] **SRE-Driven Data Science**: BigQuery **Dry Run** evaluation and direct schema injection to ensure query cost efficiency and sub-second reasoning latency.
+- [x] **Physiological Fallback Engine**: Automated AC Ratio calculation (Watts > TRIMP > Vol) that overrides missing device-native metrics.
 - [ ] **Precision Nutrition 2.0**: Integration of real-time telemetry (HR per step) for exact carbohydrate and protein replenishment math.
 - [ ] **Cross-User Pattern Discovery**: (Admin only) Discovering global performance trends across the entire athlete population.
 - [ ] **Wearable-Agnostic Interface**: Expansion to Suunto and Whoop via the [Standardized Provider Interface](./architecture-plan.md).
