@@ -1,6 +1,6 @@
 # Plan: Mitigating LLM Tool Hallucination & Flow Laziness
 
-## Status: Pending Implementation
+> **Status:** 🚧 TO DO
 
 ### Problem Statement
 Gemini 3.1 Flash Lite, while extremely fast, occasionally hallucinations workflow completion. It provides conversational confirmation (e.g., "I've scheduled your workout") without actually emitting the required tool call (`upload_training_plan`), or it performs a different tool (like `sync_biometric_data`) and assumes the task is done.

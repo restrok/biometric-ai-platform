@@ -1,5 +1,7 @@
 # Semantic Conversation Memory Implementation Plan
 
+> **Status:** ✅ DONE
+
 ## Background & Motivation
 Currently, the agent operates as a "goldfish" regarding conversational context. While it retains hard metrics (zones, goals, telemetry), it forgets subjective user preferences, lifestyle constraints, and recurring conversational facts across sessions. Simply injecting raw chat history leads to context poisoning, high token costs, and hallucinations. We need a targeted, semantic memory system to build a long-term "Coach-Athlete" relationship.
 

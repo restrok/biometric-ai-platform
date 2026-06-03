@@ -1,7 +1,10 @@
+import asyncio
 import json
 import logging
 import os
+import threading
 import time
+from datetime import datetime, timedelta
 from typing import Any, Literal, cast
 
 from fastapi import FastAPI, Header, HTTPException
@@ -17,27 +20,47 @@ setup_environment()
 log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
 log_level = getattr(logging, log_level_name, logging.INFO)
 
-log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
+class JsonFormatter(logging.Formatter):
+    """Custom formatter to output logs in JSON format for machine analysis."""
+    def format(self, record):
+        log_record = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
 
-# Console Handler
+# Console Handler (Human-readable)
 stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(log_formatter)
+stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
 
-# File Handler
+# File Handler (Human-readable)
 file_handler = logging.FileHandler("api.log")
-file_handler.setFormatter(log_formatter)
+file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
+
+# JSON File Handler (Machine-readable)
+json_handler = logging.FileHandler("api.json.log")
+json_handler.setFormatter(JsonFormatter(datefmt="%Y-%m-%dT%H:%M:%S%z"))
 
 # Root configuration
-root_logger = logging.getLogger()
-for h in root_logger.handlers[:]:
-    root_logger.removeHandler(h)
-
-root_logger.setLevel(log_level)
-root_logger.addHandler(stream_handler)
-root_logger.addHandler(file_handler)
+logging.basicConfig(
+    level=log_level,
+    force=True,
+    handlers=[stream_handler, file_handler, json_handler]
+)
 
 log = logging.getLogger("api")
-log.info(f"🚀 Logging initialized with level: {log_level_name}")
+log.info(f"🚀 Logging initialized | Level: {log_level_name} | TZ: {os.getenv('TZ', 'UTC')}")
+
+
+async def heartbeat_loop():
+    """Simple background task to prove the API is alive in the logs."""
+    while True:
+        log.info("💓 Heartbeat: Biometric AI API is active and listening")
+        await asyncio.sleep(600)  # Log every 10 minutes to keep it clean
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -59,8 +82,6 @@ async def lifespan(app: FastAPI):
     """
     Handles application startup and shutdown events.
     """
-    import asyncio
-    import threading
 
     async def refresh_loop():
         # Initial delay to let the system start up
@@ -130,6 +151,7 @@ async def lifespan(app: FastAPI):
 
     # Start the token refresh loop in the background
     asyncio.create_task(refresh_loop())
+    asyncio.create_task(heartbeat_loop())
 
     # Start the proactive scheduler in a separate thread
     threading.Thread(target=run_proactive_scheduler, daemon=True).start()
@@ -202,7 +224,7 @@ async def trigger_sync(user_id: str = "fsirio", days_back: int = 3):
 async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None, alias="X-User-ID")):
     """OpenAI-compatible endpoint for chat completions."""
     user_id = x_user_id or "fsirio"
-    log.info(f"📩 Incoming chat completion request for user: {user_id}")
+    log.info(f"📩 Incoming request | User: {user_id} | Model: {req.model} | Stream: {req.stream}")
 
     # Extract user messages for the agent
     user_messages = [msg for msg in req.messages if msg.role == "user"]

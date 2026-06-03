@@ -1,5 +1,7 @@
 # AGI Health Platform Architecture Plan
 
+> **Status:** 🚧 IN PROGRESS (Phase 3)
+
 ## Executive Summary
 This document outlines the strategic roadmap to evolve the Biometric AI Platform from a reactive data analyzer into a proactive, multi-agent "General Health AI" (AGI approach). The plan addresses current gaps in training prescription safety, daily life stress monitoring, and structural scalability.
 

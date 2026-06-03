@@ -1,5 +1,7 @@
 # Autonomous Telemetry Recalibration Plan
 
+> **Status:** 🚧 TO DO
+
 ## Context
 Telemetry signal quality depends on hardware (sensor age/model) and individual physiology. A static window size (e.g., 11s) may become sub-optimal over time.
 

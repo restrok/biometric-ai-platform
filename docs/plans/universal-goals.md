@@ -1,5 +1,7 @@
 # Universal Goals Feature Implementation Plan
 
+> **Status:** ✅ DONE
+
 ## Objective
 Implement a "Universal Goals" feature that persists user training goals (e.g., race targets, time objectives, volume targets) natively within the BigQuery Lakehouse. This ensures that any API consumer or AI agent has immediate, structured access to the user's long-term objectives without relying on volatile local memory.
 

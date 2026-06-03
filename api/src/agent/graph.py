@@ -678,26 +678,32 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
 
-    # Bind DS tools
-    ds_tools = [execute_exploratory_query_dry_run, execute_exploratory_query, get_bigquery_schema]
-    llm_with_tools = llm.bind_tools(ds_tools)
-
-    # Context preparation
-    loop_count = state.get("loop_count", 0)
-    strict_instruction = ""
-    if loop_count > 1:
-        strict_instruction = "\n\n### ⚠️ STRICT LOOP CONTROL\nYou have already attempted discovery. You MUST NOT call any more tools. You MUST synthesize your final findings and provide the DataScientistOutput now."
-
-    # Context preparation - LEAN CONTEXT for Data Scientist
-    raw_context = state.get("biometric_context", {})
-
     # PRE-FETCH SCHEMA: Inject schema immediately to save one iteration
+    bq_schema = ""
     try:
         bq_schema = get_bigquery_schema.invoke({})
         schema_info = f"\n\n### 🗺️ BIGQUERY DATABASE SCHEMA\n{bq_schema}"
     except Exception as e:
         log.warning(f"⚠️ Failed to pre-fetch BQ schema: {e}")
         schema_info = ""
+
+    # Bind DS tools - Optimization: remove get_bigquery_schema if we already have it
+    active_ds_tools = [execute_exploratory_query_dry_run, execute_exploratory_query]
+    if not bq_schema:
+        active_ds_tools.append(get_bigquery_schema)
+    
+    llm_with_tools = llm.bind_tools(active_ds_tools)
+
+    # Context preparation
+    loop_count = state.get("loop_count", 0)
+    strict_instruction = ""
+    if loop_count > 1:
+        strict_instruction = "\n\n### ⚠️ STRICT LOOP CONTROL\nYou have already attempted discovery. You MUST NOT call any more tools. You MUST synthesize your final findings and provide the DataScientistOutput now."
+    elif bq_schema:
+        strict_instruction = "\n\n### 🛡️ SCHEMA ALREADY PROVIDED\nThe BigQuery schema is included below. DO NOT call `get_bigquery_schema`. Proceed directly to formulating your hypothesis and then use the dry-run tool."
+
+    # Context preparation - LEAN CONTEXT for Data Scientist
+    raw_context = state.get("biometric_context", {})
 
     lean_context = {
         "latest_health_status": raw_context.get("latest_health_status"),
