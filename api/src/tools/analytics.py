@@ -42,7 +42,15 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
     user_where = f"AND t.user_id = '{user_id}'" if user_id else ""
 
     query = f"""
-    WITH telemetry_base AS (
+    WITH session_stats AS (
+        SELECT 
+            AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
+            AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
+        FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` t
+        WHERE t.activity_id = '{activity_id}'
+        {user_where}
+    ),
+    telemetry_base AS (
         SELECT 
             t.timestamp_ms,
             t.hr_bpm, 
@@ -57,12 +65,18 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
             t.gap_mps as gap,
             PERCENT_RANK() OVER(ORDER BY t.timestamp_ms) as total_progress
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` t
-        LEFT JOIN `{config["project_id"]}.{dataset}.user_profile` p ON t.user_id = p.user_id
+        CROSS JOIN session_stats s
         WHERE t.activity_id = '{activity_id}'
         {user_where}
         AND t.hr_bpm > 0
-        -- Align with standard platform definition for WORK segments (no arbitrary heuristics)
-        AND (t.power_w > 180 OR t.hr_bpm > COALESCE(p.custom_z2_max, 165))
+        -- Dynamically filter only active WORK phases based on the session's own average metrics (no hardcoded constants)
+        AND (
+            (s.avg_power IS NOT NULL AND t.power_w >= s.avg_power)
+            OR 
+            (s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND t.cadence_spm >= s.avg_cadence)
+            OR
+            (s.avg_power IS NULL AND s.avg_cadence IS NULL)
+        )
     ),
     telemetry_stats AS (
         SELECT 
