@@ -12,6 +12,15 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
+from src.utils.physiology import (
+    UserCalibrationProfile,
+    AC_RATIO_HIGH_RISK_LIMIT,
+    AC_RATIO_MODERATE_RISK_LIMIT,
+    AC_RATIO_ALERT_LIMIT,
+    Z_SCORE_ANOMALY_HIGH,
+    Z_SCORE_ANOMALY_LOW,
+    Z_SCORE_FATIGUE_LIMIT,
+)
 
 log = logging.getLogger(__name__)
 
@@ -145,15 +154,14 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
     client = get_bq_client(config["project_id"])
     dataset = config["dataset_id"]
 
-    # Fetch Personal Red Line (A:C Ratio)
+    # Fetch User Calibration Profile
     query_calib = f"""
-        SELECT marker_value 
+        SELECT marker_type, marker_value 
         FROM `{config["project_id"]}.{dataset}.user_calibration_profile`
-        WHERE user_id = '{user_id}' 
-        AND marker_type = 'ac_ratio_red_line'
+        WHERE user_id = '{user_id}'
     """
-    calib_res = list(client.query(query_calib).result())
-    red_line = calib_res[0].marker_value if calib_res else 1.3
+    calib_rows = list(client.query(query_calib).result())
+    profile = UserCalibrationProfile.from_db_rows(calib_rows)
 
     if not df_act.empty:
         df_act["date"] = pd.to_datetime(df_act["date_str"])
@@ -175,9 +183,9 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         )
 
         # Color based on A:C ratio
-        if ac_ratio <= 1.1:
+        if ac_ratio <= AC_RATIO_MODERATE_RISK_LIMIT:
             cv_color = "var(--success)"
-        elif ac_ratio > red_line:
+        elif ac_ratio > profile.ac_ratio_red_line:
             cv_color = "var(--danger)"
         else:
             cv_color = "var(--warning)"
@@ -254,12 +262,12 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         health_summary = f"In the last 14 logged days, you reported high fatigue (>=7/10) on <strong>{high_fatigue_days} days</strong> and poor feeling (<=4/10) on <strong>{low_feeling_days} days</strong>."
 
         # Simple correlation logic
-        if high_fatigue_days >= 3 and ac_ratio > 1.2:
+        if high_fatigue_days >= 3 and ac_ratio > AC_RATIO_ALERT_LIMIT:
             health_correlation_insight = "<strong>Correlation Alert:</strong> Your subjective reports of high fatigue align strongly with your high Acute:Chronic workload ratio. The objective data validates your physical sensations of overreaching."
-        elif low_feeling_days >= 3 and z_score_eff < -1.0:
+        elif low_feeling_days >= 3 and z_score_eff < Z_SCORE_FATIGUE_LIMIT:
             health_correlation_insight = "<strong>Correlation Alert:</strong> Your periods of feeling poorly correlate with drops in your aerobic efficiency (Z-Score). This suggests systemic fatigue affecting your running mechanics."
-        elif high_fatigue_days == 0 and ac_ratio > 1.3:
-            health_correlation_insight = "<strong>Warning:</strong> You are not reporting high fatigue, but your objective workload (A:C > 1.3) is high. Beware of masked cumulative fatigue."
+        elif high_fatigue_days == 0 and ac_ratio > profile.ac_ratio_red_line:
+            health_correlation_insight = f"<strong>Warning:</strong> You are not reporting high fatigue, but your objective workload (A:C > {profile.ac_ratio_red_line}) is high. Beware of masked cumulative fatigue."
         else:
             health_correlation_insight = (
                 "Your subjective feelings are currently tracking normally with your objective training load."
@@ -267,23 +275,23 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
     # 5. Warnings & Anomalies
     warnings = []
-    if ac_ratio > red_line:
+    if ac_ratio > profile.ac_ratio_red_line:
         warnings.append(
             (
                 "High Injury Risk",
-                f"A:C Ratio is {ac_ratio} (Personal Red Line: {red_line}). Consider a deload week.",
+                f"A:C Ratio is {ac_ratio} (Personal Red Line: {profile.ac_ratio_red_line}). Consider a deload week.",
                 "danger-box",
             )
         )
-    elif ac_ratio > 1.3:
+    elif ac_ratio > AC_RATIO_HIGH_RISK_LIMIT:
         warnings.append(
             (
                 "Volume Warning",
-                f"A:C Ratio is {ac_ratio} (Safe baseline: 1.3). You are pushing close to your personal limits.",
+                f"A:C Ratio is {ac_ratio} (Safe baseline: {AC_RATIO_HIGH_RISK_LIMIT}). You are pushing close to your personal limits.",
                 "warning-box",
             )
         )
-    if z_score_eff < -1.5:
+    if z_score_eff < Z_SCORE_ANOMALY_LOW:
         warnings.append(
             (
                 "Efficiency Drop",
@@ -563,7 +571,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             <article>
                 <h3>{icon_check} Cardiovascular & Load</h3>
                 <p class="insight-text">{cv_summary}</p>
-                <p class="insight-text"><strong>Physiological Insight:</strong> {"Your aerobic efficiency is improving significantly." if z_score_eff > 1.5 else "Your load management is optimal." if ac_ratio <= 1.3 else "You are increasing volume too rapidly, which may increase injury risk."}</p>
+                <p class="insight-text"><strong>Physiological Insight:</strong> {"Your aerobic efficiency is improving significantly." if z_score_eff > Z_SCORE_ANOMALY_HIGH else "Your load management is optimal." if ac_ratio <= AC_RATIO_HIGH_RISK_LIMIT else "You are increasing volume too rapidly, which may increase injury risk."}</p>
                 {ac_trend_svg}
             </article>
 

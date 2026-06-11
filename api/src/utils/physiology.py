@@ -66,3 +66,73 @@ def calculate_ac_ratio(activities: list[dict[str, Any]], metric_type: str = "wor
         "ac_ratio": round(float(ratio), 2),
         "metric_used": metric_type,
     }
+
+
+from pydantic import BaseModel, Field
+
+# Centralized physiological default thresholds and fallbacks
+DEFAULT_AC_RATIO_RED_LINE = 1.3
+DEFAULT_HRV_SENSITIVITY = 1.0
+DEFAULT_HRV_UNBALANCED_MULTIPLIER = 1.2
+DEFAULT_PACE_FALLBACK = 3.0  # m/s
+DEFAULT_Z2_MAX_FALLBACK = 165
+DEFAULT_POWER_THRESHOLD = 180
+
+# Load risk thresholds
+AC_RATIO_HIGH_RISK_LIMIT = 1.3
+AC_RATIO_MODERATE_RISK_LIMIT = 1.1
+AC_RATIO_ALERT_LIMIT = 1.2
+
+# Z-Score limits for reports
+Z_SCORE_ANOMALY_HIGH = 1.5
+Z_SCORE_ANOMALY_LOW = -1.5
+Z_SCORE_FATIGUE_LIMIT = -1.0
+
+
+class UserCalibrationProfile(BaseModel):
+    """Pydantic model representing a structured physiological calibration profile."""
+
+    ac_ratio_red_line: float = Field(
+        DEFAULT_AC_RATIO_RED_LINE,
+        description="Personal Acute:Chronic Workload Ratio red line limit.",
+    )
+    hrv_sensitivity_index: float = Field(
+        DEFAULT_HRV_SENSITIVITY,
+        description="Sensitivity index for HRV drop risk adjustment.",
+    )
+    hrv_unbalanced_risk_multiplier: float = Field(
+        DEFAULT_HRV_UNBALANCED_MULTIPLIER,
+        description="Risk multiplier applied when HRV status is unbalanced.",
+    )
+    gct_drift_baseline: float = Field(
+        30.0,
+        description="Average Ground Contact Time (GCT) drift observed in steady Zone 2 runs.",
+    )
+    aerobic_decoupling_threshold: float = Field(
+        0.05,
+        description="Aerobic decoupling stability threshold.",
+    )
+
+    @classmethod
+    def from_db_rows(cls, rows: list[Any]) -> "UserCalibrationProfile":
+        """Loads and parses a list of calibration rows/dictionaries into a validated profile."""
+        data = {}
+        for r in rows:
+            m_type = getattr(r, "marker_type", None)
+            m_val = getattr(r, "marker_value", None)
+            
+            if m_type is None and isinstance(r, dict):
+                m_type = r.get("marker_type")
+                m_val = r.get("marker_value")
+                
+            if m_type and m_val is not None:
+                if m_type in cls.model_fields:
+                    data[m_type] = float(m_val)
+                elif m_type == "ac_ratio_red_line":
+                    data["ac_ratio_red_line"] = float(m_val)
+                elif m_type == "hrv_sensitivity_index":
+                    data["hrv_sensitivity_index"] = float(m_val)
+                elif m_type == "hrv_unbalanced_risk_multiplier":
+                    data["hrv_unbalanced_risk_multiplier"] = float(m_val)
+        return cls(**data)
+

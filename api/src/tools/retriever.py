@@ -397,7 +397,17 @@ def _retrieve_biometric_data_cached(
 
             # V3.6 Precision Hybrid (Event-Aware Trend Detection)
             query_tel_series = f"""
-            WITH base AS (
+            WITH session_stats AS (
+                SELECT 
+                    activity_id,
+                    AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
+                    AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
+                FROM `{project_id}.{dataset}.latest_activity_telemetry` t
+                WHERE t.activity_id IN ({ids_str})
+                  {f" AND t.user_id = '{user_id}'" if user_id else ""}
+                GROUP BY activity_id
+            ),
+            base AS (
                 SELECT 
                     t.activity_id, 
                     t.activity_name,
@@ -416,8 +426,15 @@ def _retrieve_biometric_data_cached(
                     t.gap_mps as gap,
                     t.performance_condition as perf,
                     t.run_walk_index as rw_idx,
-                    CASE WHEN t.power_w > 180 OR t.hr_bpm > p.custom_z2_max THEN 1 ELSE 0 END as is_work
+                    -- Dynamic WORK classification without any hardcoded thresholds
+                    CASE 
+                        WHEN s.avg_power IS NOT NULL AND t.power_w >= s.avg_power THEN 1
+                        WHEN s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND (t.cadence_spm + IFNULL(t.fractional_cadence, 0)) >= s.avg_cadence THEN 1
+                        WHEN s.avg_power IS NULL AND s.avg_cadence IS NULL AND t.hr_bpm > COALESCE(p.custom_z2_max, 165) THEN 1
+                        ELSE 0 
+                    END as is_work
                 FROM `{project_id}.{dataset}.latest_activity_telemetry` t
+                JOIN session_stats s ON t.activity_id = s.activity_id
                 JOIN `{project_id}.{dataset}.user_profile` p ON t.user_id = p.user_id
                 WHERE t.activity_id IN ({ids_str}) 
                   AND t.timestamp_ms >= {thirty_days_ago_ms}

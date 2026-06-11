@@ -11,6 +11,13 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
+from src.utils.physiology import (
+    UserCalibrationProfile,
+    AC_RATIO_HIGH_RISK_LIMIT,
+    AC_RATIO_ALERT_LIMIT,
+    Z_SCORE_ANOMALY_HIGH,
+    Z_SCORE_ANOMALY_LOW,
+)
 
 log = logging.getLogger(__name__)
 
@@ -77,15 +84,14 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
     client = get_bq_client(config["project_id"])
     dataset = config["dataset_id"]
 
-    # Fetch Personal Red Line (A:C Ratio)
+    # Fetch User Calibration Profile
     query_calib = f"""
-        SELECT marker_value 
+        SELECT marker_type, marker_value 
         FROM `{config["project_id"]}.{dataset}.user_calibration_profile`
-        WHERE user_id = '{user_id}' 
-        AND marker_type = 'ac_ratio_red_line'
+        WHERE user_id = '{user_id}'
     """
-    calib_res = list(client.query(query_calib).result())
-    red_line = calib_res[0].marker_value if calib_res else 1.3
+    calib_rows = list(client.query(query_calib).result())
+    profile = UserCalibrationProfile.from_db_rows(calib_rows)
 
     df["date"] = pd.to_datetime(df["date_str"])
     df = df.sort_values("date").set_index("date")
@@ -123,22 +129,22 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 
     # 3. Construcción del JSON Resumen (< 1KB para el LLM)
     warnings = []
-    if z_score < -1.5:
-        warnings.append("ALERTA: Caída aguda en la eficiencia aeróbica (Z-Score < -1.5). Riesgo de fatiga sistémica.")
-    elif z_score > 1.5:
-        warnings.append("NOTA: Salto positivo anómalo en eficiencia (Z-Score > 1.5). Pico de forma detectado.")
+    if z_score < Z_SCORE_ANOMALY_LOW:
+        warnings.append(f"ALERTA: Caída aguda en la eficiencia aeróbica (Z-Score < {Z_SCORE_ANOMALY_LOW}). Riesgo de fatiga sistémica.")
+    elif z_score > Z_SCORE_ANOMALY_HIGH:
+        warnings.append(f"NOTA: Salto positivo anómalo en eficiencia (Z-Score > {Z_SCORE_ANOMALY_HIGH}). Pico de forma detectado.")
 
     current_acute = round(df_daily["acute_load_7d_km"].iloc[-1], 1)
     current_chronic = round(df_daily["chronic_load_28d_km"].iloc[-1], 1)
     ac_ratio = round(current_acute / current_chronic, 2) if current_chronic > 0 else 0
 
-    if ac_ratio > red_line:
+    if ac_ratio > profile.ac_ratio_red_line:
         warnings.append(
-            f"ALERTA DE LESIÓN: Ratio Agudo/Crónico en {ac_ratio} (Superó tu línea roja personal de {red_line}). Sobrecarga de volumen."
+            f"ALERTA DE LESIÓN: Ratio Agudo/Crónico en {ac_ratio} (Superó tu línea roja personal de {profile.ac_ratio_red_line}). Sobrecarga de volumen."
         )
-    elif ac_ratio > 1.3:
+    elif ac_ratio > AC_RATIO_HIGH_RISK_LIMIT:
         warnings.append(
-            f"PRECAUCIÓN: Ratio Agudo/Crónico en {ac_ratio} (Base segura < 1.3). Te acercas a tu límite personal."
+            f"PRECAUCIÓN: Ratio Agudo/Crónico en {ac_ratio} (Base segura < {AC_RATIO_HIGH_RISK_LIMIT}). Te acercas a tu límite personal."
         )
 
     # Generación de metadatos del reporte
@@ -161,7 +167,7 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 ## 1. Resumen de Carga de Entrenamiento
 - **Volumen últimos 7 días (Carga Aguda):** {current_acute} km
 - **Promedio semanal último mes (Carga Crónica):** {current_chronic} km/semana
-- **Ratio Agudo/Crónico (A:C):** {ac_ratio} *(Seguro: 0.8 - 1.3 | Tu Límite: {red_line})*
+- **Ratio Agudo/Crónico (A:C):** {ac_ratio} *(Seguro: 0.8 - {AC_RATIO_HIGH_RISK_LIMIT} | Tu Límite: {profile.ac_ratio_red_line})*
 
 ## 2. Análisis de Eficiencia Aeróbica (Power / HR)
 - **Baseline (Últimos 60 días):** {round(baseline_eff, 2)}

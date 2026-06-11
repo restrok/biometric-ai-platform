@@ -35,7 +35,7 @@ def test_vector_rag_flow():
     print("\nProcessing...\n")
 
     # Run the graph
-    for output in graph.stream(cast(Any, inputs)):
+    for output in graph.stream(cast(Any, inputs), config={"configurable": {"thread_id": "test_thread"}}):
         for node_name, state in output.items():
             print(f"\n--- Node: {node_name} ---")
             if "messages" in state:

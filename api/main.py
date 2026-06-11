@@ -155,7 +155,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Biometric AI API", lifespan=lifespan)
-app.include_router(tools.router, prefix="/tools")
+app.include_router(tools.router)
 
 
 # --- OpenAI Compatibility Models ---
