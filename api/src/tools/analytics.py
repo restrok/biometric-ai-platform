@@ -39,19 +39,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
-
-    user_where = f"AND user_id = '{user_id}'" if user_id else ""
+    user_where = f"AND t.user_id = '{user_id}'" if user_id else ""
 
     query = f"""
-    WITH session_stats AS (
-        SELECT 
-            AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
-            AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
-        FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
-        WHERE activity_id = '{activity_id}'
-        {user_where}
-    ),
-    telemetry_base AS (
+    WITH telemetry_base AS (
         SELECT 
             t.timestamp_ms,
             t.hr_bpm, 
@@ -66,17 +57,12 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
             t.gap_mps as gap,
             PERCENT_RANK() OVER(ORDER BY t.timestamp_ms) as total_progress
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` t
-        CROSS JOIN session_stats s
+        LEFT JOIN `{config["project_id"]}.{dataset}.user_profile` p ON t.user_id = p.user_id
         WHERE t.activity_id = '{activity_id}'
         {user_where}
         AND t.hr_bpm > 0
-        AND (
-            (s.avg_power IS NOT NULL AND t.power_w >= (s.avg_power * 0.85))
-            OR 
-            (s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND t.cadence_spm >= (s.avg_cadence * 0.9))
-            OR
-            (s.avg_power IS NULL AND s.avg_cadence IS NULL)
-        )
+        -- Align with standard platform definition for WORK segments (no arbitrary heuristics)
+        AND (t.power_w > 180 OR t.hr_bpm > COALESCE(p.custom_z2_max, 165))
     ),
     telemetry_stats AS (
         SELECT 
