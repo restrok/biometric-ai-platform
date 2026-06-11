@@ -1,7 +1,11 @@
+"""Biometric provider factory utility."""
+
 import json
 import logging
 import os
+from pathlib import Path
 
+from garmin_training_toolkit_sdk.core.base import BaseBiometricProvider
 from garmin_training_toolkit_sdk.core.garmin import GarminProvider
 from garmin_training_toolkit_sdk.utils import find_token_file
 
@@ -9,13 +13,17 @@ from src.utils.config import get_secret
 
 log = logging.getLogger(__name__)
 
-_providers: dict[str, GarminProvider] = {}
+_providers: dict[str, BaseBiometricProvider] = {}
 
 
-def get_provider(user_id: str | None = None, force_reload: bool = False, refresh: bool = False):
+def get_provider(
+    user_id: str | None = None,
+    force_reload: bool = False,
+    refresh: bool = False,
+) -> BaseBiometricProvider:
     """
     Returns the active biometric provider (currently hardcoded to Garmin,
-    but easily swappable for future brands).
+    but swappable for future brands).
 
     If user_id is provided, it attempts to load user-specific tokens.
     If refresh is True, it proactively refreshes the tokens with Garmin before loading.
@@ -44,16 +52,18 @@ def get_provider(user_id: str | None = None, force_reload: bool = False, refresh
     token_json = get_secret(secret_name)
     if token_json:
         try:
-            import tempfile
-            from pathlib import Path
-
             tokens = json.loads(token_json)
-            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tf:
-                json.dump(tokens, tf)
-                temp_path = Path(tf.name)
+            
+            # Save to standard local path so it can be managed and written back by the SDK
+            token_dir = Path.home() / ".garminconnect"
+            token_dir.mkdir(parents=True, exist_ok=True)
+            token_file = token_dir / f"garmin_tokens_{user_id or 'default'}.json"
+            
+            with open(token_file, "w") as f:
+                json.dump(tokens, f, indent=4)
 
-            log.info(f"Successfully loaded Garmin tokens for {user_id or 'default'} from Secret Manager")
-            provider = GarminProvider(token_path=temp_path)
+            log.info(f"Successfully loaded and synchronized Garmin tokens for {user_id or 'default'} from Secret Manager")
+            provider = GarminProvider(token_path=token_file)
             _providers[cache_key] = provider
             return provider
         except Exception as e:
@@ -62,8 +72,6 @@ def get_provider(user_id: str | None = None, force_reload: bool = False, refresh
     # 2. Fallback to local token file
     # We look for garmin_tokens_{user_id}.json or the default from the SDK
     if user_id:
-        from pathlib import Path
-
         # Search in common locations with the user suffix
         possible_paths = [
             Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
