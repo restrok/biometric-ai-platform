@@ -601,6 +601,19 @@ def _retrieve_biometric_data_cached(
     if not context.get("recent_activities"):
         context["recent_activities"] = [{"info": "No activity history found in Data Lake."}]
 
+    # Count valid running activities to determine if calibration phase is needed
+    running_activities = [
+        a for a in context.get("recent_activities", [])
+        if isinstance(a, dict) and a.get("type") == "running"
+    ]
+    calibration_phase_required = len(running_activities) < 3
+    context["calibration_guardrails"] = {
+        "calibration_phase_required": calibration_phase_required,
+        "running_activities_logged": len(running_activities),
+        "required_runs": 3,
+        "instruction": "If calibration_phase_required is True, recommend a 1-2 week Calibration Phase of Zone 2 runs only and use Karvonen formula for initial targets."
+    }
+
     # AC Ratio Fallback Logic
     status = context.get("training_status")
     if not status or not status.get("acute_load") or status.get("acute_load") == "null":
@@ -619,10 +632,14 @@ def _retrieve_biometric_data_cached(
                 "metric_used": fallback["metric_used"],
                 "vo2max": status.get("vo2max") if status else None,
                 "info": f"Generated via {fallback['metric_used'].upper()} fallback algorithm.",
+                "fallback_applied": True,
             }
             context["training_status"] = new_status
         else:
-            context["training_status"] = {"info": "No training status available and insufficient history for fallback."}
+            context["training_status"] = {
+                "info": "No training status available and insufficient history for fallback.",
+                "fallback_applied": False,
+            }
 
     if not context.get("sleep"):
         context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}

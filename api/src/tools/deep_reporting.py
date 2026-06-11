@@ -275,6 +275,15 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
     # 5. Warnings & Anomalies
     warnings = []
+    if len(calib_rows) == 0:
+        warnings.append(
+            (
+                "Standard Baseline Used",
+                "No personal calibration profile found in the database. Standard physiological baseline limits were applied for load risk calculations.",
+                "warning-box",
+            )
+        )
+
     if ac_ratio > profile.ac_ratio_red_line:
         warnings.append(
             (

@@ -62,6 +62,16 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
         calib_rows = list(client.query(query_calib).result())
         profile = UserCalibrationProfile.from_db_rows(calib_rows)
 
+        # Check total runs to enforce calibration phase guardrail
+        query_count = f"""
+            SELECT COUNT(*) as total_runs
+            FROM `{pid}.{ds}.recent_activities`
+            WHERE user_id = '{user_id}' AND type = 'running'
+        """
+        run_count_res = list(client.query(query_count).result())
+        total_runs = run_count_res[0].total_runs if run_count_res else 0
+        calibration_phase_required = total_runs < 3
+
         # 2.1 Fetch Latest HRV Status
         query_hrv = f"""
             SELECT avg_hrv, baseline_low, status
@@ -154,10 +164,19 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
             risk_level = "Moderate"
 
         recommendation = "Safe to proceed."
-        if risk_level == "CRITICAL":
+        if calibration_phase_required:
+            recommendation = f"CALIBRATION PHASE ACTIVE: You have logged {total_runs}/3 runs. High-intensity workouts are restricted. Suggest Zone 2 recovery/aerobic runs only."
+        elif risk_level == "CRITICAL":
             recommendation = f"DO NOT PROCEED. This session will push your effective A:C ratio (adjusted for HRV) to {round(effective_ac, 2)}, exceeding your personal red line of {profile.ac_ratio_red_line}."
         elif risk_level == "High":
             recommendation = "Proceed with caution. Consider reducing duration or intensity. HRV indicates your body's tolerance for load is reduced today."
+
+        # Flag fallback status explicitly so the LLM and user know
+        fallbacks_applied = {
+            "pace_fallback_used": avg_pace_ms == DEFAULT_PACE_FALLBACK,
+            "calibration_defaults_used": len(calib_rows) == 0,
+            "calibration_phase_required": calibration_phase_required
+        }
 
         result = {
             "proposed_workout": {
@@ -175,6 +194,7 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
                 "hrv_context": hrv_context,
             },
             "recommendation": recommendation,
+            "fallbacks_applied": fallbacks_applied,
         }
 
         log.info(f"✅ Training impact projected for {user_id}: New AC {new_ac}")

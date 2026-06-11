@@ -129,6 +129,9 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 
     # 3. Construcción del JSON Resumen (< 1KB para el LLM)
     warnings = []
+    if len(calib_rows) == 0:
+        warnings.append("NOTA: No se encontró un perfil de calibración personalizado; se utilizaron valores predeterminados para tus límites fisiológicos.")
+
     if z_score < Z_SCORE_ANOMALY_LOW:
         warnings.append(f"ALERTA: Caída aguda en la eficiencia aeróbica (Z-Score < {Z_SCORE_ANOMALY_LOW}). Riesgo de fatiga sistémica.")
     elif z_score > Z_SCORE_ANOMALY_HIGH:
