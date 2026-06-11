@@ -60,3 +60,4 @@ Thumbs.db
 # Logs
 *.log
 api/*.log
+docs/interview_cheatsheet.md

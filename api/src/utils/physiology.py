@@ -35,6 +35,16 @@ def calculate_ac_ratio(activities: list[dict[str, Any]], metric_type: str = "wor
     # Resample to daily to include zero-load days
     df_daily = df.set_index("dt").resample("D").agg({"work_kj": "sum", "trimp": "sum", "dist_km": "sum"}).fillna(0)
 
+    # CRITICAL: Anchor the window to 'today' to account for rest days since the last activity.
+    # We normalize to midnight to avoid partial day issues.
+    today = pd.Timestamp.now().normalize()
+    start_chronic = today - pd.Timedelta(days=28)
+    
+    # Reindex to ensure we have every day from 28 days ago until today.
+    # This correctly injects zero-load days if the user hasn't trained recently.
+    full_idx = pd.date_range(start=start_chronic, end=today, freq="D")
+    df_daily = df_daily.reindex(full_idx, fill_value=0)
+
     # Choose metric
     col_map = {"work": "work_kj", "trimp": "trimp", "distance": "dist_km"}
     col = col_map.get(metric_type, "work_kj")
@@ -44,6 +54,7 @@ def calculate_ac_ratio(activities: list[dict[str, Any]], metric_type: str = "wor
         col = "trimp"  # Fallback to trimp if no power
         metric_type = "trimp"
 
+    # Use the last 7 days for Acute and the last 28 days for Chronic.
     acute = df_daily[col].tail(7).sum()
     chronic = df_daily[col].tail(28).sum() / 4.0
 
