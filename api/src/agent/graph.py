@@ -557,7 +557,26 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
 
     latency_ms = (time.time() - t0) * 1000
-    token_usage = getattr(response, "usage_metadata", {})
+    # Robust token extraction from response metadata
+    in_t = 0
+    out_t = 0
+    usage_meta = getattr(response, "usage_metadata", None)
+    if usage_meta:
+        if isinstance(usage_meta, dict):
+            in_t = usage_meta.get("input_tokens", 0)
+            out_t = usage_meta.get("output_tokens", 0)
+        else:
+            in_t = getattr(usage_meta, "input_tokens", 0)
+            out_t = getattr(usage_meta, "output_tokens", 0)
+
+    # Fallback to response_metadata (OpenAI-compatible)
+    if not in_t and not out_t:
+        resp_meta = getattr(response, "response_metadata", None)
+        if isinstance(resp_meta, dict):
+            token_usage = resp_meta.get("token_usage")
+            if isinstance(token_usage, dict):
+                in_t = token_usage.get("prompt_tokens", 0)
+                out_t = token_usage.get("completion_tokens", 0)
 
     usage = state.get("usage_stats", {})
     if not isinstance(usage, dict):
@@ -568,9 +587,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     usage.setdefault("calls", 0)
     usage.setdefault("total_cost_usd", 0.0)
 
-    if token_usage:
-        in_t = getattr(token_usage, "input_tokens", 0)
-        out_t = getattr(token_usage, "output_tokens", 0)
+    if in_t or out_t:
         finops_row = log_llm_call(MODEL_NAME, in_t, out_t, latency_ms, node_name="analyzer")
 
         usage["total_tokens"] += in_t + out_t
