@@ -43,24 +43,40 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
     user_where = f"AND user_id = '{user_id}'" if user_id else ""
 
     query = f"""
-    WITH telemetry_base AS (
+    WITH session_stats AS (
         SELECT 
-            timestamp_ms,
-            hr_bpm, 
-            power_w, 
-            cadence_spm,
-            vertical_oscillation_cm as vo,
-            stride_length_mm as sl,
-            ground_contact_time_ms as gct,
-            vertical_ratio as vr,
-            vertical_speed as vs,
-            body_battery as bb,
-            gap_mps as gap,
-            PERCENT_RANK() OVER(ORDER BY timestamp_ms) as total_progress
+            AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
+            AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
         WHERE activity_id = '{activity_id}'
         {user_where}
-        AND hr_bpm > 0
+    ),
+    telemetry_base AS (
+        SELECT 
+            t.timestamp_ms,
+            t.hr_bpm, 
+            t.power_w, 
+            t.cadence_spm,
+            t.vertical_oscillation_cm as vo,
+            t.stride_length_mm as sl,
+            t.ground_contact_time_ms as gct,
+            t.vertical_ratio as vr,
+            t.vertical_speed as vs,
+            t.body_battery as bb,
+            t.gap_mps as gap,
+            PERCENT_RANK() OVER(ORDER BY t.timestamp_ms) as total_progress
+        FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` t
+        CROSS JOIN session_stats s
+        WHERE t.activity_id = '{activity_id}'
+        {user_where}
+        AND t.hr_bpm > 0
+        AND (
+            (s.avg_power IS NOT NULL AND t.power_w >= (s.avg_power * 0.85))
+            OR 
+            (s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND t.cadence_spm >= (s.avg_cadence * 0.9))
+            OR
+            (s.avg_power IS NULL AND s.avg_cadence IS NULL)
+        )
     ),
     telemetry_stats AS (
         SELECT 
