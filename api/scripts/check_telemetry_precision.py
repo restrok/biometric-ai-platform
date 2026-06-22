@@ -107,7 +107,7 @@ def audit_telemetry_precision(
         raw_15s["is_work"] = 1  # Fallback
 
     # 5-min limit logic
-    raw_15s["time_bucket"] = raw_15s["time_block_15s"].astype(np.int64) // 10**9 // 300
+    raw_15s["time_bucket"] = raw_15s["time_block_15s"].astype("datetime64[ns]").astype(np.int64) // 10**9 // 300
     raw_15s["change"] = (
         (raw_15s["is_work"].diff().fillna(0).abs() > 0) | (raw_15s["time_bucket"].diff().fillna(0).abs() > 0)
     ).astype(int)
@@ -158,12 +158,12 @@ def audit_telemetry_precision(
         type_str = "WORK" if seg["is_work"] else "REST"
         log.info(f"{type_str} [{int(seg['dur'])}s]:")
 
-        for c in ["power_w", "hr_bpm", "body_battery", "stride_length_mm"]:
+        for c in cols:
             if c in gt.columns:
                 val_agg = seg[c]
                 val_raw = gt[c].mean()
                 drift = ((val_agg - val_raw) / val_raw * 100) if val_raw != 0 else 0
-                log.info(f"  - {c:<18}: {val_agg:>7.1f} | {val_raw:>7.1f} | {drift:>6.2f}%")
+                log.info(f"  - {c:<25}: {val_agg:>7.1f} | {val_raw:>7.1f} | {drift:>6.2f}%")
 
         # Check MAXes
         if "power_w_max" in seg:

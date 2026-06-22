@@ -1,11 +1,11 @@
 import os
 import sys
-from pydantic import SecretStr
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.utils.llm_factory import get_chat_model
+
 
 def test_lmstudio():
     os.environ["LLM_PROVIDER"] = "lmstudio"

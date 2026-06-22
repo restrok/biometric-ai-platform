@@ -13,13 +13,13 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 from src.utils.physiology import (
-    UserCalibrationProfile,
+    AC_RATIO_ALERT_LIMIT,
     AC_RATIO_HIGH_RISK_LIMIT,
     AC_RATIO_MODERATE_RISK_LIMIT,
-    AC_RATIO_ALERT_LIMIT,
     Z_SCORE_ANOMALY_HIGH,
     Z_SCORE_ANOMALY_LOW,
     Z_SCORE_FATIGUE_LIMIT,
+    UserCalibrationProfile,
 )
 
 log = logging.getLogger(__name__)

@@ -522,12 +522,18 @@ def _retrieve_biometric_data_cached(
                 hr_drift_str = ""
                 gct_drift_str = ""
                 if row.duration_sec > 180:
-                    hr_drift = ((row.hr_end_avg - row.hr_start_avg) / row.hr_start_avg * 100) if row.hr_start_avg else 0
-                    gct_drift = (
-                        ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100) if row.gct_start_avg else 0
+                    hr_drift = (
+                        ((row.hr_end_avg - row.hr_start_avg) / row.hr_start_avg * 100)
+                        if row.hr_start_avg and row.hr_end_avg is not None
+                        else 0
                     )
-                    hr_drift_str = f" ({hr_drift:+.1f}% drift)"
-                    gct_drift_str = f" ({gct_drift:+.1f}% drift)"
+                    gct_drift = (
+                        ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100)
+                        if row.gct_start_avg and row.gct_end_avg is not None
+                        else 0
+                    )
+                    hr_drift_str = f" ({hr_drift:+.1f}% drift)" if hr_drift else ""
+                    gct_drift_str = f" ({gct_drift:+.1f}% drift)" if gct_drift else ""
 
                 metrics = [
                     f"DUR:{dur_min}min",

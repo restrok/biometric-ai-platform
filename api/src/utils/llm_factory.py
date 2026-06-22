@@ -31,7 +31,7 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
             temperature=temperature,
             **kwargs,
         )
-    elif provider == "lmstudio":
+    if provider == "lmstudio":
         lm_studio_url = os.getenv("LM_STUDIO_BASE_URL", "http://192.168.88.240:1234/v1")
         return ChatOpenAI(
             model=model_name,
@@ -40,7 +40,7 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
             temperature=temperature,
             **kwargs,
         )
-    elif provider == "openai":
+    if provider == "openai":
         return ChatOpenAI(
             model=model_name,
             api_key=SecretStr(os.getenv("OPENAI_API_KEY") or "none"),

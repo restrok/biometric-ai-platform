@@ -9,10 +9,10 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 from src.utils.physiology import (
-    UserCalibrationProfile,
-    DEFAULT_PACE_FALLBACK,
     AC_RATIO_HIGH_RISK_LIMIT,
     AC_RATIO_MODERATE_RISK_LIMIT,
+    DEFAULT_PACE_FALLBACK,
+    UserCalibrationProfile,
 )
 
 log = logging.getLogger(__name__)

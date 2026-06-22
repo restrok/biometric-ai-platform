@@ -1,7 +1,9 @@
 
+
 from google.cloud import bigquery
+
 from src.utils.config import get_config, setup_environment
-import os
+
 
 def list_users():
     setup_environment()

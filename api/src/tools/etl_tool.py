@@ -52,14 +52,13 @@ def sync_biometric_data(
                     "range was provided, I am using a safety-capped incremental sync."
                 ),
             }
-        else:
-            log.info(f"🔄 Agent-triggered ETL sync starting synchronously for user: {user_id}...")
-            newly_synced_ids = run_etl(**sync_args)
-            return {
-                "status": "Success",
-                "message": "Synchronization completed successfully.",
-                "newly_synced_ids": newly_synced_ids or [],
-            }
+        log.info(f"🔄 Agent-triggered ETL sync starting synchronously for user: {user_id}...")
+        newly_synced_ids = run_etl(**sync_args)
+        return {
+            "status": "Success",
+            "message": "Synchronization completed successfully.",
+            "newly_synced_ids": newly_synced_ids or [],
+        }
     except Exception as e:
         log.error(f"❌ ETL sync failed to trigger or run: {e}")
         return f"Error executing synchronization: {e}"
