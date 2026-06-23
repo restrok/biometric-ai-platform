@@ -8,6 +8,12 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
+from src.utils.physiology import (
+    AC_RATIO_HIGH_RISK_LIMIT,
+    AC_RATIO_MODERATE_RISK_LIMIT,
+    DEFAULT_PACE_FALLBACK,
+    UserCalibrationProfile,
+)
 
 log = logging.getLogger(__name__)
 
@@ -47,16 +53,24 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
             GROUP BY 1 ORDER BY 1 ASC
         """
         df_act = client.query(query_dist).to_dataframe()
-        # 2. Fetch Personal Red Line (A:C Ratio) and HRV Baseline
+        # 2. Fetch User Calibration Profile
         query_calib = f"""
             SELECT marker_type, marker_value 
             FROM `{pid}.{ds}.user_calibration_profile`
-            WHERE user_id = '{user_id}' 
-            AND marker_type IN ('ac_ratio_red_line', 'hrv_sensitivity_index')
+            WHERE user_id = '{user_id}'
         """
-        calib_res = {r.marker_type: r.marker_value for r in client.query(query_calib).result()}
-        red_line = calib_res.get("ac_ratio_red_line", 1.45)
-        hrv_sensitivity = calib_res.get("hrv_sensitivity_index", 1.0)  # Default 1.0 multiplier
+        calib_rows = list(client.query(query_calib).result())
+        profile = UserCalibrationProfile.from_db_rows(calib_rows)
+
+        # Check total runs to enforce calibration phase guardrail
+        query_count = f"""
+            SELECT COUNT(*) as total_runs
+            FROM `{pid}.{ds}.recent_activities`
+            WHERE user_id = '{user_id}' AND type = 'running'
+        """
+        run_count_res = list(client.query(query_count).result())
+        total_runs = run_count_res[0].total_runs if run_count_res else 0
+        calibration_phase_required = total_runs < 3
 
         # 2.1 Fetch Latest HRV Status
         query_hrv = f"""
@@ -78,32 +92,33 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
                 # If HRV is below baseline, increase risk multiplier
                 # 10% drop below baseline = 1.1x risk
                 hrv_drop_pct = (baseline_low - latest_hrv) / baseline_low
-                hrv_multiplier = 1.0 + (hrv_drop_pct * hrv_sensitivity)
+                hrv_multiplier = 1.0 + (hrv_drop_pct * profile.hrv_sensitivity_index)
                 hrv_context = f"HRV ({latest_hrv}ms) is below baseline ({baseline_low}ms). Risk multiplier of {round(hrv_multiplier, 2)}x applied."
             elif hrv_status == "UNBALANCED":
-                hrv_multiplier = 1.2
-                hrv_context = "HRV Status is UNBALANCED. Systemic stress detected. 1.2x risk multiplier applied."
+                hrv_multiplier = profile.hrv_unbalanced_risk_multiplier
+                hrv_context = (
+                    f"HRV Status is UNBALANCED. Systemic stress detected. {hrv_multiplier}x risk multiplier applied."
+                )
 
-        # 3. Fetch User's Avg Pace...
-
-        # 3. Fetch User's Avg Pace in specific HR zones to estimate distance
-        # For simplicity, we'll just use their overall average pace for now if we can't be precise
-        # Or even better, try to find their pace for this specific avg_hr
+        # 3. Fetch User's Avg Pace in specific HR zones, falling back to overall running average
         query_pace = f"""
-            SELECT AVG(avg_pace) as avg_pace
-            FROM `{pid}.{ds}.recent_activities`
-            WHERE user_id = '{user_id}' AND type = 'running'
-            AND avg_hr BETWEEN {avg_hr - 5} AND {avg_hr + 5}
+            WITH hr_pace AS (
+                SELECT AVG(avg_pace) as avg_pace
+                FROM `{pid}.{ds}.recent_activities`
+                WHERE user_id = '{user_id}' AND type = 'running'
+                AND avg_hr BETWEEN {avg_hr - 5} AND {avg_hr + 5}
+            ),
+            overall_pace AS (
+                SELECT AVG(avg_pace) as avg_pace
+                FROM `{pid}.{ds}.recent_activities`
+                WHERE user_id = '{user_id}' AND type = 'running'
+            )
+            SELECT 
+                COALESCE(hr_pace.avg_pace, overall_pace.avg_pace) as avg_pace
+            FROM hr_pace, overall_pace
         """
         pace_res = list(client.query(query_pace).result())
-        # Garmin pace is usually in m/s or min/km depending on the tool's storage.
-        # recent_activities avg_pace is stored as float. Let's assume it's m/s if > 1 or min/km if < 1?
-        # Actually, let's look at the schema or data.
-        # In the context it showed: "avg_hr": 151.0, "distance_m": 9639.95...
-        # Wait, retrieve_biometric_data output: "distance_m": 9639.95... "avg_hr": 151.0
-        # It doesn't show avg_pace in the JSON I saw earlier but the schema says "avg_pace": "FLOAT".
-
-        avg_pace_ms = pace_res[0].avg_pace if pace_res and pace_res[0].avg_pace else 3.0  # Fallback 3m/s (~5:33 min/km)
+        avg_pace_ms = pace_res[0].avg_pace if pace_res and pace_res[0].avg_pace is not None else DEFAULT_PACE_FALLBACK
 
         # Calculate proposed distance
         proposed_distance_km = (duration_mins * 60 * avg_pace_ms) / 1000
@@ -143,18 +158,27 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
         effective_ac = new_ac * hrv_multiplier
 
         risk_level = "Low"
-        if effective_ac > red_line:
+        if effective_ac > profile.ac_ratio_red_line:
             risk_level = "CRITICAL"
-        elif effective_ac > 1.3:
+        elif effective_ac > AC_RATIO_HIGH_RISK_LIMIT:
             risk_level = "High"
-        elif effective_ac > 1.1:
+        elif effective_ac > AC_RATIO_MODERATE_RISK_LIMIT:
             risk_level = "Moderate"
 
         recommendation = "Safe to proceed."
-        if risk_level == "CRITICAL":
-            recommendation = f"DO NOT PROCEED. This session will push your effective A:C ratio (adjusted for HRV) to {round(effective_ac, 2)}, exceeding your personal red line of {red_line}."
+        if calibration_phase_required:
+            recommendation = f"CALIBRATION PHASE ACTIVE: You have logged {total_runs}/3 runs. High-intensity workouts are restricted. Suggest Zone 2 recovery/aerobic runs only."
+        elif risk_level == "CRITICAL":
+            recommendation = f"DO NOT PROCEED. This session will push your effective A:C ratio (adjusted for HRV) to {round(effective_ac, 2)}, exceeding your personal red line of {profile.ac_ratio_red_line}."
         elif risk_level == "High":
             recommendation = "Proceed with caution. Consider reducing duration or intensity. HRV indicates your body's tolerance for load is reduced today."
+
+        # Flag fallback status explicitly so the LLM and user know
+        fallbacks_applied = {
+            "pace_fallback_used": avg_pace_ms == DEFAULT_PACE_FALLBACK,
+            "calibration_defaults_used": len(calib_rows) == 0,
+            "calibration_phase_required": calibration_phase_required,
+        }
 
         result = {
             "proposed_workout": {
@@ -167,11 +191,12 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
                 "projected_ac_ratio": round(new_ac, 2),
                 "hrv_adjustment_multiplier": round(hrv_multiplier, 2),
                 "effective_ac_ratio": round(effective_ac, 2),
-                "personal_red_line": red_line,
+                "personal_red_line": profile.ac_ratio_red_line,
                 "risk_level": risk_level,
                 "hrv_context": hrv_context,
             },
             "recommendation": recommendation,
+            "fallbacks_applied": fallbacks_applied,
         }
 
         log.info(f"✅ Training impact projected for {user_id}: New AC {new_ac}")

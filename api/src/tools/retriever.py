@@ -397,7 +397,17 @@ def _retrieve_biometric_data_cached(
 
             # V3.6 Precision Hybrid (Event-Aware Trend Detection)
             query_tel_series = f"""
-            WITH base AS (
+            WITH session_stats AS (
+                SELECT 
+                    activity_id,
+                    AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
+                    AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
+                FROM `{project_id}.{dataset}.latest_activity_telemetry` t
+                WHERE t.activity_id IN ({ids_str})
+                  {f" AND t.user_id = '{user_id}'" if user_id else ""}
+                GROUP BY activity_id
+            ),
+            base AS (
                 SELECT 
                     t.activity_id, 
                     t.activity_name,
@@ -416,8 +426,15 @@ def _retrieve_biometric_data_cached(
                     t.gap_mps as gap,
                     t.performance_condition as perf,
                     t.run_walk_index as rw_idx,
-                    CASE WHEN t.power_w > 180 OR t.hr_bpm > p.custom_z2_max THEN 1 ELSE 0 END as is_work
+                    -- Dynamic WORK classification without any hardcoded thresholds
+                    CASE 
+                        WHEN s.avg_power IS NOT NULL AND t.power_w >= s.avg_power THEN 1
+                        WHEN s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND (t.cadence_spm + IFNULL(t.fractional_cadence, 0)) >= s.avg_cadence THEN 1
+                        WHEN s.avg_power IS NULL AND s.avg_cadence IS NULL AND t.hr_bpm > COALESCE(p.custom_z2_max, 165) THEN 1
+                        ELSE 0 
+                    END as is_work
                 FROM `{project_id}.{dataset}.latest_activity_telemetry` t
+                JOIN session_stats s ON t.activity_id = s.activity_id
                 JOIN `{project_id}.{dataset}.user_profile` p ON t.user_id = p.user_id
                 WHERE t.activity_id IN ({ids_str}) 
                   AND t.timestamp_ms >= {thirty_days_ago_ms}
@@ -505,12 +522,18 @@ def _retrieve_biometric_data_cached(
                 hr_drift_str = ""
                 gct_drift_str = ""
                 if row.duration_sec > 180:
-                    hr_drift = ((row.hr_end_avg - row.hr_start_avg) / row.hr_start_avg * 100) if row.hr_start_avg else 0
-                    gct_drift = (
-                        ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100) if row.gct_start_avg else 0
+                    hr_drift = (
+                        ((row.hr_end_avg - row.hr_start_avg) / row.hr_start_avg * 100)
+                        if row.hr_start_avg and row.hr_end_avg is not None
+                        else 0
                     )
-                    hr_drift_str = f" ({hr_drift:+.1f}% drift)"
-                    gct_drift_str = f" ({gct_drift:+.1f}% drift)"
+                    gct_drift = (
+                        ((row.gct_end_avg - row.gct_start_avg) / row.gct_start_avg * 100)
+                        if row.gct_start_avg and row.gct_end_avg is not None
+                        else 0
+                    )
+                    hr_drift_str = f" ({hr_drift:+.1f}% drift)" if hr_drift else ""
+                    gct_drift_str = f" ({gct_drift:+.1f}% drift)" if gct_drift else ""
 
                 metrics = [
                     f"DUR:{dur_min}min",
@@ -584,6 +607,18 @@ def _retrieve_biometric_data_cached(
     if not context.get("recent_activities"):
         context["recent_activities"] = [{"info": "No activity history found in Data Lake."}]
 
+    # Count valid running activities to determine if calibration phase is needed
+    running_activities = [
+        a for a in context.get("recent_activities", []) if isinstance(a, dict) and a.get("type") == "running"
+    ]
+    calibration_phase_required = len(running_activities) < 3
+    context["calibration_guardrails"] = {
+        "calibration_phase_required": calibration_phase_required,
+        "running_activities_logged": len(running_activities),
+        "required_runs": 3,
+        "instruction": "If calibration_phase_required is True, recommend a 1-2 week Calibration Phase of Zone 2 runs only and use Karvonen formula for initial targets.",
+    }
+
     # AC Ratio Fallback Logic
     status = context.get("training_status")
     if not status or not status.get("acute_load") or status.get("acute_load") == "null":
@@ -602,10 +637,14 @@ def _retrieve_biometric_data_cached(
                 "metric_used": fallback["metric_used"],
                 "vo2max": status.get("vo2max") if status else None,
                 "info": f"Generated via {fallback['metric_used'].upper()} fallback algorithm.",
+                "fallback_applied": True,
             }
             context["training_status"] = new_status
         else:
-            context["training_status"] = {"info": "No training status available and insufficient history for fallback."}
+            context["training_status"] = {
+                "info": "No training status available and insufficient history for fallback.",
+                "fallback_applied": False,
+            }
 
     if not context.get("sleep"):
         context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}

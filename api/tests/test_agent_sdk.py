@@ -18,7 +18,7 @@ async def test_agent_invocation():
     from typing import Any, cast
 
     initial_state = {"messages": [HumanMessage(content="Hello coach, how am I doing?")]}
-    result = await graph.ainvoke(cast(Any, initial_state))
+    result = await graph.ainvoke(cast(Any, initial_state), config={"configurable": {"thread_id": "test_thread"}})
 
     assert "messages" in result
     assert len(result["messages"]) > 1

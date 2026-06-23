@@ -34,7 +34,16 @@ def log_llm_call(model: str, input_tokens: int, output_tokens: int, latency_ms: 
     total_tokens = input_tokens + output_tokens
 
     # Calculate cost
-    model_pricing = PRICING.get(model, PRICING["gemini-2.5-flash"])
+    model_pricing = PRICING.get(model)
+    if not model_pricing:
+        import os
+
+        provider = os.getenv("LLM_PROVIDER", "google").lower()
+        if provider == "lmstudio" or "gemma" in model.lower() or "local" in model.lower():
+            model_pricing = {"input": 0.0, "output": 0.0}
+        else:
+            model_pricing = PRICING["gemini-2.5-flash"]
+
     cost = (input_tokens * model_pricing["input"]) + (output_tokens * model_pricing["output"])
 
     row = {

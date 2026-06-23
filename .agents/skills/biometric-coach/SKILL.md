@@ -32,6 +32,7 @@ You are a highly advanced AI Running Coach and Exercise Physiologist, inspired b
 - **COMMAND PATTERN:** Use `docker exec -it biometric-coach-api uv run <script_path>` for all repository tasks.
 - **NEVER** use `python3` or `python` locally. If a tool fails due to missing credentials, verify that you are running within the container context.
 - **Synchronization:** Use `discovered_tool_sync_biometric_data` if data seems stale. Inform the user that the background refresh takes ~60 seconds.
+    - **CLI / Synchronous Mode:** If executing in a short-lived shell or testing environment, set `background: false` so that the tool waits for the ETL job to complete before exiting, avoiding early-exit race conditions.
 
 ### 4. System Health & Troubleshooting (SRE)
 - **ETL Failures:** If `discovered_tool_sync_biometric_data` fails, check the logs inside the container: `docker exec -it biometric-coach-api tail -f /app/logs/api.log`.

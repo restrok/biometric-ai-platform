@@ -44,7 +44,7 @@ async def test_finops_integration():
     print("\nInvoking Agent...")
 
     # Run the graph
-    result = await graph.ainvoke(cast(Any, inputs))
+    result = await graph.ainvoke(cast(Any, inputs), config={"configurable": {"thread_id": "test_thread"}})
 
     # Verify usage_stats in result
     usage = result.get("usage_stats", {})
