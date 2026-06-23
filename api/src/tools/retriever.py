@@ -609,15 +609,14 @@ def _retrieve_biometric_data_cached(
 
     # Count valid running activities to determine if calibration phase is needed
     running_activities = [
-        a for a in context.get("recent_activities", [])
-        if isinstance(a, dict) and a.get("type") == "running"
+        a for a in context.get("recent_activities", []) if isinstance(a, dict) and a.get("type") == "running"
     ]
     calibration_phase_required = len(running_activities) < 3
     context["calibration_guardrails"] = {
         "calibration_phase_required": calibration_phase_required,
         "running_activities_logged": len(running_activities),
         "required_runs": 3,
-        "instruction": "If calibration_phase_required is True, recommend a 1-2 week Calibration Phase of Zone 2 runs only and use Karvonen formula for initial targets."
+        "instruction": "If calibration_phase_required is True, recommend a 1-2 week Calibration Phase of Zone 2 runs only and use Karvonen formula for initial targets.",
     }
 
     # AC Ratio Fallback Logic

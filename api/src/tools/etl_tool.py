@@ -62,4 +62,3 @@ def sync_biometric_data(
     except Exception as e:
         log.error(f"❌ ETL sync failed to trigger or run: {e}")
         return f"Error executing synchronization: {e}"
-

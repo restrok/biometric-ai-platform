@@ -96,7 +96,9 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
                 hrv_context = f"HRV ({latest_hrv}ms) is below baseline ({baseline_low}ms). Risk multiplier of {round(hrv_multiplier, 2)}x applied."
             elif hrv_status == "UNBALANCED":
                 hrv_multiplier = profile.hrv_unbalanced_risk_multiplier
-                hrv_context = f"HRV Status is UNBALANCED. Systemic stress detected. {hrv_multiplier}x risk multiplier applied."
+                hrv_context = (
+                    f"HRV Status is UNBALANCED. Systemic stress detected. {hrv_multiplier}x risk multiplier applied."
+                )
 
         # 3. Fetch User's Avg Pace in specific HR zones, falling back to overall running average
         query_pace = f"""
@@ -175,7 +177,7 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
         fallbacks_applied = {
             "pace_fallback_used": avg_pace_ms == DEFAULT_PACE_FALLBACK,
             "calibration_defaults_used": len(calib_rows) == 0,
-            "calibration_phase_required": calibration_phase_required
+            "calibration_phase_required": calibration_phase_required,
         }
 
         result = {

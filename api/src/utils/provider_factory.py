@@ -53,16 +53,18 @@ def get_provider(
     if token_json:
         try:
             tokens = json.loads(token_json)
-            
+
             # Save to standard local path so it can be managed and written back by the SDK
             token_dir = Path.home() / ".garminconnect"
             token_dir.mkdir(parents=True, exist_ok=True)
             token_file = token_dir / f"garmin_tokens_{user_id or 'default'}.json"
-            
+
             with open(token_file, "w") as f:
                 json.dump(tokens, f, indent=4)
 
-            log.info(f"Successfully loaded and synchronized Garmin tokens for {user_id or 'default'} from Secret Manager")
+            log.info(
+                f"Successfully loaded and synchronized Garmin tokens for {user_id or 'default'} from Secret Manager"
+            )
             provider = GarminProvider(token_path=token_file)
             _providers[cache_key] = provider
             return provider

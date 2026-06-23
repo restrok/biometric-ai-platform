@@ -1,5 +1,3 @@
-
-
 from google.cloud import bigquery
 
 from src.utils.config import get_config, setup_environment
@@ -14,6 +12,7 @@ def list_users():
     results = list(client.query(query).result())
     for row in results:
         print(f"ID: {row.user_id}, Name: {row.display_name}")
+
 
 if __name__ == "__main__":
     list_users()

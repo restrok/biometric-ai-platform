@@ -39,7 +39,7 @@ def calculate_ac_ratio(activities: list[dict[str, Any]], metric_type: str = "wor
     # We normalize to midnight to avoid partial day issues.
     today = pd.Timestamp.now().normalize()
     start_chronic = today - pd.Timedelta(days=28)
-    
+
     # Reindex to ensure we have every day from 28 days ago until today.
     # This correctly injects zero-load days if the user hasn't trained recently.
     full_idx = pd.date_range(start=start_chronic, end=today, freq="D")
@@ -120,11 +120,11 @@ class UserCalibrationProfile(BaseModel):
         for r in rows:
             m_type = getattr(r, "marker_type", None)
             m_val = getattr(r, "marker_value", None)
-            
+
             if m_type is None and isinstance(r, dict):
                 m_type = r.get("marker_type")
                 m_val = r.get("marker_value")
-                
+
             if m_type and m_val is not None:
                 if m_type in cls.model_fields:
                     data[m_type] = float(m_val)
@@ -135,4 +135,3 @@ class UserCalibrationProfile(BaseModel):
                 elif m_type == "hrv_unbalanced_risk_multiplier":
                     data["hrv_unbalanced_risk_multiplier"] = float(m_val)
         return cls(**data)
-
