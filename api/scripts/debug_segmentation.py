@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 from google.cloud import bigquery
+from typing import Any
 
 from src.utils.config import setup_environment
 
@@ -39,7 +40,7 @@ def main():
         "temperature_c",
         "elevation_m",
     ]
-    agg_map = {c: "mean" for c in cols if c in df_raw.columns}
+    agg_map: dict[str, Any] = {c: "mean" for c in cols if c in df_raw.columns}
     agg_map.update({"hr_bpm": ["mean", "max"], "power_w": ["mean", "max"]})
 
     raw_15s = df_raw.groupby("time_block_15s").agg(agg_map)

@@ -1,5 +1,6 @@
 import logging
 import threading
+from typing import Any
 
 from langchain_core.tools import tool
 
@@ -30,7 +31,7 @@ def sync_biometric_data(
           blocking. If False, executes synchronously.
     """
     try:
-        sync_args = {
+        sync_args: dict[str, Any] = {
             "user_id": user_id,
             "days_back": days_back,
             "start_date": start_date,

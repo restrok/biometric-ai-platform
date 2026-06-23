@@ -86,10 +86,10 @@ def get_provider(
                 _providers[cache_key] = provider
                 return provider
 
-    token_file = find_token_file()
-    if not token_file:
+    found_token_file = find_token_file()
+    if not found_token_file:
         raise Exception("Authentication token not found in Secret Manager or local file.")
 
-    provider = GarminProvider(token_path=token_file)
+    provider = GarminProvider(token_path=found_token_file)
     _providers[cache_key] = provider
     return provider
