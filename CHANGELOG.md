@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-06-23
+### 🚀 Features
+- **Local LLM Support (LM Studio):** Added support for running the multi-agent system on local LLM endpoints using LM Studio (`LLM_PROVIDER=lmstudio`) or OpenAI-compatible proxies. Implemented request kwarg sanitization to strip Google-specific parameters (`automatic_function_calling`).
+- **Refactored Physiological Calculations:** Centralized calculations and thresholds in `src/utils/physiology.py`. Refactored `calculate_ac_ratio` to calculate the Acute:Chronic Workload Ratio (ACWR) accurately by reindexing data up to today (avoiding skew from rest days). Added `UserCalibrationProfile` Pydantic model to load personal calibration thresholds dynamically.
+- **WORK Segment Telemetry Filtering:** Refactored `analyze_activity_efficiency` to filter activity telemetry for active "WORK" segments, replacing hardcoded limits with dynamic session-average metrics.
+- **Enhanced Semantic Memory Extractor:** Added strict exclusion filters to prevent the memory extraction agent from saving coaching scripts, system instructions, or calendar commands.
+- **Synchronous ETL Flag:** Added `background` (boolean) parameter to `sync_biometric_data` to permit synchronous runs, resolving race conditions in test environments and short-lived CLI tools.
+- **Coaching Adaptive Apparel & Thermal Compensation:** Added project-level rules in `.agents/AGENTS.md` for athlete running clothing preferences (shorts in cold weather) with 4 custom physiological warm-up and temperature protection strategies.
+
+### 🩹 Fixes & Refactoring
+- **GCP Token Metadata / Local Model Pricing:** Resolved bugs in `finops.py` during local model token extraction.
+- **File Handle Leak Cleanups:** Fixed open file handle leaks in `provider_factory.py` when loading and caching user-specific Garmin tokens.
+- **Static Type Safety:** Added type annotations and resolved 5 critical `mypy` static type checking violations across scripts and tool definitions.
+- **Codebase Re-formatting:** Standardized codebase styling using `ruff format` and sorted imports via `ruff check --fix`.
+
 ## [0.4.1] - 2026-06-01
 ### Changed
 - **Model Rollback:** Reverted default model to `gemma-4-31b-it` due to free-tier rate limits on Gemini 3.1 Flash Lite.

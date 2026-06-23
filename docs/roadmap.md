@@ -38,6 +38,7 @@ This roadmap tracks the evolution of the platform from a simple Garmin extractor
 - [x] **Asynchronous Onboarding**: Automated 90-day historical backfill managed via Firestore state without blocking the agent.
 - [x] **SRE-Driven Data Science**: BigQuery **Dry Run** evaluation and direct schema injection to ensure query cost efficiency and sub-second reasoning latency.
 - [x] **Physiological Fallback Engine**: Automated AC Ratio calculation (Watts > TRIMP > Vol) that overrides missing device-native metrics.
+- [x] **Local LLM Support (LM Studio)**: Integration with local **LM Studio** and OpenAI-compatible API providers, including automatic kwarg sanitization for non-Google backends.
 - [ ] **Precision Nutrition 2.0**: Integration of real-time telemetry (HR per step) for exact carbohydrate and protein replenishment math.
 - [ ] **Cross-User Pattern Discovery**: (Admin only) Discovering global performance trends across the entire athlete population.
 - [ ] **Wearable-Agnostic Interface**: Expansion to Suunto and Whoop via the [Standardized Provider Interface](./architecture-plan.md).
