@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.5.0] - 2026-06-23
+## [0.4.2] - 2026-06-23
 ### 🚀 Features
 - **Local LLM Support (LM Studio):** Added support for running the multi-agent system on local LLM endpoints using LM Studio (`LLM_PROVIDER=lmstudio`) or OpenAI-compatible proxies. Implemented request kwarg sanitization to strip Google-specific parameters (`automatic_function_calling`).
 - **Refactored Physiological Calculations:** Centralized calculations and thresholds in `src/utils/physiology.py`. Refactored `calculate_ac_ratio` to calculate the Acute:Chronic Workload Ratio (ACWR) accurately by reindexing data up to today (avoiding skew from rest days). Added `UserCalibrationProfile` Pydantic model to load personal calibration thresholds dynamically.
