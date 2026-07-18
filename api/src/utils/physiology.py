@@ -1,6 +1,7 @@
 """Physiological calculation utilities and calibration schemas for load and recovery analysis."""
 
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 # Centralized physiological default thresholds and fallbacks

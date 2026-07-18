@@ -107,10 +107,7 @@ def retrieve_biometric_data(
     Returns:
         A dictionary containing the user's biometric context.
     """
-    if force_reload:
-        cache_key = f"{user_id}_forced_{time.time()}"
-    else:
-        cache_key = _get_cache_key(user_id)
+    cache_key = f"{user_id}_forced_{time.time()}" if force_reload else _get_cache_key(user_id)
     return _retrieve_biometric_data_cached(
         project_id,
         dataset,

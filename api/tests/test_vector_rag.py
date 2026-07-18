@@ -15,9 +15,9 @@ log = logging.getLogger(__name__)
 # Load environment
 setup_environment()
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-import pytest
 from src.agent.graph import graph
 
 
