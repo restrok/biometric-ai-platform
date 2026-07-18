@@ -868,22 +868,29 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
         content = ai_msg.content
         if isinstance(content, list):
             content = "\n".join([str(p.get("text", "")) for p in content if isinstance(p, dict)])
-        
+
         # Filter automated responses
         automated_keywords = [
-            "sincronización ha comenzado", 
-            "garmin sync ha comenzado", 
+            "sincronización ha comenzado",
+            "garmin sync ha comenzado",
             "confirmación de sincronización",
-            "enlace de autorización", 
+            "enlace de autorización",
             "iniciar sesión",
             "critical system error",
-            "no nuggets found"
+            "no nuggets found",
         ]
         content_lower = str(content).lower()
         if any(kw in content_lower for kw in automated_keywords):
             log.info("🧠 Skipping memory extraction for automated system response.")
-            return {"messages": [SystemMessage(content="Skipped memory extraction for automated response.", additional_kwargs={"is_memory_extraction": True})]}
-            
+            return {
+                "messages": [
+                    SystemMessage(
+                        content="Skipped memory extraction for automated response.",
+                        additional_kwargs={"is_memory_extraction": True},
+                    )
+                ]
+            }
+
         messages.append(SystemMessage(content=f"COACH RESPONDED: {content}"))
 
     # Debug log the messages

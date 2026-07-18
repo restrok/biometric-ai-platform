@@ -246,7 +246,9 @@ def _retrieve_biometric_data_cached(
                     else:
                         fallback_data["vo2max"] = None
                     fallback_data["fallback_applied"] = True
-                    fallback_data["info"] = f"Generated via BigQuery ACWR view ({fallback_data.get('metric_used', 'unknown')})."
+                    fallback_data["info"] = (
+                        f"Generated via BigQuery ACWR view ({fallback_data.get('metric_used', 'unknown')})."
+                    )
                     log.info(f"⏱️ BigQuery: Fallback training status retrieved in {time.time() - t0:.2f}s")
                     return "training_status", fallback_data
 
