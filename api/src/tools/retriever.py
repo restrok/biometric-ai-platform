@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 from src.utils.firestore import get_firestore_client, get_user_profile
-from src.utils.physiology import calculate_ac_ratio
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -61,6 +60,7 @@ class RetrieverInput(BaseModel):
     start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
     end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
     user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
+    force_reload: bool = Field(False, description="Bypass cache and force reload from BigQuery")
 
 
 def _get_cache_key(user_id: str | None) -> str:
@@ -87,6 +87,7 @@ def retrieve_biometric_data(
     start_date: str | None = None,
     end_date: str | None = None,
     user_id: str | None = None,
+    force_reload: bool = False,
 ) -> dict[str, Any]:
     """Retrieves the user's latest biometric context from BigQuery in parallel.
 
@@ -101,11 +102,12 @@ def retrieve_biometric_data(
         start_date: Start date for filtering (YYYY-MM-DD).
         end_date: End date for filtering (YYYY-MM-DD).
         user_id: Internal user ID.
+        force_reload: Bypass cache and force reload from BigQuery.
 
     Returns:
         A dictionary containing the user's biometric context.
     """
-    cache_key = _get_cache_key(user_id)
+    cache_key = f"{user_id}_forced_{time.time()}" if force_reload else _get_cache_key(user_id)
     return _retrieve_biometric_data_cached(
         project_id,
         dataset,
@@ -210,7 +212,7 @@ def _retrieve_biometric_data_cached(
             return "recent_activities", []
 
     def fetch_training_status() -> tuple[str, dict[str, Any] | None]:
-        """Fetches the latest training status from BigQuery (OLAP)."""
+        """Fetches the latest training status from BigQuery (OLAP), falling back to the view if needed."""
         try:
             t0 = time.time()
             query_status = f"""
@@ -220,8 +222,40 @@ def _retrieve_biometric_data_cached(
                 ORDER BY date DESC LIMIT 1
             """
             status_rows = list(client.query(query_status).result())
+            status_data = dict(status_rows[0]) if status_rows else None
+
+            # Fallback check: if no status, or acute/chronic load is missing, query the BQ view
+            if (
+                not status_data
+                or not status_data.get("acute_load")
+                or str(status_data.get("acute_load")).strip().lower() in ["null", "none", ""]
+            ):
+                log.info("🔄 Garmin Training Status missing or invalid. Querying BigQuery view fallback...")
+                query_fallback = f"""
+                    SELECT 'Calculated (Fallback)' AS status, acute_load, chronic_load, ac_ratio, metric_used
+                    FROM `{project_id}.{dataset}.view_calculated_training_status`
+                    {user_where}
+                    ORDER BY date DESC LIMIT 1
+                """
+                fallback_rows = list(client.query(query_fallback).result())
+                if fallback_rows:
+                    fallback_data = dict(fallback_rows[0])
+                    # Keep vo2max if we had it
+                    if status_data and "vo2max" in status_data:
+                        fallback_data["vo2max"] = status_data["vo2max"]
+                    else:
+                        fallback_data["vo2max"] = None
+                    fallback_data["fallback_applied"] = True
+                    fallback_data["info"] = (
+                        f"Generated via BigQuery ACWR view ({fallback_data.get('metric_used', 'unknown')})."
+                    )
+                    log.info(f"⏱️ BigQuery: Fallback training status retrieved in {time.time() - t0:.2f}s")
+                    return "training_status", fallback_data
+
             log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
-            return "training_status", (dict(status_rows[0]) if status_rows else None)
+            if status_data:
+                status_data["fallback_applied"] = False
+            return "training_status", status_data
         except Exception as e:
             log.warning(f"❌ Training status retrieval failed: {e}")
             return "training_status", None
@@ -619,32 +653,12 @@ def _retrieve_biometric_data_cached(
         "instruction": "If calibration_phase_required is True, recommend a 1-2 week Calibration Phase of Zone 2 runs only and use Karvonen formula for initial targets.",
     }
 
-    # AC Ratio Fallback Logic
-    status = context.get("training_status")
-    if not status or not status.get("acute_load") or status.get("acute_load") == "null":
-        activities = context.get("recent_activities", [])
-        if isinstance(activities, list) and len(activities) > 1 and "info" not in activities[0]:
-            log.info("🔄 Garmin Training Status missing. Calculating physiological fallback...")
-            # Try to calculate using Power first, then TRIMP
-            fallback = calculate_ac_ratio(activities, metric_type="work")
-
-            # Enrich training status with fallback data
-            new_status = {
-                "status": "Calculated (Fallback)",
-                "acute_load": str(fallback["acute_load"]),
-                "chronic_load": str(fallback["chronic_load"]),
-                "ac_ratio": fallback["ac_ratio"],
-                "metric_used": fallback["metric_used"],
-                "vo2max": status.get("vo2max") if status else None,
-                "info": f"Generated via {fallback['metric_used'].upper()} fallback algorithm.",
-                "fallback_applied": True,
-            }
-            context["training_status"] = new_status
-        else:
-            context["training_status"] = {
-                "info": "No training status available and insufficient history for fallback.",
-                "fallback_applied": False,
-            }
+    # Ensure training_status is populated
+    if not context.get("training_status"):
+        context["training_status"] = {
+            "info": "No training status available and insufficient history for fallback.",
+            "fallback_applied": False,
+        }
 
     if not context.get("sleep"):
         context["sleep"] = {"info": "Sleep data not found (normal if watch not worn during sleep)."}

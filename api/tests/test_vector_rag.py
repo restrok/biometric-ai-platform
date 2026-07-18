@@ -15,11 +15,13 @@ log = logging.getLogger(__name__)
 # Load environment
 setup_environment()
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from src.agent.graph import graph
 
 
+@pytest.mark.skip(reason="Requires AI Studio API key")
 def test_vector_rag_flow():
     """
     Tests the agent's ability to search the vector store for exercise science.
