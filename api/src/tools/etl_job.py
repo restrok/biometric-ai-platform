@@ -121,48 +121,48 @@ def upsert_to_bq(
     staging_table_name = f"{table_name}_staging_{int(datetime.now().timestamp())}"
     staging_table_id = f"{PROJECT_ID}.{DATASET_NAME}.{staging_table_name}"
 
-    # 1. Load data to staging table
-    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-    client.load_table_from_dataframe(df, staging_table_id, job_config=job_config).result()
-
-    # 2. Sync Schema (Add missing columns to target table)
-    staging_table = client.get_table(staging_table_id)
     try:
-        target_table = client.get_table(target_table_id)
-        target_fields = {f.name for f in target_table.schema}
-        missing_fields = [f for f in staging_table.schema if f.name not in target_fields]
+        # 1. Load data to staging table
+        job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+        client.load_table_from_dataframe(df, staging_table_id, job_config=job_config).result()
 
-        if missing_fields:
-            log.info(
-                f"Updating schema for {table_name}: adding fields {[f.name for f in missing_fields]} (user: {user_id})."
-            )
-            new_schema = list(target_table.schema) + missing_fields
-            target_table.schema = new_schema
-            client.update_table(target_table, ["schema"])
-    except Exception as e:
-        log.warning(f"Schema sync for {table_name} failed: {e}. Attempting MERGE anyway.")
+        # 2. Sync Schema (Add missing columns to target table)
+        staging_table = client.get_table(staging_table_id)
+        try:
+            target_table = client.get_table(target_table_id)
+            target_fields = {f.name for f in target_table.schema}
+            missing_fields = [f for f in staging_table.schema if f.name not in target_fields]
 
-    # 3. Perform MERGE
-    cols = [field.name for field in staging_table.schema]
-    update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]])
-    insert_cols = ", ".join([f"`{c}`" for c in cols])
-    insert_values = ", ".join([f"S.`{c}`" for c in cols])
+            if missing_fields:
+                log.info(
+                    f"Updating schema for {table_name}: adding fields {[f.name for f in missing_fields]} (user: {user_id})."
+                )
+                new_schema = list(target_table.schema) + missing_fields
+                target_table.schema = new_schema
+                client.update_table(target_table, ["schema"])
+        except Exception as e:
+            log.warning(f"Schema sync for {table_name} failed: {e}. Attempting MERGE anyway.")
 
-    on_clause = f"T.`{unique_key}` = S.`{unique_key}`"
-    if user_id:
-        on_clause += " AND T.`user_id` = S.`user_id`"
+        # 3. Perform MERGE
+        cols = [field.name for field in staging_table.schema]
+        update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]])
+        insert_cols = ", ".join([f"`{c}`" for c in cols])
+        insert_values = ", ".join([f"S.`{c}`" for c in cols])
 
-    merge_query = f"""
-        MERGE `{target_table_id}` T
-        USING `{staging_table_id}` S
-        ON {on_clause}
-        WHEN MATCHED THEN
-            UPDATE SET {update_set}
-        WHEN NOT MATCHED THEN
-            INSERT ({insert_cols}) VALUES ({insert_values})
-    """
+        on_clause = f"T.`{unique_key}` = S.`{unique_key}`"
+        if user_id:
+            on_clause += " AND T.`user_id` = S.`user_id`"
 
-    try:
+        merge_query = f"""
+            MERGE `{target_table_id}` T
+            USING `{staging_table_id}` S
+            ON {on_clause}
+            WHEN MATCHED THEN
+                UPDATE SET {update_set}
+            WHEN NOT MATCHED THEN
+                INSERT ({insert_cols}) VALUES ({insert_values})
+        """
+
         client.query(merge_query).result()
         log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}' (user: {user_id}).")
     finally:

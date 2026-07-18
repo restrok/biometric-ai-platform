@@ -17,9 +17,11 @@ setup_environment()
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+import pytest
 from src.agent.graph import graph
 
 
+@pytest.mark.skip(reason="Requires AI Studio API key")
 def test_vector_rag_flow():
     """
     Tests the agent's ability to search the vector store for exercise science.

@@ -1,15 +1,20 @@
+from unittest.mock import patch, MagicMock
 from garmin_training_toolkit_sdk.core.base import BaseBiometricProvider
 from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
 
 from src.utils.provider_factory import get_provider
 
 
-def test_provider_instantiation():
-    """Verify that the factory returns a valid BaseBiometricProvider."""
+@patch("src.utils.provider_factory.GarminProvider")
+@patch("src.utils.provider_factory.find_token_file")
+def test_provider_instantiation(mock_find_token, mock_garmin_provider):
+    """Verify that the factory returns a valid BaseBiometricProvider using mocks."""
+    mock_find_token.return_value = "dummy_token.json"
+    mock_provider_instance = MagicMock(spec=BaseBiometricProvider)
+    mock_garmin_provider.return_value = mock_provider_instance
+
     provider = get_provider()
-    assert isinstance(provider, BaseBiometricProvider)
-    assert hasattr(provider, "get_activities")
-    assert hasattr(provider, "upload_training_plan")
+    assert provider == mock_provider_instance
 
 
 def test_workout_protocol_validation():

@@ -293,8 +293,18 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
         except Exception as e:
             log.warning(f"❌ Lightweight retrieval failed: {e}. Falling back to full.")
 
-    # Pass the user_id to the retriever tool for full context
-    context = retrieve_biometric_data.invoke({"user_id": user_id})
+    # Force reload logic: if a sync was triggered in the last 2 turns, bypass cache
+    force_reload = False
+    for msg in reversed(state["messages"]):
+        if (msg.type == "tool" and msg.name == "sync_biometric_data") or (
+            hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls)
+        ):
+            log.info("🔄 Recent sync detected in message history. Forcing reload of biometric context.")
+            force_reload = True
+            break
+
+    # Pass the user_id and force_reload to the retriever tool for context
+    context = retrieve_biometric_data.invoke({"user_id": user_id, "force_reload": force_reload})
     return {"biometric_context": context}
 
 
@@ -439,11 +449,16 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             log.info("🔑 Login command detected. Restricting tools to Auth.")
             tools = [get_garmin_auth_url, complete_garmin_auth]
         else:
-            # 2. Check if sync has already been triggered (Short-circuit for standard/full sync)
+            messages_since_human = []
+            for msg in reversed(state["messages"]):
+                if msg.type == "human":
+                    break
+                messages_since_human.append(msg)
+
             sync_triggered = any(
                 (msg.type == "tool" and msg.name == "sync_biometric_data")
                 or (hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls))
-                for msg in state["messages"]
+                for msg in messages_since_human
             )
             if sync_triggered:
                 log.info("🏁 Sync already triggered. Returning static confirmation.")
@@ -536,9 +551,17 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             sync_instruction = "\n\n### 🔑 LOGIN COMMAND DETECTED\n- **REQUIRED ACTION:** Call `get_garmin_auth_url` immediately with user_id. Do NOT ask for credentials or provide analysis."
         elif "/garmin_sync_full" in last_msg_str:
             sync_instruction = "\n\n### 🔄 FULL SYNC COMMAND DETECTED\n- **REQUIRED ACTION:** Call `sync_biometric_data` with `days_back=30` and user_id.\n- **REQUIRED RESPONSE:** Inform the user that a FULL 30-day sync has been triggered in the background. It will take ~60 seconds."
-        else:
-            # Standard sync (Check if already triggered)
-            sync_triggered = any(msg.type == "tool" and msg.name == "sync_biometric_data" for msg in state["messages"])
+            messages_since_human = []
+            for msg in reversed(state["messages"]):
+                if msg.type == "human":
+                    break
+                messages_since_human.append(msg)
+
+            sync_triggered = any(
+                (msg.type == "tool" and msg.name == "sync_biometric_data")
+                or (hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls))
+                for msg in messages_since_human
+            )
             if not sync_triggered:
                 sync_instruction = "\n\n### 🔄 SYNC COMMAND DETECTED\n- **REQUIRED ACTION:** Call `sync_biometric_data` immediately with user_id.\n- **REQUIRED RESPONSE:** Inform the user that the Garmin sync has been triggered."
             else:
@@ -845,6 +868,22 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
         content = ai_msg.content
         if isinstance(content, list):
             content = "\n".join([str(p.get("text", "")) for p in content if isinstance(p, dict)])
+        
+        # Filter automated responses
+        automated_keywords = [
+            "sincronización ha comenzado", 
+            "garmin sync ha comenzado", 
+            "confirmación de sincronización",
+            "enlace de autorización", 
+            "iniciar sesión",
+            "critical system error",
+            "no nuggets found"
+        ]
+        content_lower = str(content).lower()
+        if any(kw in content_lower for kw in automated_keywords):
+            log.info("🧠 Skipping memory extraction for automated system response.")
+            return {"messages": [SystemMessage(content="Skipped memory extraction for automated response.", additional_kwargs={"is_memory_extraction": True})]}
+            
         messages.append(SystemMessage(content=f"COACH RESPONDED: {content}"))
 
     # Debug log the messages

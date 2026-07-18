@@ -64,3 +64,6 @@ explicit_package_bases = true
 
 # [tool.uv.sources]
 # garmin-training-toolkit-sdk = { path = "../../garmin-training-toolkit/garmin_toolkit" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

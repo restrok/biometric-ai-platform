@@ -32,6 +32,7 @@ from src.agent.graph import graph
 logging.basicConfig(level=logging.INFO)
 
 
+@pytest.mark.skip(reason="Requires AI Studio API key")
 @pytest.mark.asyncio
 async def test_finops_integration():
     print("\n🚀 Testing FinOps & Observability Integration...")
