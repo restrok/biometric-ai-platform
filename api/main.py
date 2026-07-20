@@ -69,6 +69,7 @@ from src.routers import tools
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
 from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
+from src.utils.telemetry import get_langfuse_callback, init_otel
 
 
 # --- Background Scheduler ---
@@ -157,6 +158,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Biometric AI API", lifespan=lifespan)
 app.include_router(tools.router)
 
+# ── Telemetry ──────────────────────────────────────────────────────────────
+# OpenTelemetry: instruments every HTTP request on this FastAPI app.
+# Langfuse:      callbacks are injected per-request in the endpoints below.
+init_otel(app)
+
 
 # --- OpenAI Compatibility Models ---
 class OpenAIChatMessage(BaseModel):
@@ -230,7 +236,14 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
     initial_state = {"messages": [HumanMessage(content=last_query)], "user_id": user_id}
 
     # Add config for checkpointer (required for MemorySaver)
-    config: RunnableConfig = {"configurable": {"thread_id": user_id}}
+    # Langfuse: inject callback handler to trace this agent run end-to-end.
+    langfuse_cb = get_langfuse_callback(
+        session_id=user_id,
+        user_id=user_id,
+        tags=["chat", "openai-compat"],
+    )
+    callbacks = [langfuse_cb] if langfuse_cb else []
+    config: RunnableConfig = {"configurable": {"thread_id": user_id}, "callbacks": callbacks}
 
     # 1. Handle Streaming Mode
     if req.stream:
