@@ -1,173 +1,131 @@
-# 🏃‍♂️ Biometric AI Platform
-**The World's First Agentic AI Running Coach Powered by Your Raw Telemetry**
+# 🏃 Biometric AI Platform: Multi-Agent Sports Physiology Engine
 
-Stop guessing with generic training plans. The **Biometric AI Platform** transforms your fitness data into a Product-Grade AI Ecosystem. By ingesting second-by-second telemetry into a high-performance Lakehouse, our brand-agnostic AI agent analyzes your form, cardiovascular drift, and recovery state to prescribe truly personalized, science-backed coaching.
+An enterprise-grade, multi-agent sports physiology platform built with **LangGraph**, **FastAPI**, and a **Hybrid GCP Lakehouse (Firestore + BigQuery + BigQuery Vector Search)**.
+
+The platform continuously analyzes endurance athlete telemetry (heart rate, power, Ground Contact Time, vertical oscillation, HRV, sleep) to provide personalized, science-grounded coaching, prevent overtraining, and automatically synchronize structured workouts to Garmin devices.
 
 ---
 
 ## 📸 See It In Action (Example Prompts)
 
-Experience how the AI Coach reasons across multiple biometric domains. Run these in your preferred OpenAI-compatible client (like OpenCode or Chatbox).
+Experience how the AI Coach reasons across multiple biometric domains. Run these in your preferred client or via the REST API.
 
-### 1. Holistic Recovery & Readiness (Gemini 2.5 Flash)
-> "Look at my sleep quality from last night and my HRV trend. Given today's workout, am I ready for a high-intensity session tomorrow?"
-*Highlights: Multi-domain context retrieval (Sleep + HRV + Activity).*
+### 1. Holistic Recovery & Readiness (Gemma 4 31B)
+> *"Look at my sleep quality from last night and my HRV trend. Given today's workout, am I ready for a high-intensity session tomorrow?"*  
+*Highlights: Multi-domain parallel fan-out (Sleep + Injury + Nutrition).*  
 ![Recovery Readiness Analysis](./docs/assets/screenshots/telemetry-analysis.png)
 
 ### 2. Deep Telemetry & Sprint Analysis (Gemma 4 31B)
-> "Analyze my last run activity. How was my efficiency during that final sprint?"
-*Highlights: Stage analysis, mechanical cost vs. power output.*
+> *"Analyze my last run activity. How was my efficiency during that final sprint?"*  
+*Highlights: Mechanical cost vs. power output, Ground Contact Time drift.*  
 ![Sprint Efficiency](./docs/assets/screenshots/gemma-sprint-analysis.png)
 
-### 3. Scientific Grounding (RAG) (Gemini 3)
-> "Explain the 'Polarized 80/20' model and why you keep warning me about the 'Gray Zone.' Use my recent data to show my Z3 time."
-*Highlights: BigQuery Vector Search and exercise science principles.*
+### 3. Scientific Grounding (BigQuery Vector Search RAG)
+> *"Explain the 'Polarized 80/20' model and why you keep warning me about the 'Gray Zone.' Use my recent data to show my Z3 time."*  
+*Highlights: BigQuery Vector Search with Gemini Embeddings (`gemini-embedding-001`).*  
 ![Scientific RAG](./docs/assets/screenshots/scientific-rag.png)
 
-### 4. Mechanical vs. Metabolic Efficiency
-> "Compare the 'HR per Step' and 'Ground Contact Time' of my last run vs. last week. Am I becoming more efficient?"
-*Highlights: Long-term trend analysis and mechanical form metrics.*
-
-### 5. Goal-Driven Planning & Action
-> "My goal is sub-50 mins on July 15. Build a 4-workout block for next week that prioritizes my lactate threshold and sync it to my calendar."
-*Highlights: Complex planning and automated device synchronization.*
-
 ---
 
-## 🛠️ Developer Visibility & Integration
+## 🏛️ Architecture Overview
 
-The platform is built for transparency and ease of integration, providing sub-second feedback for both the athlete and the engineer.
+The platform uses a **Parallel Multi-Agent Fan-Out** topology powered by **LangGraph**:
 
-### Real-time Telemetry Logs
-Every request triggers a high-precision reasoning loop. Our backend logs detailed telemetry stages and FinOps costs (tokens, latency, USD) in real-time.
-![Technical Observability](./docs/assets/screenshots/api-logs.png)
-
-### Client Integration: OpenCode (Harness)
-Because the API is fully OpenAI-Compatible, you can plug your AI Coach into professional development tools like **OpenCode** in seconds.
-
-**Example `.opencode/opencode.json`:**
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "lmstudio": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Biometric Coach (Local)",
-      "options": {
-        "baseURL": "http://<YOUR_PI_IP>:8000/v1"
-      },
-      "models": {
-        "biometric-coach": {
-          "name": "biometric-coach"
-        }
-       }
-    }
-  }
-}
+```mermaid
+graph TD
+    User([Athlete / API Client]) --> Router[Intent Router & Guardrails]
+    
+    Router -- Data Needed --> Retriever[Hybrid Context Retriever]
+    
+    subgraph Parallel Specialist Analysis Phase
+        Retriever --> Injury[🛡️ Injury Prevention Agent]
+        Retriever --> Sleep[🧬 Sleep & Circadian Agent]
+        Retriever --> Nutrition[⚖️ Metabolic Nutrition Agent]
+    end
+    
+    Injury --> HeadCoach[🧠 Head Coach Synthesis Node]
+    Sleep --> HeadCoach
+    Nutrition --> HeadCoach
+    
+    HeadCoach -- Exercise Science RAG --> RAGTool[📚 Exercise Science Vector Search]
+    RAGTool -- Gemini Embeddings + VECTOR_SEARCH --> BQVec[(BigQuery Vector Store)]
+    
+    HeadCoach -- Exploratory Need --> DataSci[🧪 Data Scientist Agent]
+    DataSci -- 1. Dry Run --> BQ[(BigQuery Lakehouse)]
+    DataSci -- 2. Execute SQL --> BQ
+    DataSci --> HeadCoach
+    
+    HeadCoach -- Workout Actions --> Tools[Device / Profile Tools]
+    Tools -- Dynamic Updates --> FS[(Firestore OLTP)]
+    
+    HeadCoach --> ResponseValidator[Response & Safety Gating]
+    ResponseValidator --> MemoryExtractor[🧠 Semantic Memory Extractor]
+    MemoryExtractor -- Persist Golden Nuggets --> FS
+    ResponseValidator --> User
 ```
 
 ---
 
-## ✨ Why Choose Biometric AI?
+## 🚀 Key Architectural Features
 
-### 🔬 Science-Backed, Not Generic
-Generic plans don't know when you slept poorly. Our AI Coach uses **Agentic RAG (Retrieval-Augmented Generation)** grounded in exercise physiology to dynamically adjust your training based on the **Polarized (80/20) Model**.
-
-### 🫀 Second-by-Second Telemetry Analysis
-We don't just look at your average heart rate. The platform analyzes your **Ground Contact Time (GCT), Vertical Oscillation, and Power (Watts)** to detect subtle form breakdowns and Aerobic Decoupling (Cardiac Drift)—catching fatigue before it becomes an injury.
-
-### 🛡️ Safety & Intelligence First
-- **The "3-Run Rule":** The AI won't overreact to a single "hero run" or a bad day. It looks for reproducible physiological evidence across multiple activities before shifting your zones.
-- **Smart Calibration:** New to the platform? The engine initiates a "Discovery Mode," prescribing easy runs until your unique baseline is established.
-- **Recovery Overrides:** If your HRV tanks or your Sleep Score drops below 60, the AI intervenes, prioritizing rest over performance goals.
-
----
-
-## 💎 Quality & Standards
-
-This project maintains high engineering standards to ensure reliability and performance.
-
-- **Type Safety:** All Python code is strictly typed and verified using `mypy`.
-- **Linting & Formatting:** We use `ruff` for ultra-fast Python linting and formatting.
-- **Infrastructure Safety:** Terraform configurations are formatted and validated with `terraform fmt`.
-- **English Standard:** All documentation, comments, and code are written in professional US English.
+- **Parallel Multi-Agent Topology:** LangGraph fan-out execution across specialized agents (**Injury Prevention**, **Sleep & Circadian**, **Metabolic Nutrition**), cutting inference latency by ~60%.
+- **BigQuery Vector Search RAG:** Scientific literature RAG powered by `VECTOR_SEARCH` (COSINE distance) and `gemini-embedding-001` embeddings over exercise science research.
+- **SQL-Native ACWR Engine:** BigQuery View (`view_calculated_training_status`) computing rolling 7-day Acute and 28-day Chronic Workload Ratios (Power kJ & TRIMP) dynamically.
+- **Immune Radar (Statistical Detection):** Proactive stress monitoring using 21-day rolling Z-scores of HRV and Resting Heart Rate to flag early signs of illness or overreaching.
+- **Hybrid Lakehouse (SRE Optimized):**
+  - **Firestore (OLTP):** Sub-second ACID source of truth for user profiles, HR zones, active goals, and semantic golden nuggets.
+  - **BigQuery (OLAP):** High-throughput analytical data lake storing FIT time-series telemetry and FinOps audit logs.
+- **SRE Cost Guardrails:** The Data Scientist agent executes BigQuery dry runs before querying, enforcing a **500 MB scan ceiling** to prevent cloud cost overruns.
+- **Semantic Memory Extractor:** Captures factual constraints (injuries, preferences, gear) post-session and persists them in Firestore.
+- **Leak-Proof ETL Pipelines:** Ingestion jobs (`etl_job.py`) process incremental deltas with strict `try...finally` staging table lifecycles.
+- **FinOps Audit Logging:** Tracks model tokens, execution latency, and estimated USD cost per invocation (`finops_logs`).
 
 ---
 
-## 🚀 Key Features
-- **Parallel multi-agent Topology:** Optimized LangGraph orchestration. Specialist agents (**Injury, Sleep, Nutrition**) execute in parallel (Fan-out/Fan-in), reducing request latency by ~60%.
-- **Immune Radar (Statistical Detection):** Proactive health monitoring using **Z-Scores** (Standard Deviations). Detects systemic stress and impending illness by analyzing 21-day rolling averages of HRV and RHR.
-- **Hybrid Storage Engine (SRE Optimized):** Separates concerns using the [OLTP vs. OLAP Design Guidelines](./docs/database-design-guidelines.md):
-    - **Firestore (OLTP):** Ultra-low latency source of truth for agent context, user profiles, and active goals.
-    - **BigQuery (OLAP):** High-performance data lake for massive telemetry analysis and historical intelligence.
-- **SRE-Driven Data Science:** The Data Scientist agent autonomously evaluates BigQuery **Dry Runs** to estimate query costs and optimize partitioning before execution.
-- **Semantic Conversation Memory:** Persists factual "Golden Nuggets" (preferences, constraints, quirks) across sessions in Firestore, ending the "goldfish effect" of standard LLMs.
-- **Autonomous Discovery Phase:** Background engine that proactively audits the last 30-90 days of data during each sync to find hidden patterns and persistent 'Success Markers'.
-- **Asynchronous Onboarding:** Automated 90-day historical backfill for new users triggered via Firestore state, ensuring a seamless first-run experience without blocking the agent.
-- **Pre-Flight Health Scan:** Mandatory safety gating that cross-references A:C Ratio, HRV, and subjective logs before prescribing any workout.
-- **Physiological AC Ratio Fallback:** Automated multi-variable workload calculation (Power > TRIMP > Volume) that activates when device-native metrics are missing, ensuring 100% analytical continuity.
-- **Universal Hardware Support:** Built on an LLM-Native SDK (`garmin-training-toolkit-sdk`), allowing seamless integration with Garmin.
-- **Zero-CLI Dynamic Auth:** Link your Garmin account directly through the chat interface using secure SSO.
+## 📚 Documentation Index
+
+For detailed guides, architecture plans, and API specs, explore our [Docs Index](docs/README.md):
+
+- [🚀 Getting Started Guide](docs/guides/getting-started.md) — Local installation & environment setup.
+- [📐 System Architecture Overview](docs/architecture/system-overview.md) — Multi-agent graph, agent mandates, and topology.
+- [🗄️ Database Architecture](docs/architecture/database-design.md) — Firestore OLTP, BigQuery OLAP, and ACWR view logic.
+- [🛡️ SRE & Observability Standards](docs/architecture/sre-and-observability.md) — Dry-run guardrails, OpenTelemetry, and FinOps audit logs.
+- [🛠️ Developer Guide](docs/guides/developer-guide.md) — Testing (`pytest`), linting (`ruff`), and typing (`mypy`).
+- [🔌 External Agent API Guide](docs/guides/external-agent-api-guide.md) — REST API endpoints and multi-tenant `X-User-ID` headers.
 
 ---
 
-## 📚 Documentation
+## ⚡ Quick Start
 
-Want to look under the hood or set this up for yourself? We have you covered:
-
-- [🚀 Getting Started (Setup & Installation)](docs/getting-started.md)
-- [🛠️ Developer Guide (Architecture & Workflows)](docs/developer-guide.md)
-- [🏗️ Docker Deployment](#-docker-deployment)
-
----
-
-## 🏗️ Docker Deployment
-
-The platform is fully containerized for easy deployment on home servers or Raspberry Pis.
-
-### Prerequisites
-- Docker and Docker Compose installed.
-- Your `.env` file configured in `api/`.
-- Your `garmin_tokens.json` initialized (if not using Secret Manager).
-
-### Quick Start
-```bash
-# Start the API and the background token refresh loop
-docker-compose up -d --build
-```
-
-The API will be available at `http://localhost:8000`. The container includes an automatic hourly token refresh loop to ensure your session remains active without manual intervention.
-
----
-- [📐 Architecture Plan](docs/architecture-plan.md)
-- [🎯 Project Goals](docs/goal.md)
-- [🗺️ Development Roadmap](docs/roadmap.md)
-
----
-
-## ⚡ Get Started
-
-Ready to train? The full installation takes about 5 minutes. See the [🚀 Full Setup Guide](docs/getting-started.md) for detailed instructions.
-
-### 1. Install & Environment
+### 1. Installation & Dependencies
 ```bash
 git clone https://github.com/restrok/biometric-ai-platform.git
 cd biometric-ai-platform/api
 uv sync
 ```
-*Note: Create a `.env` in `api/` with your `GOOGLE_CLOUD_PROJECT` and `GOOGLE_API_KEY`.*
 
-### 2. Authenticate & Ingest
-```bash
-# Generate your Garmin session tokens
-uv run python -m garmin_training_toolkit_sdk.auth
-
-# Sync your historical data to BigQuery
-PYTHONPATH=src uv run python src/tools/etl_job.py
+### 2. Environment Setup
+Create a `.env` file in `api/`:
+```env
+GOOGLE_CLOUD_PROJECT=bio-intelligence-dev
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+LLM_PROVIDER=google
+CORE_MODEL_NAME=gemma-4-31b-it
+DS_MODEL_NAME=gemma-4-31b-it
 ```
 
-### 3. Start the AI Coach
+### 3. Run Quality Verification & Tests
+```bash
+# Run pytest suite
+PYTHONPATH=. uv run pytest
+
+# Check code formatting & types
+uv run ruff check
+uv run mypy .
+```
+
+### 4. Start the Service
 ```bash
 uv run python main.py
 ```
-*Access the interactive API console at: `http://localhost:8000/docs`*
+*Access the interactive API documentation at: `http://localhost:8000/docs`*
