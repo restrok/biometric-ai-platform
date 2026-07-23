@@ -1,22 +1,22 @@
 # Database Architecture & Storage Guidelines
 
-The **Biometric AI Platform** utilizes a **Hybrid Lakehouse Architecture**, strictly decoupling low-latency transactional state (**Firestore OLTP**) from high-throughput time-series telemetry analytics (**BigQuery OLAP**).
+The **Biometric AI Platform** utilizes a **Hybrid Lakehouse Architecture**, strictly decoupling low-latency transactional state (**Firestore OLTP**) from high-throughput time-series telemetry analytics & vector search (**BigQuery OLAP + BigQuery Vector Search**).
 
 ```
                         ┌──────────────────────────────────────────────┐
                         │             Biometric Data Stream            │
                         └──────────────────────┬───────────────────────┘
                                                │
-                         ┌─────────────────────┴─────────────────────┐
-                         ▼                                           ▼
-           ┌───────────────────────────┐               ┌───────────────────────────┐
-           │      Firestore (OLTP)     │               │      BigQuery (OLAP)      │
-           ├───────────────────────────┤               ├───────────────────────────┤
-           │ • User Profiles & HR Zones│               │ • Second-by-Second FIT Data│
-           │ • Active Training Goals   │               │ • HRV & RHR Time Series   │
-           │ • Semantic Memories       │               │ • 21-Day Baseline Rolling │
-           │ • Session Tokens & State  │               │ • LLM FinOps Audit Logs   │
-           └───────────────────────────┘               └───────────────────────────┘
+           ┌───────────────────────────────────┼───────────────────────────────────┐
+           ▼                                   ▼                                   ▼
+┌───────────────────────────┐     ┌───────────────────────────┐     ┌───────────────────────────┐
+│      Firestore (OLTP)     │     │      BigQuery (OLAP)      │     │  BigQuery Vector Store    │
+├───────────────────────────┤     ├───────────────────────────┤     ├───────────────────────────┤
+│ • User Profiles & HR Zones│     │ • Second-by-Second FIT    │     │ • Exercise Science Base   │
+│ • Active Training Goals   │     │ • HRV & RHR Time Series   │     │ • gemini-embedding-001    │
+│ • Semantic Memories       │     │ • 21-Day Baseline Rolling │     │ • VECTOR_SEARCH (COSINE)  │
+│ • Session Tokens & State  │     │ • LLM FinOps Audit Logs   │     │ • 80/20 Polarized Knowledge│
+└───────────────────────────┘     └───────────────────────────┘     └───────────────────────────┘
 ```
 
 ---
@@ -32,15 +32,16 @@ Firestore handles real-time operational state requiring document-level ACID guar
 
 ---
 
-## 2. Analytical Data Lakehouse (BigQuery OLAP)
+## 2. Analytical & Vector Lakehouse Layer (BigQuery OLAP)
 
-BigQuery stores immutable historical telemetry, second-by-second FIT activity streams, and system audit logs.
+BigQuery stores immutable historical telemetry, second-by-second FIT activity streams, system audit logs, and vector embeddings for scientific RAG.
 
 ### Key Tables & Views:
 - **`recent_activities`**: Aggregated workout telemetry (`duration_sec`, `distance_m`, `avg_hr`, `avg_power`, `user_id`, `date`).
 - **`daily_physiology`**: Daily health metrics (`all_day_stress_avg`, `body_battery_end_of_day`, `resting_heart_rate`).
 - **`hrv_history`**: Nightly HRV time series metrics.
 - **`view_calculated_training_status`**: SQL-native analytical view computing rolling 7-day Acute and 28-day Chronic workload ratios (ACWR) dynamically via window functions.
+- **`exercise_science_knowledge_base`**: Vector table queried by `search_exercise_science` tool using `VECTOR_SEARCH(..., distance_type => 'COSINE')` and `models/gemini-embedding-001`.
 - **`finops_logs`**: Token consumption, latency, and USD cost tracking per agent execution.
 
 ---
