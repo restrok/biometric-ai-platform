@@ -127,17 +127,24 @@ def get_langfuse_callback(
         return None
 
     try:
-        from langfuse.callback import CallbackHandler
+        try:
+            from langfuse.callback import CallbackHandler
+        except ImportError:
+            from langfuse.langchain import CallbackHandler
 
         host = os.getenv("LANGFUSE_HOST") or os.getenv("LANGFUSE_BASE_URL") or "https://cloud.langfuse.com"
-        handler = CallbackHandler(
-            public_key=public_key,
-            secret_key=secret_key,
-            host=host,
-            session_id=session_id,
-            user_id=user_id,
-            tags=tags or [],
-        )
+        try:
+            handler = CallbackHandler(
+                public_key=public_key,
+                secret_key=secret_key,
+                host=host,
+                session_id=session_id,
+                user_id=user_id,
+                tags=tags or [],
+            )
+        except TypeError:
+            # Langfuse v4+ CallbackHandler reads keys directly from environment variables
+            handler = CallbackHandler()
         log.info(f"🔭 Langfuse: callback handler created (session={session_id}, user={user_id})")
         return handler
 
