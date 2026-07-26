@@ -11,6 +11,7 @@ locals {
     "iam.googleapis.com",            # Gestión de identidades y permisos
     "cloudquotas.googleapis.com",
     "firestore.googleapis.com", # Base de datos OLTP para memoria semántica
+    "cloudtrace.googleapis.com",      # API de Google Cloud Trace para telemetría
   ]
 }
 
