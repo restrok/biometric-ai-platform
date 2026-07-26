@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 # OpenTelemetry – FastAPI HTTP Instrumentation
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def init_otel(app: "FastAPI") -> None:
     """
     Initialises OpenTelemetry SDK and instruments the FastAPI application.
@@ -38,13 +39,13 @@ def init_otel(app: "FastAPI") -> None:
 
     try:
         from opentelemetry import trace
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import (
             BatchSpanProcessor,
             ConsoleSpanExporter,
         )
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         # 1. Create a TracerProvider with service metadata
         resource = Resource.create(
@@ -69,7 +70,9 @@ def init_otel(app: "FastAPI") -> None:
                 provider.add_span_processor(BatchSpanProcessor(exporter))
                 log.info(f"📡 OpenTelemetry: exporting to GCP Cloud Trace (Project: {project_id})")
             except Exception as e:
-                log.warning(f"📡 OpenTelemetry: failed to init GCP Cloud Trace exporter ({e}). Falling back to console.")
+                log.warning(
+                    f"📡 OpenTelemetry: failed to init GCP Cloud Trace exporter ({e}). Falling back to console."
+                )
                 provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
         else:
             # Export spans to console (integrate with existing JSON log pipeline)
@@ -83,7 +86,7 @@ def init_otel(app: "FastAPI") -> None:
         FastAPIInstrumentor.instrument_app(
             app,
             tracer_provider=provider,
-            excluded_urls="/health",   # skip heartbeat spam
+            excluded_urls="/health",  # skip heartbeat spam
         )
 
         log.info("📡 OpenTelemetry: FastAPI instrumented ✅")
@@ -97,6 +100,7 @@ def init_otel(app: "FastAPI") -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Langfuse – LLM / Agent Tracing
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def get_langfuse_callback(
     session_id: str | None = None,
