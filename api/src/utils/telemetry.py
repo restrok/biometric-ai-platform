@@ -27,8 +27,9 @@ def init_otel(app: "FastAPI") -> None:
     """
     Initialises OpenTelemetry SDK and instruments the FastAPI application.
 
-    All spans are exported to the console (stdout) via ConsoleSpanExporter,
-    which makes them visible in the existing structured-log pipeline.
+    If GCP_TRACE_ENABLED=true, spans are sent to Google Cloud Trace using
+    CloudTraceSpanExporter. Otherwise, spans are exported to the console (stdout)
+    via ConsoleSpanExporter, making them visible in the structured-log pipeline.
     Set ENABLE_OTEL=false to completely disable this instrumentation.
     """
     if os.getenv("ENABLE_OTEL", "true").lower() == "false":
@@ -55,8 +56,25 @@ def init_otel(app: "FastAPI") -> None:
         )
         provider = TracerProvider(resource=resource)
 
-        # 2. Export spans to console (integrate with existing JSON log pipeline)
-        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        # 2. Select Exporter based on configuration
+        gcp_trace_enabled = os.getenv("GCP_TRACE_ENABLED", "false").lower() == "true"
+        if gcp_trace_enabled:
+            try:
+                from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+                # CloudTraceSpanExporter automatically detects credentials and GCP project
+                # via GOOGLE_APPLICATION_CREDENTIALS / metadata server.
+                project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+                exporter = CloudTraceSpanExporter(project_id=project_id)
+                provider.add_span_processor(BatchSpanProcessor(exporter))
+                log.info(f"📡 OpenTelemetry: exporting to GCP Cloud Trace (Project: {project_id})")
+            except Exception as e:
+                log.warning(f"📡 OpenTelemetry: failed to init GCP Cloud Trace exporter ({e}). Falling back to console.")
+                provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        else:
+            # Export spans to console (integrate with existing JSON log pipeline)
+            provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+            log.info("📡 OpenTelemetry: exporting to console (ConsoleSpanExporter)")
 
         # 3. Register as the global provider
         trace.set_tracer_provider(provider)
@@ -68,7 +86,7 @@ def init_otel(app: "FastAPI") -> None:
             excluded_urls="/health",   # skip heartbeat spam
         )
 
-        log.info("📡 OpenTelemetry: FastAPI instrumented ✅ (ConsoleSpanExporter)")
+        log.info("📡 OpenTelemetry: FastAPI instrumented ✅")
 
     except ImportError as e:
         log.warning(f"📡 OpenTelemetry: packages missing, skipping – {e}")
