@@ -32,3 +32,10 @@ resource "google_project_iam_member" "api_firestore_user" {
   role    = "roles/datastore.user"
   member  = "serviceAccount:${google_service_account.api_sa.email}"
 }
+
+# Grant Cloud Trace Agent (to write telemetry traces)
+resource "google_project_iam_member" "api_cloudtrace_agent" {
+  project = var.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.api_sa.email}"
+}

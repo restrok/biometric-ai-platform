@@ -102,6 +102,14 @@ def setup_environment():
     env_path = Path(__file__).parent.parent.parent / ".env"
     load_dotenv(env_path)
 
+    # Handle GOOGLE_APPLICATION_CREDENTIALS container vs host path mismatch
+    gac = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if gac and not os.path.exists(gac):
+        docker_fallback = "/root/.config/gcloud/application_default_credentials.json"
+        if os.path.exists(docker_fallback):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = docker_fallback
+            log.info(f"🔄 Resolved GOOGLE_APPLICATION_CREDENTIALS to container path: {docker_fallback}")
+
     # Set system timezone if TZ is provided
     tz = os.getenv("TZ")
     if tz:

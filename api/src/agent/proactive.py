@@ -9,6 +9,7 @@ from src.tools.retriever import retrieve_biometric_data
 from src.utils.config import get_config
 from src.utils.firestore import get_user_profile, update_user_profile
 from src.utils.notifications import send_proactive_notification
+from src.utils.telemetry import get_langfuse_callback
 
 log = logging.getLogger(__name__)
 
@@ -137,7 +138,14 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             },
         )
         # Use user_id as thread_id for continuity
-        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}})
+        # Langfuse: tag this run as 'proactive' so it's filterable in the dashboard
+        langfuse_cb = get_langfuse_callback(
+            session_id=f"{user_id}-proactive",
+            user_id=user_id,
+            tags=["proactive", "planner"],
+        )
+        callbacks = [langfuse_cb] if langfuse_cb else []
+        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}, "callbacks": callbacks})
         graph.invoke(initial_state, config=config)
 
     except Exception as e:
@@ -181,7 +189,14 @@ def _run_discovery_phase(user_id: str):
             },
         )
         # The graph will now route this to the DataScientist node because of the exploratory tool calls
-        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}})
+        # Langfuse: tag this run as 'discovery' for separate analysis in the dashboard
+        langfuse_cb = get_langfuse_callback(
+            session_id=f"{user_id}-discovery",
+            user_id=user_id,
+            tags=["proactive", "discovery", "data-scientist"],
+        )
+        callbacks = [langfuse_cb] if langfuse_cb else []
+        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}, "callbacks": callbacks})
         graph.invoke(initial_state, config=config)
 
     except Exception as e:
