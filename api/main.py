@@ -237,13 +237,24 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
 
     # Add config for checkpointer (required for MemorySaver)
     # Langfuse: inject callback handler to trace this agent run end-to-end.
+    session_id = f"session-{user_id}"
     langfuse_cb = get_langfuse_callback(
-        session_id=user_id,
+        session_id=session_id,
         user_id=user_id,
         tags=["chat", "openai-compat"],
     )
     callbacks = [langfuse_cb] if langfuse_cb else []
-    config: RunnableConfig = {"configurable": {"thread_id": user_id}, "callbacks": callbacks}
+    config: RunnableConfig = {
+        "configurable": {"thread_id": user_id},
+        "callbacks": callbacks,
+        "metadata": {
+            "langfuse_session_id": session_id,
+            "langfuse_user_id": user_id,
+            "langfuse_tags": ["chat", "openai-compat"],
+            "session_id": session_id,
+            "user_id": user_id,
+        },
+    }
 
     # 1. Handle Streaming Mode
     if req.stream:
