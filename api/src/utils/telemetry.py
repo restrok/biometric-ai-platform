@@ -129,10 +129,11 @@ def get_langfuse_callback(
     try:
         from langfuse.callback import CallbackHandler
 
+        host = os.getenv("LANGFUSE_HOST") or os.getenv("LANGFUSE_BASE_URL") or "https://cloud.langfuse.com"
         handler = CallbackHandler(
             public_key=public_key,
             secret_key=secret_key,
-            host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+            host=host,
             session_id=session_id,
             user_id=user_id,
             tags=tags or [],
