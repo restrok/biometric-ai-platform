@@ -54,40 +54,43 @@ class RetrieverInput(BaseModel):
 
     project_id: str | None = Field(None, description="GCP Project ID")
     dataset: str | None = Field(None, description="BigQuery Dataset ID")
-    limit: int = Field(20, description="Max number of activities to retrieve.")
+    limit: int = Field(5, description="Max number of activities to retrieve.")
     offset: int = Field(0, description="Number of activities to skip (for paging).")
     activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
     start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
     end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
     user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
     force_reload: bool = Field(False, description="Bypass cache and force reload from BigQuery")
+    include_telemetry: bool = Field(False, description="Include detailed timeseries summary for runs.")
 
 
-def _get_cache_key(user_id: str | None) -> str:
+def _get_cache_key(user_id: str | None, include_telemetry: bool = False) -> str:
     """Generates a cache key for retrieve_biometric_data.
 
     TTL is approximately 5 minutes (300 seconds).
 
     Args:
         user_id: The internal ID of the user.
+        include_telemetry: Whether telemetry timeseries is included.
 
     Returns:
         A string representing the cache key.
     """
-    return f"{user_id}_{int(time.time() / 300)}"
+    return f"{user_id}_{include_telemetry}_{int(time.time() / 300)}"
 
 
 @tool(args_schema=RetrieverInput)
 def retrieve_biometric_data(
     project_id: str | None = None,
     dataset: str | None = None,
-    limit: int = 20,
+    limit: int = 5,
     offset: int = 0,
     activity_type: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
     user_id: str | None = None,
     force_reload: bool = False,
+    include_telemetry: bool = False,
 ) -> dict[str, Any]:
     """Retrieves the user's latest biometric context from BigQuery in parallel.
 
@@ -103,11 +106,12 @@ def retrieve_biometric_data(
         end_date: End date for filtering (YYYY-MM-DD).
         user_id: Internal user ID.
         force_reload: Bypass cache and force reload from BigQuery.
+        include_telemetry: Include detailed timeseries summary for runs.
 
     Returns:
         A dictionary containing the user's biometric context.
     """
-    cache_key = f"{user_id}_forced_{time.time()}" if force_reload else _get_cache_key(user_id)
+    cache_key = f"{user_id}_forced_{time.time()}" if force_reload else _get_cache_key(user_id, include_telemetry)
     return _retrieve_biometric_data_cached(
         project_id,
         dataset,
@@ -117,6 +121,7 @@ def retrieve_biometric_data(
         start_date,
         end_date,
         user_id,
+        include_telemetry,
         cache_key,
     )
 
@@ -131,6 +136,7 @@ def _retrieve_biometric_data_cached(
     start_date: str | None,
     end_date: str | None,
     user_id: str | None,
+    include_telemetry: bool,
     cache_key: str,
 ) -> dict[str, Any]:
     """Cached implementation of biometric data retrieval.
@@ -298,6 +304,9 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             profile = get_user_profile(user_id)
+            if profile and isinstance(profile, dict):
+                profile = dict(profile)
+                profile.pop("personal_calibration_profile", None)
             log.info(f"⏱️ Firestore: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", profile
         except Exception as e:
@@ -400,8 +409,8 @@ def _retrieve_biometric_data_cached(
             log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
             return "scheduled_workouts", []
 
-    def fetch_semantic_memories() -> tuple[str, list[dict[str, Any]]]:
-        """Fetches active semantic memories from Firestore."""
+    def fetch_semantic_memories() -> tuple[str, list[str]]:
+        """Fetches active semantic memories from Firestore formatted cleanly with date and text."""
         try:
             t0 = time.time()
             db = get_firestore_client()
@@ -411,10 +420,13 @@ def _retrieve_biometric_data_cached(
             memories = []
             for doc in query.stream():
                 m = doc.to_dict()
-                m["id"] = doc.id  # Include the document ID for conflict resolution
-                memories.append(m)
+                updated_at = m.get("updated_at") or m.get("created_at") or ""
+                date_str = f"[{str(updated_at)[:10]}] " if updated_at else ""
+                memory_text = m.get("memory_text", "").strip()
+                if memory_text:
+                    memories.append(f"{date_str}{memory_text}")
 
-            log.info(f"⏱️ Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s")
+            log.info(f"⏱️ Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s ({len(memories)} entries)")
             return "semantic_memories", memories
         except Exception as e:
             log.warning(f"❌ Semantic memory retrieval failed: {e}")
@@ -422,6 +434,11 @@ def _retrieve_biometric_data_cached(
 
     def fetch_telemetry(activity_ids: list[str]) -> tuple[str, str]:
         """Fetches and aggregates telemetry for the last 3 activities."""
+        if not include_telemetry:
+            return (
+                "last_3_runs_timeseries_summary",
+                "Detailed timeseries omitted for performance (available on-demand via analyze_activity_efficiency tool).",
+            )
         if not activity_ids:
             return "last_3_runs_timeseries_summary", "No detailed telemetry found."
         try:

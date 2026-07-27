@@ -303,8 +303,16 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
             force_reload = True
             break
 
-    # Pass the user_id and force_reload to the retriever tool for context
-    context = retrieve_biometric_data.invoke({"user_id": user_id, "force_reload": force_reload})
+    # Pass the user_id, force_reload, limit=5, and on-demand telemetry to the retriever tool for context
+    include_telemetry = intent in ["activities", "discovery"]
+    context = retrieve_biometric_data.invoke(
+        {
+            "user_id": user_id,
+            "force_reload": force_reload,
+            "limit": 5,
+            "include_telemetry": include_telemetry,
+        }
+    )
     return {"biometric_context": context}
 
 
@@ -567,9 +575,21 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             else:
                 sync_instruction = "\n\n### ✅ SYNC ALREADY TRIGGERED\n- **INSTRUCTION:** You have already triggered the sync. Provide the final confirmation message now."
 
+    # Filter out system error messages and automated memory extraction messages from history
+    history = [
+        m
+        for m in state["messages"]
+        if "CRITICAL SYSTEM ERROR" not in str(m.content)
+        and not getattr(m, "additional_kwargs", {}).get("is_memory_extraction")
+    ]
+
+    # Keep at most last 8 messages in conversational history to prevent context explosion
+    if len(history) > 8:
+        history = history[-8:]
+
     messages = [
         SystemMessage(content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt + sync_instruction)
-    ] + list(state["messages"])
+    ] + history
 
     # DEBUG: Print full prompt sent to LLM
     log.debug("DEBUG: --- FULL PROMPT SENT TO LLM ---")
