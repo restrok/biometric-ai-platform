@@ -871,9 +871,15 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     context = state.get("biometric_context", {})
     existing_memories = context.get("semantic_memories", [])
     if existing_memories:
-        mem_str = "\n".join(
-            [f"[ID: {m['id']}] {m['memory_type'].upper()}: {m['memory_text']}" for m in existing_memories]
-        )
+        mem_lines = []
+        for m in existing_memories:
+            if isinstance(m, dict):
+                mem_lines.append(
+                    f"[ID: {m.get('id', '')}] {str(m.get('memory_type', '')).upper()}: {m.get('memory_text', '')}"
+                )
+            else:
+                mem_lines.append(str(m))
+        mem_str = "\n".join(mem_lines)
         messages.append(SystemMessage(content=f"Existing Semantic Memories:\n{mem_str}"))
 
     # Include ONLY the last Human message and the last AI response (the interaction to analyze)
