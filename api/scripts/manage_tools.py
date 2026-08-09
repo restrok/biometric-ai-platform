@@ -25,7 +25,7 @@ from src.tools.garmin_uploader import (
     remove_workout,
     upload_training_plan,
 )
-from src.tools.historical_biometrics import generate_historical_report
+from src.tools.historical_biometrics import generate_historical_report, query_macro_load_history
 from src.tools.memory_manager import (
     retire_semantic_memory,
     save_semantic_memory,
@@ -63,6 +63,7 @@ TOOLS = {
     "retire_semantic_memory": retire_semantic_memory,
     "project_training_impact": project_training_impact,
     "generate_historical_report": generate_historical_report,
+    "query_macro_load_history": query_macro_load_history,
     "generate_deep_historical_report": generate_deep_historical_report,
     "execute_exploratory_query": execute_exploratory_query,
     "execute_exploratory_query_dry_run": execute_exploratory_query_dry_run,

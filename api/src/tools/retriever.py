@@ -238,7 +238,7 @@ def _retrieve_biometric_data_cached(
             ):
                 log.info("🔄 Garmin Training Status missing or invalid. Querying BigQuery view fallback...")
                 query_fallback = f"""
-                    SELECT 'Calculated (Fallback)' AS status, acute_load, chronic_load, ac_ratio, metric_used
+                    SELECT 'Calculated (Fallback)' AS status, acute_load, chronic_load, ac_ratio, metric_used, hr_per_step, aerobic_decoupling_pct
                     FROM `{project_id}.{dataset}.view_calculated_training_status`
                     {user_where}
                     ORDER BY date DESC LIMIT 1

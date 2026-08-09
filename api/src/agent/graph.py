@@ -40,7 +40,7 @@ from src.tools.garmin_uploader import (
     remove_workout,
     upload_training_plan,
 )
-from src.tools.historical_biometrics import generate_historical_report
+from src.tools.historical_biometrics import generate_historical_report, query_macro_load_history
 from src.tools.memory_manager import retire_semantic_memory, save_semantic_memory, update_semantic_memory
 from src.tools.predictive_modeler import project_training_impact
 from src.tools.profile_manager import (
@@ -499,6 +499,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             update_user_zones,
             sync_biometric_data,
             generate_historical_report,
+            query_macro_load_history,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
@@ -691,6 +692,7 @@ def tool_node(state: AgentState) -> Any:
             update_user_zones,
             sync_biometric_data,
             generate_historical_report,
+            query_macro_load_history,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,

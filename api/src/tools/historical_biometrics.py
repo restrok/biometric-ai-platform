@@ -244,3 +244,56 @@ async def generate_historical_report(user_id: str, project_id: str | None = None
     except Exception as e:
         log.error(f"❌ Error en generate_historical_report: {e}")
         return json.dumps({"status": "error", "message": str(e)})
+
+
+class MacroLoadHistoryInput(BaseModel):
+    """Input schema for querying macro historical load (weekly/monthly)."""
+
+    user_id: str = Field(..., description="Internal user ID (mandatory).")
+    group_by: str = Field("weekly", description="Aggregation level: 'weekly' or 'monthly' (default 'weekly').")
+    limit_months: int = Field(6, description="Number of months back to query (default 6).")
+
+
+@tool(args_schema=MacroLoadHistoryInput)
+def query_macro_load_history(user_id: str, group_by: str = "weekly", limit_months: int = 6) -> str:
+    """
+    Queries pre-processed BigQuery macro views (view_weekly_load_analytics or view_monthly_load_analytics)
+    to retrieve 1 to 6-month historical training volume, work (kJ), TRIMP, and intensity trends.
+    Optimized for token efficiency when analyzing long-term evolution.
+    """
+    config = get_config()
+    pid = config["project_id"]
+    ds = config["dataset_id"]
+    client = get_bq_client(pid)
+
+    view_name = "view_weekly_load_analytics" if group_by.lower() == "weekly" else "view_monthly_load_analytics"
+    date_col = "week_start_date" if group_by.lower() == "weekly" else "month_start_date"
+    limit_count = limit_months * 4 if group_by.lower() == "weekly" else limit_months
+
+    query = f"""
+        SELECT *
+        FROM `{pid}.{ds}.{view_name}`
+        WHERE user_id = '{user_id}'
+        ORDER BY {date_col} DESC
+        LIMIT {limit_count}
+    """
+    try:
+        rows = list(client.query(query).result())
+        records = [dict(r) for r in rows]
+        for r in records:
+            if date_col in r and r[date_col] is not None:
+                r[date_col] = str(r[date_col])
+
+        return json.dumps(
+            {
+                "user_id": user_id,
+                "group_by": group_by,
+                "view_queried": view_name,
+                "record_count": len(records),
+                "macro_history": records,
+            },
+            indent=2,
+        )
+    except Exception as e:
+        log.error(f"❌ Macro load query failed: {e}")
+        return json.dumps({"error": str(e)})
