@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2026-08-09
+### 🚀 Features
+- **Predictive Multi-Day Workload Simulation (`project_training_impact`):** Transformed workload impact estimation into a multi-day (7 to 14 days) simulation tool. Projects daily Acute Load (7d), Chronic Load (28d/4), and ACWR trajectory for proposed workout schedules, detecting peak ACWR risk (`peak_acwr`) against personal calibration red lines (`ac_ratio_red_line`).
+- **Aerobic Decoupling % & HR per Step Telemetry:** Extended BigQuery view `view_calculated_training_status` to compute `% aerobic decoupling` (Pace/HR drift) and `HR per step` from second-by-second FIT activity telemetry. Updated `retriever.py` to retrieve these metrics automatically.
+- **BigQuery Macro Analytics Views & Tool (`query_macro_load_history`):** Created pre-aggregated BigQuery views `view_weekly_load_analytics` and `view_monthly_load_analytics`. Exposed `query_macro_load_history` tool to retrieve 1 to 6-month historical training volume, work (kJ), TRIMP, and intensity trends in a token-efficient JSON payload (< 1.5 KB).
+- **Proactive Immune Radar & ACWR Alerting Hook (`check_proactive_alerts`):** Added proactive alerting engine evaluating Immune Radar (HRV Z-Score < -1.5 and RHR Z-Score > +1.5) and ACWR Workload Warnings (> 1.35), dispatching notifications via `send_proactive_notification`.
+- **Architecture Documentation Consolidation:** Reorganized all architectural documentation into 3 core standards (`docs/architecture/system-overview.md`, `docs/architecture/database-design.md`, `docs/architecture/sre-and-observability.md`), updated master `docs/README.md`, and archived historical feature plans in `docs/archive/plans/`.
+- **RAG & Agent Guidance Updates:** Updated `.agents/skills/biometric-coach/SKILL.md` and `api/src/agent/prompts.py` to enforce usage of multi-day workload projection, macro load queries, and proactive alert hooks.
+
+### 🩹 Fixes & CI
+- **Ruff Import Sorting:** Fixed import sorting (`I001`) in `graph.py` and `manage_tools.py` ensuring 100% clean CI linting in GitHub Actions.
+
 ## [0.4.2] - 2026-06-23
 ### 🚀 Features
 - **Local LLM Support (LM Studio):** Added support for running the multi-agent system on local LLM endpoints using LM Studio (`LLM_PROVIDER=lmstudio`) or OpenAI-compatible proxies. Implemented request kwarg sanitization to strip Google-specific parameters (`automatic_function_calling`).
