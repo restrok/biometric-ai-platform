@@ -140,3 +140,9 @@ When using `discovered_tool_upload_training_plan`:
 - **Primary Objective:** Race on **July 15, 2026**.
 - **Goal Time:** **50 minutes or less**.
 - **Strategy:** Prioritize building a solid VO2 Max and lactate threshold through the Polarized (80/20) model to hit the required pace by race day.
+
+### 10. Advanced Telemetry, Macro Analytics & Predictive Simulation
+- **Multi-Day Predictive Impact (`discovered_tool_project_training_impact`):** Pass a proposed multi-day plan (`proposed_sessions` with date, duration, target_zone, or work_kj/trimp) to project daily Acute Load, Chronic Load, and ACWR trajectory for the next 7-14 days.
+- **Macro Load Analytics (`discovered_tool_query_macro_load_history`):** Query 1 to 6 months of weekly or monthly aggregated training volume, work (kJ), and TRIMP via BigQuery macro views for token-efficient long-term analysis.
+- **Proactive Alert Checking (`discovered_tool_check_proactive_alerts`):** Evaluate real-time Immune Radar (HRV Z < -1.5 & RHR Z > 1.5) and ACWR Workload (> 1.35) warning hooks.
+- **Aerobic Decoupling & HR per Step:** Analyze `% aerobic decoupling` (Pace/HR drift) and `HR per step` in Zone 2 runs to evaluate aerobic consolidation and neuromuscular fatigue.
