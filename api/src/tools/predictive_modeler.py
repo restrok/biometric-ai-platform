@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 import pandas as pd
 from google.cloud import bigquery
@@ -9,29 +10,48 @@ from pydantic import BaseModel, Field
 
 from src.utils.config import get_config
 from src.utils.physiology import (
-    AC_RATIO_HIGH_RISK_LIMIT,
     AC_RATIO_MODERATE_RISK_LIMIT,
-    DEFAULT_PACE_FALLBACK,
     UserCalibrationProfile,
 )
 
 log = logging.getLogger(__name__)
 
 
-class TrainingImpactInput(BaseModel):
-    """Input schema for predicting training impact."""
+class ProposedSession(BaseModel):
+    """Schema for a single proposed workout session."""
 
-    duration_mins: float = Field(..., description="Estimated duration of the proposed workout in minutes.")
-    avg_hr: float = Field(..., description="Estimated average heart rate for the proposed workout.")
-    user_id: str = Field(..., description="The internal ID of the user.")
+    date: str | None = Field(None, description="Proposed date in YYYY-MM-DD format (defaults to today).")
+    duration_mins: float = Field(..., description="Duration in minutes.")
+    estimated_work_kj: float | None = Field(None, description="Estimated mechanical work in kJ (Power * sec / 1000).")
+    estimated_trimp: float | None = Field(None, description="Estimated TRIMP load.")
+    target_zone: int | None = Field(None, description="Target HR Zone (1-5).")
+    avg_hr: float | None = Field(None, description="Estimated average heart rate.")
 
 
-@tool(args_schema=TrainingImpactInput)
-def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -> str:
+class ProjectTrainingImpactInput(BaseModel):
+    """Input schema for projecting multi-day or single-session training plan workload impact."""
+
+    user_id: str = Field(..., description="The internal ID of the user (mandatory for multi-tenant isolation).")
+    proposed_sessions: list[dict[str, Any]] | None = Field(
+        None, description="List of proposed workout sessions for the next 7-14 days."
+    )
+    duration_mins: float | None = Field(None, description="Single session duration in minutes (legacy/simple mode).")
+    avg_hr: float | None = Field(None, description="Single session average heart rate (legacy/simple mode).")
+    projection_days: int = Field(14, description="Number of simulation days into the future (default 14).")
+
+
+@tool(args_schema=ProjectTrainingImpactInput)
+def project_training_impact(
+    user_id: str,
+    proposed_sessions: list[dict[str, Any]] | None = None,
+    duration_mins: float | None = None,
+    avg_hr: float | None = None,
+    projection_days: int = 14,
+) -> str:
     """
-    Simulates the physiological impact of a proposed workout on the user's training load.
-    Calculates the new Acute:Chronic (A:C) Workload Ratio and compares it against
-    personal red lines from the calibration profile.
+    Simulates and projects the physiological workload impact (Acute, Chronic Load & ACWR trajectory)
+    of a proposed 7-14 day training plan or a single workout session.
+    Compares projected peak ACWR against the user's personal calibration red lines.
     """
     config = get_config()
     pid = config["project_id"]
@@ -39,20 +59,33 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
     client = bigquery.Client(project=pid)
 
     try:
-        # 1. Fetch historical running distances (last 35 days for buffer)
-        start_date = (datetime.now() - timedelta(days=35)).strftime("%Y-%m-%d")
+        # Normalize proposed sessions
+        sessions: list[dict[str, Any]] = []
+        if proposed_sessions:
+            sessions = proposed_sessions
+        elif duration_mins is not None:
+            sessions = [
+                {
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "duration_mins": duration_mins,
+                    "avg_hr": avg_hr or 145.0,
+                }
+            ]
 
-        # We need daily sums of distance
-        query_dist = f"""
+        # 1. Fetch historical workload for the last 35 days to form baseline
+        start_date = (datetime.now() - timedelta(days=35)).strftime("%Y-%m-%d")
+        query_history = f"""
             SELECT 
-                FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date_str,
-                SUM(distance_m)/1000 as distance_km
+                DATE(TIMESTAMP_SECONDS(CAST(date AS INT64))) as dt,
+                SUM((duration_sec * COALESCE(avg_power, 0)) / 1000.0) AS work_kj,
+                SUM((duration_sec / 60.0) * (COALESCE(avg_hr, 120) / 165.0)) AS trimp
             FROM `{pid}.{ds}.recent_activities`
-            WHERE user_id = '{user_id}' AND type = 'running'
+            WHERE user_id = '{user_id}'
             AND date >= UNIX_SECONDS(TIMESTAMP('{start_date}'))
-            GROUP BY 1 ORDER BY 1 ASC
+            GROUP BY dt ORDER BY dt ASC
         """
-        df_act = client.query(query_dist).to_dataframe()
+        hist_rows = list(client.query(query_history).result())
+
         # 2. Fetch User Calibration Profile
         query_calib = f"""
             SELECT marker_type, marker_value 
@@ -62,145 +95,109 @@ def project_training_impact(duration_mins: float, avg_hr: float, user_id: str) -
         calib_rows = list(client.query(query_calib).result())
         profile = UserCalibrationProfile.from_db_rows(calib_rows)
 
-        # Check total runs to enforce calibration phase guardrail
-        query_count = f"""
-            SELECT COUNT(*) as total_runs
-            FROM `{pid}.{ds}.recent_activities`
-            WHERE user_id = '{user_id}' AND type = 'running'
-        """
-        run_count_res = list(client.query(query_count).result())
-        total_runs = run_count_res[0].total_runs if run_count_res else 0
-        calibration_phase_required = total_runs < 3
+        # Build daily timeseries DataFrame
+        today = datetime.now().date()
+        hist_start = today - timedelta(days=35)
+        sim_end = today + timedelta(days=max(1, projection_days))
 
-        # 2.1 Fetch Latest HRV Status
-        query_hrv = f"""
-            SELECT avg_hrv, baseline_low, status
-            FROM `{pid}.{ds}.hrv_history`
-            WHERE user_id = '{user_id}'
-            ORDER BY date DESC LIMIT 1
-        """
-        hrv_res = list(client.query(query_hrv).result())
-        hrv_multiplier = 1.0
-        hrv_context = "HRV is within normal baseline."
+        full_date_idx = pd.date_range(start=hist_start, end=sim_end, freq="D")
+        df_sim = pd.DataFrame(index=full_date_idx)
+        df_sim["work_kj"] = 0.0
+        df_sim["trimp"] = 0.0
 
-        if hrv_res:
-            latest_hrv = hrv_res[0].avg_hrv
-            baseline_low = hrv_res[0].baseline_low
-            hrv_status = hrv_res[0].status
+        for r in hist_rows:
+            if r.dt and pd.to_datetime(r.dt) in df_sim.index:
+                df_sim.loc[pd.to_datetime(r.dt), "work_kj"] += float(r.work_kj or 0.0)
+                df_sim.loc[pd.to_datetime(r.dt), "trimp"] += float(r.trimp or 0.0)
 
-            if latest_hrv and baseline_low and latest_hrv < baseline_low:
-                # If HRV is below baseline, increase risk multiplier
-                # 10% drop below baseline = 1.1x risk
-                hrv_drop_pct = (baseline_low - latest_hrv) / baseline_low
-                hrv_multiplier = 1.0 + (hrv_drop_pct * profile.hrv_sensitivity_index)
-                hrv_context = f"HRV ({latest_hrv}ms) is below baseline ({baseline_low}ms). Risk multiplier of {round(hrv_multiplier, 2)}x applied."
-            elif hrv_status == "UNBALANCED":
-                hrv_multiplier = profile.hrv_unbalanced_risk_multiplier
-                hrv_context = (
-                    f"HRV Status is UNBALANCED. Systemic stress detected. {hrv_multiplier}x risk multiplier applied."
-                )
+        # 3. Inject proposed sessions into future simulation timeline
+        for s in sessions:
+            s_date_str = s.get("date") or today.strftime("%Y-%m-%d")
+            try:
+                s_dt = pd.to_datetime(s_date_str)
+            except Exception:
+                s_dt = pd.to_datetime(today)
 
-        # 3. Fetch User's Avg Pace in specific HR zones, falling back to overall running average
-        query_pace = f"""
-            WITH hr_pace AS (
-                SELECT AVG(avg_pace) as avg_pace
-                FROM `{pid}.{ds}.recent_activities`
-                WHERE user_id = '{user_id}' AND type = 'running'
-                AND avg_hr BETWEEN {avg_hr - 5} AND {avg_hr + 5}
-            ),
-            overall_pace AS (
-                SELECT AVG(avg_pace) as avg_pace
-                FROM `{pid}.{ds}.recent_activities`
-                WHERE user_id = '{user_id}' AND type = 'running'
+            dur = float(s.get("duration_mins", 30))
+            hr = float(s.get("avg_hr", 145))
+            w_kj = s.get("estimated_work_kj")
+            t_trimp = s.get("estimated_trimp")
+
+            if w_kj is None:
+                # Estimate work kj assuming ~150W power proxy
+                w_kj = (dur * 60.0 * 150.0) / 1000.0
+            if t_trimp is None:
+                t_trimp = (dur / 60.0) * (hr / 165.0) * 60.0
+
+            if s_dt in df_sim.index:
+                df_sim.loc[s_dt, "work_kj"] += float(w_kj)
+                df_sim.loc[s_dt, "trimp"] += float(t_trimp)
+
+        # Select metric column: prefer work_kj if power data present, else fallback to trimp
+        metric_col = "work_kj" if df_sim["work_kj"].sum() > 0 else "trimp"
+
+        # Compute rolling Acute (7d sum) and Chronic (28d sum / 4.0)
+        df_sim["acute"] = df_sim[metric_col].rolling(window=7, min_periods=1).sum()
+        df_sim["chronic"] = df_sim[metric_col].rolling(window=28, min_periods=1).sum() / 4.0
+        df_sim["acwr"] = df_sim.apply(
+            lambda row: round(row["acute"] / row["chronic"], 2) if row["chronic"] > 0 else 1.0, axis=1
+        )
+
+        # Filter simulation period from today onwards
+        sim_df = df_sim[df_sim.index >= pd.to_datetime(today)]
+
+        timeline = []
+        peak_acwr = 0.0
+        peak_acwr_date = today.strftime("%Y-%m-%d")
+        red_line = profile.ac_ratio_red_line or 1.30
+
+        for idx, row in sim_df.iterrows():
+            dt_str = idx.strftime("%Y-%m-%d")
+            acwr_val = float(row["acwr"])
+            is_danger = acwr_val > red_line
+
+            if acwr_val > peak_acwr:
+                peak_acwr = acwr_val
+                peak_acwr_date = dt_str
+
+            timeline.append(
+                {
+                    "date": dt_str,
+                    "acute_load": round(float(row["acute"]), 2),
+                    "chronic_load": round(float(row["chronic"]), 2),
+                    "acwr": acwr_val,
+                    "danger": is_danger,
+                }
             )
-            SELECT 
-                COALESCE(hr_pace.avg_pace, overall_pace.avg_pace) as avg_pace
-            FROM hr_pace, overall_pace
-        """
-        pace_res = list(client.query(query_pace).result())
-        avg_pace_ms = pace_res[0].avg_pace if pace_res and pace_res[0].avg_pace is not None else DEFAULT_PACE_FALLBACK
 
-        # Calculate proposed distance
-        proposed_distance_km = (duration_mins * 60 * avg_pace_ms) / 1000
-
-        # 4. Calculate A:C Ratio
-        if df_act.empty:
-            current_ac = 1.0
-            new_ac = (proposed_distance_km / 7) / (proposed_distance_km / 28)  # Will be 4.0 if no history
+        is_danger_zone = peak_acwr > red_line
+        if is_danger_zone:
+            recommendation = (
+                f"DANGER: Proposed plan pushes peak ACWR to {peak_acwr} on {peak_acwr_date}, "
+                f"exceeding personal red line limit ({red_line}). Reduce proposed duration or intensity."
+            )
+        elif peak_acwr > AC_RATIO_MODERATE_RISK_LIMIT:
+            recommendation = (
+                f"HIGH LOAD: Proposed plan reaches peak ACWR of {peak_acwr} on {peak_acwr_date}. "
+                f"Ensure adequate Zone 1/2 recovery active days."
+            )
         else:
-            df_act["date"] = pd.to_datetime(df_act["date_str"])
-            df_act = df_act.set_index("date")
-
-            # Resample to ensure all days are present
-            df_daily = df_act.resample("D").sum().fillna(0)
-
-            # Current State
-            acute_load = df_daily["distance_km"].tail(7).sum()
-            chronic_load = df_daily["distance_km"].tail(28).sum() / 4
-            current_ac = acute_load / chronic_load if chronic_load > 0 else 1.0
-
-            # Future State (Assuming workout is today)
-            df_future = df_daily.copy()
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            if today_str in df_future.index:
-                df_future.at[today_str, "distance_km"] += proposed_distance_km
-            else:
-                # Add a new row if not present
-                new_row = pd.DataFrame({"distance_km": [proposed_distance_km]}, index=[pd.to_datetime(today_str)])
-                dfs_to_concat = [d for d in [df_future, new_row] if not d.empty]
-                df_future = pd.concat(dfs_to_concat).sort_index() if dfs_to_concat else pd.DataFrame()
-
-            new_acute = df_future["distance_km"].tail(7).sum()
-            new_chronic = df_future["distance_km"].tail(28).sum() / 4
-            new_ac = new_acute / new_chronic if new_chronic > 0 else 1.0
-
-        # Adjust the effective AC ratio by the HRV multiplier
-        effective_ac = new_ac * hrv_multiplier
-
-        risk_level = "Low"
-        if effective_ac > profile.ac_ratio_red_line:
-            risk_level = "CRITICAL"
-        elif effective_ac > AC_RATIO_HIGH_RISK_LIMIT:
-            risk_level = "High"
-        elif effective_ac > AC_RATIO_MODERATE_RISK_LIMIT:
-            risk_level = "Moderate"
-
-        recommendation = "Safe to proceed."
-        if calibration_phase_required:
-            recommendation = f"CALIBRATION PHASE ACTIVE: You have logged {total_runs}/3 runs. High-intensity workouts are restricted. Suggest Zone 2 recovery/aerobic runs only."
-        elif risk_level == "CRITICAL":
-            recommendation = f"DO NOT PROCEED. This session will push your effective A:C ratio (adjusted for HRV) to {round(effective_ac, 2)}, exceeding your personal red line of {profile.ac_ratio_red_line}."
-        elif risk_level == "High":
-            recommendation = "Proceed with caution. Consider reducing duration or intensity. HRV indicates your body's tolerance for load is reduced today."
-
-        # Flag fallback status explicitly so the LLM and user know
-        fallbacks_applied = {
-            "pace_fallback_used": avg_pace_ms == DEFAULT_PACE_FALLBACK,
-            "calibration_defaults_used": len(calib_rows) == 0,
-            "calibration_phase_required": calibration_phase_required,
-        }
+            recommendation = f"SAFE: Proposed plan maintains optimal ACWR (Peak: {peak_acwr} on {peak_acwr_date})."
 
         result = {
-            "proposed_workout": {
-                "duration_mins": duration_mins,
-                "avg_hr": avg_hr,
-                "est_distance_km": round(proposed_distance_km, 2),
-            },
-            "impact_analysis": {
-                "current_ac_ratio": round(current_ac, 2),
-                "projected_ac_ratio": round(new_ac, 2),
-                "hrv_adjustment_multiplier": round(hrv_multiplier, 2),
-                "effective_ac_ratio": round(effective_ac, 2),
-                "personal_red_line": profile.ac_ratio_red_line,
-                "risk_level": risk_level,
-                "hrv_context": hrv_context,
-            },
+            "user_id": user_id,
+            "metric_used": metric_col,
+            "projection_period": f"{today.strftime('%Y-%m-%d')} to {sim_end.strftime('%Y-%m-%d')}",
+            "peak_acwr": peak_acwr,
+            "peak_acwr_date": peak_acwr_date,
+            "red_line_threshold": red_line,
+            "is_danger_zone": is_danger_zone,
             "recommendation": recommendation,
-            "fallbacks_applied": fallbacks_applied,
+            "simulation_timeline": timeline,
         }
 
-        log.info(f"✅ Training impact projected for {user_id}: New AC {new_ac}")
-        return json.dumps(result)
+        log.info(f"✅ Training impact projected for {user_id}: Peak ACWR {peak_acwr}")
+        return json.dumps(result, indent=2)
 
     except Exception as e:
         log.error(f"❌ Failed to project training impact: {e}")
