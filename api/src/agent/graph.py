@@ -1,3 +1,4 @@
+from src.tools.alerting import check_proactive_alerts
 """LangGraph definition for the Biometric AI Coach agent."""
 
 import json
@@ -500,6 +501,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             sync_biometric_data,
             generate_historical_report,
             query_macro_load_history,
+            check_proactive_alerts,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
@@ -693,6 +695,7 @@ def tool_node(state: AgentState) -> Any:
             sync_biometric_data,
             generate_historical_report,
             query_macro_load_history,
+            check_proactive_alerts,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
