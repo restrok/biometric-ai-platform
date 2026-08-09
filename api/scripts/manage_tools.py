@@ -6,6 +6,7 @@ import sys
 from typing import Any
 
 from src.tools.alerting import check_proactive_alerts
+from src.tools.nutrition_modeler import assess_glycogen_readiness
 
 # Configure logging to stderr to avoid polluting stdout
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
@@ -67,6 +68,7 @@ TOOLS = {
     "generate_historical_report": generate_historical_report,
     "query_macro_load_history": query_macro_load_history,
     "check_proactive_alerts": check_proactive_alerts,
+    "assess_glycogen_readiness": assess_glycogen_readiness,
     "generate_deep_historical_report": generate_deep_historical_report,
     "execute_exploratory_query": execute_exploratory_query,
     "execute_exploratory_query_dry_run": execute_exploratory_query_dry_run,
