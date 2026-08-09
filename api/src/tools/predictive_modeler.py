@@ -202,3 +202,122 @@ def project_training_impact(
     except Exception as e:
         log.error(f"❌ Failed to project training impact: {e}")
         return json.dumps({"error": str(e)})
+
+
+import logging
+
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+
+log = logging.getLogger(__name__)
+
+
+class CriticalPowerInput(BaseModel):
+    """Input schema for calculating Critical Power (CP) and W' (W-prime)."""
+
+    user_id: str = Field(..., description="The internal user ID (mandatory).")
+    target_power_watts: float = Field(
+        268.0, description="Target power output in Watts for 10k (default 268W for <50m 10k)."
+    )
+    target_duration_mins: float = Field(50.0, description="Target event duration in minutes (default 50 mins).")
+
+
+@tool(args_schema=CriticalPowerInput)
+def calculate_critical_power_and_w_prime(
+    user_id: str,
+    target_power_watts: float = 268.0,
+    target_duration_mins: float = 50.0,
+) -> str:
+    """
+    Computes Critical Power (CP in Watts - Anaerobic Threshold) and Anaerobic Work Capacity W' (W-prime in kJ)
+    from historical peak power efforts in BigQuery. Evaluates physiological readiness for 10k target (<50m / 268W).
+    """
+    config = get_config()
+    pid = config["project_id"]
+    ds = config["dataset_id"]
+    client = bigquery.Client(project=pid)
+
+    try:
+        # Query peak short-duration (3m = 180s) and long-duration (12m = 720s) power from activities
+        query_peaks = f"""
+            SELECT 
+                MAX(avg_power) as peak_power,
+                MAX(CASE WHEN duration_seconds BETWEEN 120 AND 300 THEN avg_power END) as peak_3m_w,
+                MAX(CASE WHEN duration_seconds >= 600 THEN avg_power END) as peak_12m_w
+            FROM `{pid}.{ds}.recent_activities`
+            WHERE user_id = '{user_id}' AND avg_power IS NOT NULL
+        """
+        rows = list(client.query(query_peaks).result())
+
+        p_3m = float(rows[0].peak_3m_w) if rows and rows[0].peak_3m_w else 290.0
+        p_12m = float(rows[0].peak_12m_w) if rows and rows[0].peak_12m_w else 255.0
+
+        # 2-Parameter CP Model: Work = Power * Time
+        # t1 = 180s (3m), t2 = 720s (12m)
+        t1, t2 = 180.0, 720.0
+        work1 = p_3m * t1
+        work2 = p_12m * t2
+
+        cp_watts = round((work2 - work1) / (t2 - t1), 1)
+        w_prime_joules = (p_3m - cp_watts) * t1
+        w_prime_kj = round(w_prime_joules / 1000.0, 2)
+
+        # Readiness for 10k <50m target (target_power_watts, e.g., 268W for 3000 sec)
+        target_sec = target_duration_mins * 60.0
+        power_diff = target_power_watts - cp_watts
+
+        if power_diff > 0:
+            # P_target > CP: Anaerobic W' will deplete
+            time_to_exhaustion_sec = round(w_prime_joules / power_diff, 1)
+            time_to_exhaustion_mins = round(time_to_exhaustion_sec / 60.0, 1)
+            is_sustainable = time_to_exhaustion_sec >= target_sec
+        else:
+            time_to_exhaustion_sec = float("inf")
+            time_to_exhaustion_mins = float("inf")
+            is_sustainable = True
+
+        cp_gap_watts = round(target_power_watts - cp_watts, 1)
+
+        if is_sustainable:
+            verdict = (
+                f"SUSTAINABLE: Your Critical Power ({cp_watts}W) is equal to or higher than target power ({target_power_watts}W). "
+                f"Anaerobic W' reserve ({w_prime_kj} kJ) will remain intact during your 10k."
+            )
+            recommendation = "Maintain current aerobic base and incorporate 1x weekly threshold maintenance intervals."
+        else:
+            verdict = (
+                f"HIGH RISK OF ANAEROBIC EXHAUSTION: Target power ({target_power_watts}W) exceeds Critical Power ({cp_watts}W) by {cp_gap_watts}W. "
+                f"Your W' reserve ({w_prime_kj} kJ) will be completely depleted in {time_to_exhaustion_mins} minutes (short of target {target_duration_mins}m)."
+            )
+            recommendation = (
+                f"RECOMMENDATION: Focus on raising Critical Power by +{max(10.0, cp_gap_watts)}W via Zone 4 Threshold intervals "
+                f"(e.g., 3x 10m @ {round(cp_watts * 1.02, 1)}W with 3m rest) and Over-Under sessions over the next 4 weeks."
+            )
+
+        result = {
+            "user_id": user_id,
+            "critical_power_model": {
+                "critical_power_cp_watts": cp_watts,
+                "w_prime_anaerobic_reserve_kj": w_prime_kj,
+                "peak_3m_power_w": p_3m,
+                "peak_12m_power_w": p_12m,
+            },
+            "target_event_assessment": {
+                "target_10k_power_watts": target_power_watts,
+                "target_duration_mins": target_duration_mins,
+                "time_to_exhaustion_mins": time_to_exhaustion_mins
+                if time_to_exhaustion_mins != float("inf")
+                else "Infinite (Aerobic)",
+                "is_sustainable_50m": is_sustainable,
+                "cp_gap_watts": cp_gap_watts,
+            },
+            "verdict": verdict,
+            "training_recommendation": recommendation,
+        }
+
+        log.info(f"✅ Critical Power calculated for {user_id}: CP={cp_watts}W, W'={w_prime_kj}kJ")
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        log.error(f"❌ Failed calculating Critical Power: {e}")
+        return json.dumps({"error": str(e)})

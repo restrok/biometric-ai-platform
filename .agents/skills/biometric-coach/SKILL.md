@@ -146,3 +146,7 @@ When using `discovered_tool_upload_training_plan`:
 - **Macro Load Analytics (`discovered_tool_query_macro_load_history`):** Query 1 to 6 months of weekly or monthly aggregated training volume, work (kJ), and TRIMP via BigQuery macro views for token-efficient long-term analysis.
 - **Proactive Alert Checking (`discovered_tool_check_proactive_alerts`):** Evaluate real-time Immune Radar (HRV Z < -1.5 & RHR Z > 1.5) and ACWR Workload (> 1.35) warning hooks.
 - **Aerobic Decoupling & HR per Step:** Analyze `% aerobic decoupling` (Pace/HR drift) and `HR per step` in Zone 2 runs to evaluate aerobic consolidation and neuromuscular fatigue.
+
+
+- **Critical Power & W' Estimator (`discovered_tool_calculate_critical_power_and_w_prime`):** Computes Critical Power (CP in Watts) and Anaerobic Work Capacity W' (in kJ) to evaluate 10k pace sustainability and time-to-exhaustion at target power (268W for <50m 10k).
+- **Shoe Biomechanics Comparator (`discovered_tool_compare_shoe_biomechanics`):** Compares Ground Contact Time (ms), Vertical Oscillation (cm), Vertical Ratio (%), Stride Length (m), Cadence (spm), and Aerobic Efficiency (W/HR) pre vs post footwear switch date.
