@@ -1,4 +1,5 @@
 from src.tools.alerting import check_proactive_alerts
+
 """LangGraph definition for the Biometric AI Coach agent."""
 
 import json

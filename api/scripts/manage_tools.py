@@ -1,10 +1,11 @@
-from src.tools.alerting import check_proactive_alerts
 import asyncio
 import json
 import logging
 import os
 import sys
 from typing import Any
+
+from src.tools.alerting import check_proactive_alerts
 
 # Configure logging to stderr to avoid polluting stdout
 logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
