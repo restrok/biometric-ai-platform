@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import date, datetime
 from typing import Literal
@@ -390,3 +391,82 @@ def save_calibration_marker(
     except Exception as e:
         log.error(f"❌ BigQuery calibration marker save failed: {e}")
         return f"Saved marker in Firestore, but BigQuery sync failed: {e}"
+
+
+class MaxHRCalibrationInput(BaseModel):
+    """Input schema for auto-calibrating user max_hr from peak activity telemetry."""
+
+    user_id: str = Field(..., description="The internal user ID (mandatory).")
+    observed_peak_hr: float = Field(..., description="Observed peak heart rate in bpm from FIT telemetry.")
+    activity_name: str | None = Field(None, description="Name or type of activity (e.g. 'Tigre 10k Race').")
+
+
+@tool(args_schema=MaxHRCalibrationInput)
+def calibrate_profile_max_hr(
+    user_id: str,
+    observed_peak_hr: float,
+    activity_name: str | None = None,
+) -> str:
+    """
+    Evaluates observed peak heart rate from FIT activity telemetry against the stored Max HR in the personal profile.
+    If observed_peak_hr > stored max_hr (e.g., observed 179 bpm vs stored 123 bpm), automatically updates max_hr,
+    recalculates Karvonen HR zones, and saves the new threshold to Firestore and BigQuery.
+    """
+    try:
+        profile = get_user_profile(user_id)
+        current_pcp = profile.get("personal_calibration_profile", {})
+        stored_raw = current_pcp.get("max_hr", 185.0)
+        stored_max_hr = float(stored_raw.get("value", 185.0)) if isinstance(stored_raw, dict) else float(stored_raw)
+
+        if observed_peak_hr > stored_max_hr:
+            # Auto-calibration triggered
+            context_str = f"Auto-calibrated from peak HR of {observed_peak_hr} bpm during {activity_name or 'activity'}"
+            save_calibration_marker.invoke(
+                {
+                    "marker_type": "max_hr",
+                    "marker_value": observed_peak_hr,
+                    "context": context_str,
+                    "user_id": user_id,
+                }
+            )
+
+            # Recalculate Karvonen Z1-Z5 Zones (Assuming Resting HR ~ 55 bpm)
+            rhr_raw = current_pcp.get("resting_hr", 55.0)
+            rhr = float(rhr_raw.get("value", 55.0)) if isinstance(rhr_raw, dict) else float(rhr_raw)
+            hrr = observed_peak_hr - rhr
+            z1 = round(rhr + 0.50 * hrr, 1)
+            z2 = round(rhr + 0.60 * hrr, 1)
+            z3 = round(rhr + 0.70 * hrr, 1)
+            z4 = round(rhr + 0.80 * hrr, 1)
+            z5 = round(rhr + 0.90 * hrr, 1)
+
+            res = {
+                "user_id": user_id,
+                "action": "MAX_HR_AUTOCALIBRATED",
+                "previous_max_hr": stored_max_hr,
+                "new_max_hr": observed_peak_hr,
+                "observed_peak_hr": observed_peak_hr,
+                "activity": activity_name,
+                "recalculated_karvonen_zones": {
+                    "Z1_recovery": f"{z1}-{z2} bpm",
+                    "Z2_aerobic_base": f"{z2}-{z3} bpm",
+                    "Z3_tempo": f"{z3}-{z4} bpm",
+                    "Z4_threshold": f"{z4}-{z5} bpm",
+                    "Z5_anaerobic_peak": f">{z5} bpm",
+                },
+                "status": f"Max HR updated from {stored_max_hr} to {observed_peak_hr} bpm. Karvonen HR zones recalculated.",
+            }
+            return json.dumps(res, indent=2)
+        return json.dumps(
+            {
+                "user_id": user_id,
+                "action": "NO_CHANGE_NEEDED",
+                "stored_max_hr": stored_max_hr,
+                "observed_peak_hr": observed_peak_hr,
+                "status": f"Observed peak HR ({observed_peak_hr} bpm) is within current stored Max HR ({stored_max_hr} bpm).",
+            },
+            indent=2,
+        )
+    except Exception as e:
+        log.error(f"❌ Failed calibrating profile Max HR: {e}")
+        return json.dumps({"error": str(e)})
