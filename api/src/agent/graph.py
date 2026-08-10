@@ -1,5 +1,7 @@
 from src.tools.alerting import check_proactive_alerts
+from src.tools.historical_biometrics import compare_shoe_biomechanics
 from src.tools.nutrition_modeler import assess_glycogen_readiness
+from src.tools.predictive_modeler import calculate_critical_power_and_w_prime
 
 """LangGraph definition for the Biometric AI Coach agent."""
 
@@ -505,6 +507,8 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             query_macro_load_history,
             check_proactive_alerts,
             assess_glycogen_readiness,
+            calculate_critical_power_and_w_prime,
+            compare_shoe_biomechanics,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
@@ -700,6 +704,8 @@ def tool_node(state: AgentState) -> Any:
             query_macro_load_history,
             check_proactive_alerts,
             assess_glycogen_readiness,
+            calculate_critical_power_and_w_prime,
+            compare_shoe_biomechanics,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,

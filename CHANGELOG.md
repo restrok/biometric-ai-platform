@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### 🚀 Features
+- **Glycogen Availability Estimator (`assess_glycogen_readiness`):** Added tool translating qualitative natural language nutritional logs from Semantic Memory into 3-band stochastic glycogen availability (LOW, MODERATE, HIGH) and evaluating pre-workout fueling against target mechanical work (kJ) and W/HR efficiency.
+- **Critical Power & W' Estimator (`calculate_critical_power_and_w_prime`):** Added SuperCoach tool modeling Critical Power (CP in Watts - Anaerobic Threshold) and Anaerobic Work Capacity W' (in kJ) from historical peak powers in BigQuery, calculating time-to-exhaustion ($T_{max}$) for target race paces (10k <50m @ 268W).
+- **Shoe Biomechanical Comparator (`compare_shoe_biomechanics`):** Added SuperCoach tool comparing GCT (ms), Vertical Oscillation (cm), Vertical Ratio (%), Stride Length (m), Cadence (spm), and Aerobic Efficiency ($W/HR$) before vs after shoe switch date ('2026-07-18' Adidas Supernova Stride Dreamstrike+ vs Skechers).
+
+### 🩹 Fixes
+- **SQL Column Alignment:** Corrected `duration_seconds` -> `duration_sec` column filtering in BigQuery peak power queries for `recent_activities`.
+
 ## [0.4.3] - 2026-08-09
 ### 🚀 Features
 - **Predictive Multi-Day Workload Simulation (`project_training_impact`):** Transformed workload impact estimation into a multi-day (7 to 14 days) simulation tool. Projects daily Acute Load (7d), Chronic Load (28d/4), and ACWR trajectory for proposed workout schedules, detecting peak ACWR risk (`peak_acwr`) against personal calibration red lines (`ac_ratio_red_line`).
