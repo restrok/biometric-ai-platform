@@ -242,8 +242,8 @@ def calculate_critical_power_and_w_prime(
         query_peaks = f"""
             SELECT 
                 MAX(avg_power) as peak_power,
-                MAX(CASE WHEN duration_seconds BETWEEN 120 AND 300 THEN avg_power END) as peak_3m_w,
-                MAX(CASE WHEN duration_seconds >= 600 THEN avg_power END) as peak_12m_w
+                MAX(CASE WHEN duration_sec BETWEEN 120 AND 300 THEN avg_power END) as peak_3m_w,
+                MAX(CASE WHEN duration_sec >= 600 THEN avg_power END) as peak_12m_w
             FROM `{pid}.{ds}.recent_activities`
             WHERE user_id = '{user_id}' AND avg_power IS NOT NULL
         """
