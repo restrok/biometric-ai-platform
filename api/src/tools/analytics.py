@@ -21,13 +21,164 @@ class ActivityID(BaseModel):
     user_id: str | None = Field(None, description="The ID of the user.")
 
 
+def _analyze_swim_efficiency(
+    activity_id: str,
+    user_id: str | None,
+    client: bigquery.Client,
+    project_id: str,
+    dataset: str,
+) -> dict[str, Any] | str:
+    """Specialized physiological and biomechanical efficiency analysis for swimming activities."""
+    user_where = f"AND user_id = '{user_id}'" if user_id else ""
+
+    # 1. Fetch activity summary
+    query_summary = f"""
+        SELECT 
+            name, type, distance_m, duration_sec, moving_duration_sec, elapsed_duration_sec,
+            avg_hr, max_hr, min_hr, recovery_hr, avg_swim_cadence, active_lengths,
+            avg_strokes_per_length, avg_swolf, pool_length_m, total_strokes,
+            moderate_intensity_min, vigorous_intensity_min, is_personal_record, swim_stroke, calories
+        FROM `{project_id}.{dataset}.recent_activities`
+        WHERE CAST(id AS STRING) = '{activity_id}' {user_where}
+        LIMIT 1
+    """
+    summary_rows = list(client.query(query_summary).result())
+    summary_data = dict(summary_rows[0]) if summary_rows else {}
+
+    # 2. Fetch length-level telemetry
+    query_lengths = f"""
+        SELECT 
+            length_index, start_time_gmt, distance_m, duration_sec, avg_speed_mps,
+            avg_hr, max_hr, total_strokes, avg_swolf, swim_stroke, pace_per_100m_sec, stroke_rate
+        FROM `{project_id}.{dataset}.swim_length_telemetry`
+        WHERE activity_id = '{activity_id}' {user_where}
+        ORDER BY length_index ASC
+    """
+    length_rows = [dict(r) for r in client.query(query_lengths).result()]
+
+    # 3. Fetch HR zones
+    query_zones = f"""
+        SELECT zone_number, secs_in_zone, zone_low_boundary_bpm
+        FROM `{project_id}.{dataset}.activity_hr_zones`
+        WHERE activity_id = '{activity_id}' {user_where}
+        ORDER BY zone_number ASC
+    """
+    zone_rows = [dict(r) for r in client.query(query_zones).result()]
+
+    if not summary_data and not length_rows:
+        return f"No swimming data found for activity ID {activity_id}."
+
+    total_dist = summary_data.get("distance_m") or sum(r.get("distance_m", 0) for r in length_rows)
+    total_dur = summary_data.get("duration_sec") or sum(r.get("duration_sec", 0) for r in length_rows)
+    moving_dur = summary_data.get("moving_duration_sec")
+    total_rest = (total_dur - moving_dur) if (total_dur and moving_dur) else None
+
+    # Length analytics
+    swolf_vals = [r["avg_swolf"] for r in length_rows if r.get("avg_swolf") is not None and r["avg_swolf"] > 0]
+    avg_swolf = round(float(np.mean(swolf_vals)), 1) if swolf_vals else summary_data.get("avg_swolf")
+    min_swolf = round(float(np.min(swolf_vals)), 1) if swolf_vals else None
+    max_swolf = round(float(np.max(swolf_vals)), 1) if swolf_vals else None
+
+    # SWOLF Drift / Technical Decoupling (First Half vs Second Half)
+    swolf_first_half = None
+    swolf_second_half = None
+    swolf_drift_pts = None
+    swolf_drift_interpretation = "Stable"
+
+    if len(swolf_vals) >= 4:
+        half_idx = len(swolf_vals) // 2
+        swolf_first_half = round(float(np.mean(swolf_vals[:half_idx])), 1)
+        swolf_second_half = round(float(np.mean(swolf_vals[half_idx:])), 1)
+        swolf_drift_pts = round(swolf_second_half - swolf_first_half, 1)
+        if swolf_drift_pts > 3.0:
+            swolf_drift_interpretation = "Technical Degradation / Fatigue Drift"
+        elif swolf_drift_pts < -2.0:
+            swolf_drift_interpretation = "Negative Split / Efficiency Improved"
+        else:
+            swolf_drift_interpretation = "Technique Consistency Maintained"
+
+    # Style breakdown
+    stroke_styles: dict[str, dict[str, Any]] = {}
+    for r in length_rows:
+        stroke = r.get("swim_stroke") or "UNKNOWN"
+        if stroke not in stroke_styles:
+            stroke_styles[stroke] = {"lengths_count": 0, "swolf_list": [], "pace_list": [], "hr_list": []}
+        stroke_styles[stroke]["lengths_count"] += 1
+        if r.get("avg_swolf"):
+            stroke_styles[stroke]["swolf_list"].append(r["avg_swolf"])
+        if r.get("pace_per_100m_sec"):
+            stroke_styles[stroke]["pace_list"].append(r["pace_per_100m_sec"])
+        if r.get("avg_hr"):
+            stroke_styles[stroke]["hr_list"].append(r["avg_hr"])
+
+    style_summary = {}
+    for stroke, data in stroke_styles.items():
+        style_summary[stroke] = {
+            "lengths_count": data["lengths_count"],
+            "avg_swolf": round(float(np.mean(data["swolf_list"])), 1) if data["swolf_list"] else None,
+            "avg_pace_100m_sec": round(float(np.mean(data["pace_list"])), 1) if data["pace_list"] else None,
+            "avg_hr": round(float(np.mean(data["hr_list"])), 1) if data["hr_list"] else None,
+        }
+
+    # HR Zones mapping
+    total_zone_secs = sum(z.get("secs_in_zone", 0) for z in zone_rows) or 1.0
+    zones_summary = [
+        {
+            "zone": z.get("zone_number"),
+            "seconds": round(z.get("secs_in_zone", 0), 1),
+            "pct": f"{round((z.get('secs_in_zone', 0) / total_zone_secs) * 100, 1)}%",
+            "low_boundary_bpm": z.get("zone_low_boundary_bpm"),
+        }
+        for z in zone_rows
+    ]
+
+    paces = [r["pace_per_100m_sec"] for r in length_rows if r.get("pace_per_100m_sec")]
+    best_pace = round(float(np.min(paces)), 1) if paces else None
+    avg_pace = round(float(np.mean(paces)), 1) if paces else None
+
+    result = {
+        "activity_type": summary_data.get("type", "lap_swimming"),
+        "total_distance_m": total_dist,
+        "active_lengths": summary_data.get("active_lengths") or len(length_rows),
+        "pool_length_m": summary_data.get("pool_length_m", 25.0),
+        "duration_sec": total_dur,
+        "moving_duration_sec": moving_dur,
+        "total_rest_sec": round(total_rest, 1) if total_rest is not None else None,
+        "avg_hr": summary_data.get("avg_hr"),
+        "max_hr": summary_data.get("max_hr"),
+        "min_hr": summary_data.get("min_hr"),
+        "recovery_hr_bpm": summary_data.get("recovery_hr"),
+        "avg_swolf": avg_swolf,
+        "best_swolf": min_swolf,
+        "max_swolf": max_swolf,
+        "swolf_first_half": swolf_first_half,
+        "swolf_second_half": swolf_second_half,
+        "swolf_drift_pts": swolf_drift_pts,
+        "swolf_interpretation": swolf_drift_interpretation,
+        "avg_pace_100m_sec": avg_pace,
+        "best_pace_100m_sec": best_pace,
+        "avg_swim_cadence_spm": summary_data.get("avg_swim_cadence"),
+        "total_strokes": summary_data.get("total_strokes"),
+        "avg_strokes_per_length": summary_data.get("avg_strokes_per_length"),
+        "stroke_styles_breakdown": style_summary,
+        "hr_zones_distribution": zones_summary,
+        "is_personal_record": summary_data.get("is_personal_record", False),
+        "moderate_intensity_min": summary_data.get("moderate_intensity_min"),
+        "vigorous_intensity_min": summary_data.get("vigorous_intensity_min"),
+    }
+
+    log.info(f"??? Full Swimming Efficiency analysis complete for {activity_id}")
+    return result
+
+
 @tool(args_schema=ActivityID)
 def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) -> dict[str, Any] | str:
     """Performs high-precision physiological analysis in BigQuery.
 
-    Calculates Aerobic Decoupling, Form Efficiency, and Metabolic Cost (HR per Step).
-    Returns all available metrics (HR, Power, Cadence, BB, Vertical Dynamics)
-    for trend analysis.
+    Automatically detects activity sport type (Running vs. Swimming vs. Other).
+    For Running: Calculates Aerobic Decoupling, Form Efficiency, and Metabolic Cost (HR per Step).
+    For Swimming: Calculates SWOLF efficiency, SWOLF drift/decoupling, stroke styles breakdown,
+    pace per 100m, rest durations, and HR zone distribution.
 
     Args:
         activity_id: The unique ID of the activity to analyze.
@@ -39,6 +190,23 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
+    user_where_act = f"AND user_id = '{user_id}'" if user_id else ""
+
+    # 0. Check activity type from recent_activities
+    try:
+        query_type = f"""
+            SELECT type FROM `{config["project_id"]}.{dataset}.recent_activities`
+            WHERE CAST(id AS STRING) = '{activity_id}' {user_where_act}
+            LIMIT 1
+        """
+        act_type_row = list(client.query(query_type).result())
+        activity_type = act_type_row[0].type if act_type_row else None
+
+        if activity_type in ("lap_swimming", "open_water_swimming"):
+            return _analyze_swim_efficiency(activity_id, user_id, client, config["project_id"], dataset)
+    except Exception as e:
+        log.warning(f"Failed to check activity type for {activity_id}: {e}")
+
     user_where = f"AND t.user_id = '{user_id}'" if user_id else ""
 
     query = f"""
@@ -141,10 +309,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
                 "Stable" if dec < 5 else "Cardiac Drift Detected" if dec < 10 else "Significant Decoupling"
             )
 
-        log.info(f"✅ Full Efficiency analysis complete for {activity_id}")
+        log.info(f"??? Full Efficiency analysis complete for {activity_id}")
         return summary
     except Exception as e:
-        log.error(f"❌ Analysis failed: {e}")
+        log.error(f"??? Analysis failed: {e}")
         return f"Error during analysis: {e}"
 
 
@@ -152,8 +320,8 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
 def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> list[dict[str, Any]] | str:
     """Analyzes telemetry to split an activity into physiological stages.
 
-    Splits by Intervals/Work vs. Rest. Returns granular stats for each stage
-    including HR, Power, Cadence, GCT, Vertical Dynamics, and Body Battery.
+    For Running: Splits by Intervals/Work vs. Rest.
+    For Swimming: Splits by individual pool lengths and rest intervals with SWOLF, style, and pace.
 
     Args:
         activity_id: The unique ID of the activity to analyze.
@@ -166,8 +334,45 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
-
     user_where = f"AND user_id = '{user_id}'" if user_id else ""
+
+    # Check if swimming
+    try:
+        query_type = f"""
+            SELECT type FROM `{config["project_id"]}.{dataset}.recent_activities`
+            WHERE CAST(id AS STRING) = '{activity_id}' {user_where}
+            LIMIT 1
+        """
+        act_type_row = list(client.query(query_type).result())
+        activity_type = act_type_row[0].type if act_type_row else None
+
+        if activity_type in ("lap_swimming", "open_water_swimming"):
+            query_lengths = f"""
+                SELECT 
+                    length_index, distance_m, duration_sec, avg_speed_mps,
+                    avg_hr, max_hr, total_strokes, avg_swolf, swim_stroke, pace_per_100m_sec
+                FROM `{config["project_id"]}.{dataset}.swim_length_telemetry`
+                WHERE activity_id = '{activity_id}' {user_where}
+                ORDER BY length_index ASC
+            """
+            l_rows = [dict(r) for r in client.query(query_lengths).result()]
+            if l_rows:
+                return [
+                    {
+                        "stage_id": r["length_index"],
+                        "type": f"Swim ({r.get('swim_stroke') or 'Lap'})",
+                        "distance_m": r.get("distance_m"),
+                        "duration_sec": r.get("duration_sec"),
+                        "avg_hr": r.get("avg_hr"),
+                        "max_hr": r.get("max_hr"),
+                        "avg_swolf": r.get("avg_swolf"),
+                        "strokes": r.get("total_strokes"),
+                        "pace_100m_sec": r.get("pace_per_100m_sec"),
+                    }
+                    for r in l_rows
+                ]
+    except Exception as e:
+        log.warning(f"Swim stage check fallback: {e}")
 
     query = f"""
         SELECT 
@@ -202,7 +407,8 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
             if duration_sec < 10:
                 continue
 
-            hr_step = (group["hr_bpm"] / group["cadence_spm"].replace(0, np.nan)).mean()
+            cadence_clean = group["cadence_spm"].replace(0, np.nan)
+            hr_step = (group["hr_bpm"] / cadence_clean).mean() if not cadence_clean.isnull().all() else None
             bb_drop = group["body_battery"].max() - group["body_battery"].min()
 
             stage_summary = {
@@ -212,8 +418,10 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
                 "max_hr": int(group["hr_bpm"].max()),
                 "avg_power": round(group["power_w"].mean(), 1),
                 "max_power": int(group["power_w"].max()),
-                "avg_cadence": round(group["cadence_spm"].mean(), 1),
-                "hr_per_step": round(hr_step, 3) if not np.isnan(hr_step) else None,
+                "avg_cadence": round(group["cadence_spm"].mean(), 1)
+                if not group["cadence_spm"].isnull().all()
+                else None,
+                "hr_per_step": round(hr_step, 3) if hr_step is not None and not np.isnan(hr_step) else None,
                 "bb_drop": int(bb_drop) if not np.isnan(bb_drop) else 0,
             }
 
@@ -228,11 +436,13 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
 
             for col, key in metrics_map.items():
                 if col in group and not group[col].isnull().all():
-                    stage_summary[key] = round(group[col].mean(), 2)
+                    val = group[col].mean()
+                    if not np.isnan(val):
+                        stage_summary[key] = round(val, 2)
 
             stages.append(stage_summary)
 
         return stages
     except Exception as e:
-        log.error(f"❌ Stage analysis failed: {e}")
+        log.error(f"??? Stage analysis failed: {e}")
         return f"Error during stage analysis: {e}"

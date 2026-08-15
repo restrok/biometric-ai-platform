@@ -11,6 +11,10 @@ import google.cloud.bigquery as bigquery
 import google.cloud.storage as storage
 import pandas as pd
 from garmin_training_toolkit_sdk.extractors import get_training_status
+from garmin_training_toolkit_sdk.extractors.activities import (
+    get_activity_hr_zones,
+    get_activity_splits,
+)
 from garmin_training_toolkit_sdk.extractors.biometrics import get_body_composition
 
 from src.utils.config import setup_environment
@@ -63,17 +67,18 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
 def upsert_to_bq(
     df: pd.DataFrame,
     table_name: str,
-    unique_key: str = "date",
+    unique_key: str | list[str] = "date",
     user_id: str | None = None,
 ) -> None:
     """Performs an atomic UPSERT in BigQuery.
 
     Automatically aligns DataFrame types with target table schema.
+    Supports single or composite unique keys.
 
     Args:
         df: DataFrame containing the data to upload.
         table_name: Target BigQuery table name.
-        unique_key: Column name used as the unique identifier for merging.
+        unique_key: Column name or list of column names used as unique identifier for merging.
         user_id: Optional user ID to add to each row.
     """
     if df.empty:
@@ -94,7 +99,7 @@ def upsert_to_bq(
         for col in df.columns:
             if col in target_schema:
                 bqt = target_schema[col]
-                if bqt == "INTEGER":
+                if bqt in ("INTEGER", "INT64"):
                     if col == "date" or col.endswith("_at"):
                         # Ensure we convert datetime to SECONDS, not nanoseconds
                         df[col] = pd.to_datetime(df[col], errors="coerce").astype("int64") // 10**9
@@ -102,7 +107,7 @@ def upsert_to_bq(
                         df.loc[df[col] < 0, col] = 0
                     else:
                         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-                elif bqt == "FLOAT":
+                elif bqt in ("FLOAT", "FLOAT64"):
                     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
                 elif bqt == "STRING":
                     df[col] = df[col].astype(str).replace("None", None).replace("nan", None)
@@ -110,10 +115,10 @@ def upsert_to_bq(
                     # BigQuery DATETIME does not support timezones. Strip if present.
                     df[col] = pd.to_datetime(df[col], errors="coerce").dt.tz_localize(None)
                 elif bqt == "TIMESTAMP":
-                    df[col] = pd.to_datetime(df[col], errors="coerce")
+                    df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
                 elif bqt == "DATE":
                     df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
-                elif bqt == "BOOLEAN":
+                elif bqt in ("BOOLEAN", "BOOL"):
                     df[col] = df[col].astype(bool)
     except Exception as e:
         log.warning(f"Could not align types for {table_name} (might be a new table): {e}")
@@ -145,13 +150,40 @@ def upsert_to_bq(
 
         # 3. Perform MERGE
         cols = [field.name for field in staging_table.schema]
-        update_set = ", ".join([f"T.`{c}` = S.`{c}`" for c in cols if c not in [unique_key, "user_id"]])
-        insert_cols = ", ".join([f"`{c}`" for c in cols])
-        insert_values = ", ".join([f"S.`{c}`" for c in cols])
+        keys = [unique_key] if isinstance(unique_key, str) else list(unique_key)
+        exclude_update_keys = set(keys + ["user_id"])
 
-        on_clause = f"T.`{unique_key}` = S.`{unique_key}`"
-        if user_id:
-            on_clause += " AND T.`user_id` = S.`user_id`"
+        # Fetch target schema map
+        target_table = client.get_table(target_table_id)
+        target_schema_map = {f.name: f.field_type for f in target_table.schema}
+
+        update_clauses = []
+        insert_exprs = []
+        for c in cols:
+            bqt = target_schema_map.get(c, "STRING")
+            if bqt == "TIMESTAMP":
+                expr = f"SAFE_CAST(S.`{c}` AS TIMESTAMP)"
+            elif bqt in ("FLOAT", "FLOAT64"):
+                expr = f"SAFE_CAST(S.`{c}` AS FLOAT64)"
+            elif bqt in ("INTEGER", "INT64"):
+                expr = f"SAFE_CAST(S.`{c}` AS INT64)"
+            elif bqt in ("BOOLEAN", "BOOL"):
+                expr = f"SAFE_CAST(S.`{c}` AS BOOL)"
+            else:
+                expr = f"S.`{c}`"
+
+            if c not in exclude_update_keys:
+                update_clauses.append(f"T.`{c}` = {expr}")
+            insert_exprs.append(expr)
+
+        update_set = ", ".join(update_clauses)
+        insert_cols = ", ".join([f"`{c}`" for c in cols])
+        insert_values = ", ".join(insert_exprs)
+
+        on_conditions = [f"T.`{k}` = S.`{k}`" for k in keys]
+        if user_id and "user_id" not in keys:
+            on_conditions.append("T.`user_id` = S.`user_id`")
+        on_clause = " AND ".join(on_conditions)
 
         merge_query = f"""
             MERGE `{target_table_id}` T
@@ -164,7 +196,7 @@ def upsert_to_bq(
         """
 
         client.query(merge_query).result()
-        log.info(f"Successfully merged {len(df)} rows into {table_name} using key '{unique_key}' (user: {user_id}).")
+        log.info(f"Successfully merged {len(df)} rows into {table_name} using key(s) '{keys}' (user: {user_id}).")
     finally:
         client.delete_table(staging_table_id, not_found_ok=True)
 
@@ -352,7 +384,7 @@ def run_etl(
 
         send_proactive_notification(
             user_id=user_id or "fsirio",
-            message="⚠️ **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link.",
+            message="?????? **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link.",
         )
         return None
 
@@ -399,15 +431,20 @@ def run_etl(
     last_act_date = get_last_sync_date("recent_activities", user_id=user_id)
 
     if activities:
-        new_activities = [
-            a
-            for a in activities
-            if not last_act_date or pd.to_datetime(a.date).tz_localize(None) > last_act_date.tz_localize(None)
-        ]
+        if days_back is not None:
+            new_activities = activities
+        else:
+            new_activities = [
+                a
+                for a in activities
+                if not last_act_date or pd.to_datetime(a.date).tz_localize(None) > last_act_date.tz_localize(None)
+            ]
 
         if new_activities:
             all_telemetry = []
             activity_summaries = []
+            all_swim_lengths = []
+            all_hr_zones = []
 
             for act in new_activities:
                 log.info(f"Fetching telemetry for new activity: {act.name} ({act.id})")
@@ -428,6 +465,43 @@ def run_etl(
                             avg_pwr = float(valid_pwr.mean())
                             max_pwr_calc = float(valid_pwr.max())
 
+                # Fetch HR zones if client is available
+                client = getattr(provider, "client", None)
+                if client:
+                    try:
+                        hr_zones = get_activity_hr_zones(client, act.id)
+                        if hr_zones:
+                            df_z = pd.DataFrame([z.model_dump() for z in hr_zones])
+                            df_z["activity_id"] = str(act.id)
+                            all_hr_zones.append(df_z)
+                    except Exception as e:
+                        log.warning(f"Failed to fetch HR zones for {act.id}: {e}")
+
+                    # Fetch Swimming Lengths if swimming activity
+                    if act.type in ("lap_swimming", "open_water_swimming"):
+                        try:
+                            splits = get_activity_splits(client, act.id)
+                            swim_lengths = []
+                            for split in splits:
+                                if split.lengths:
+                                    for length in split.lengths:
+                                        ld = length.model_dump()
+                                        ld["activity_id"] = str(act.id)
+                                        # Compute derived metrics
+                                        dist = ld.get("distance_m") or 0.0
+                                        dur = ld.get("duration_sec") or 0.0
+                                        strk = ld.get("total_strokes")
+                                        ld["pace_per_100m_sec"] = round((dur / dist) * 100, 2) if dist > 0 else None
+                                        ld["stroke_rate"] = (
+                                            round(strk / (dur / 60), 2) if dur > 0 and strk is not None else None
+                                        )
+                                        swim_lengths.append(ld)
+                            if swim_lengths:
+                                df_l = pd.DataFrame(swim_lengths)
+                                all_swim_lengths.append(df_l)
+                        except Exception as e:
+                            log.warning(f"Failed to fetch swim lengths for {act.id}: {e}")
+
                 summary = act.model_dump()
                 summary["avg_power"] = float(avg_pwr) if avg_pwr is not None else None
                 if max_pwr_calc is not None:
@@ -438,7 +512,47 @@ def run_etl(
             if "splits" in df_act.columns:
                 df_act.drop(columns=["splits"], inplace=True)
 
+            # Ensure numeric types in df_act
+            numeric_float_cols = [
+                "pool_length_m",
+                "total_strokes",
+                "avg_swolf",
+                "moving_duration_sec",
+                "elapsed_duration_sec",
+                "min_hr",
+                "avg_swim_cadence",
+                "avg_strokes_per_length",
+                "avg_stroke_distance_m",
+                "max_speed_mps",
+                "recovery_hr",
+            ]
+            for col in numeric_float_cols:
+                if col in df_act.columns:
+                    df_act[col] = pd.to_numeric(df_act[col], errors="coerce")
+
             upsert_to_bq(df_act, "recent_activities", unique_key="id", user_id=user_id)
+
+            if all_swim_lengths:
+                all_swim_lengths = [d for d in all_swim_lengths if not d.empty]
+                if all_swim_lengths:
+                    df_all_swim_lengths = pd.concat(all_swim_lengths)
+                    upsert_to_bq(
+                        df_all_swim_lengths,
+                        "swim_length_telemetry",
+                        unique_key=["activity_id", "length_index"],
+                        user_id=user_id,
+                    )
+
+            if all_hr_zones:
+                all_hr_zones = [d for d in all_hr_zones if not d.empty]
+                if all_hr_zones:
+                    df_all_hr_zones = pd.concat(all_hr_zones)
+                    upsert_to_bq(
+                        df_all_hr_zones,
+                        "activity_hr_zones",
+                        unique_key=["activity_id", "zone_number"],
+                        user_id=user_id,
+                    )
 
             if all_telemetry:
                 all_telemetry = [d for d in all_telemetry if not d.empty]

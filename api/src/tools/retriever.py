@@ -173,7 +173,7 @@ def _retrieve_biometric_data_cached(
 
     # STRICT USER ISOLATION: Ensure user_id is provided
     if not user_id:
-        log.error("❌ retrieve_biometric_data called without user_id.")
+        log.error("??? retrieve_biometric_data called without user_id.")
         return {"error": "User ID is required for biometric retrieval."}
 
     user_where = f"WHERE user_id = '{user_id}'"
@@ -203,7 +203,8 @@ def _retrieve_biometric_data_cached(
             query_act = f"""
                 SELECT id, 
                        FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date, 
-                       type, distance_m, avg_hr, vo2max, duration_sec, avg_power
+                       type, distance_m, avg_hr, vo2max, duration_sec, avg_power,
+                       moving_duration_sec, avg_swolf, active_lengths, is_personal_record, swim_stroke
                 FROM `{project_id}.{dataset}.recent_activities` 
                 {where_clause}
                 ORDER BY date DESC 
@@ -211,10 +212,10 @@ def _retrieve_biometric_data_cached(
             """
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
-            log.info(f"⏱️ BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
+            log.info(f"?????? BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
             return "recent_activities", act_rows
         except Exception as e:
-            log.warning(f"❌ Activities retrieval failed: {e}")
+            log.warning(f"??? Activities retrieval failed: {e}")
             return "recent_activities", []
 
     def fetch_training_status() -> tuple[str, dict[str, Any] | None]:
@@ -236,9 +237,9 @@ def _retrieve_biometric_data_cached(
                 or not status_data.get("acute_load")
                 or str(status_data.get("acute_load")).strip().lower() in ["null", "none", ""]
             ):
-                log.info("🔄 Garmin Training Status missing or invalid. Querying BigQuery view fallback...")
+                log.info("???? Garmin Training Status missing or invalid. Querying BigQuery view fallback...")
                 query_fallback = f"""
-                    SELECT 'Calculated (Fallback)' AS status, acute_load, chronic_load, ac_ratio, metric_used, hr_per_step, aerobic_decoupling_pct
+                    SELECT 'Calculated (Fallback)' AS status, acute_load, chronic_load, ac_ratio, metric_used
                     FROM `{project_id}.{dataset}.view_calculated_training_status`
                     {user_where}
                     ORDER BY date DESC LIMIT 1
@@ -255,15 +256,15 @@ def _retrieve_biometric_data_cached(
                     fallback_data["info"] = (
                         f"Generated via BigQuery ACWR view ({fallback_data.get('metric_used', 'unknown')})."
                     )
-                    log.info(f"⏱️ BigQuery: Fallback training status retrieved in {time.time() - t0:.2f}s")
+                    log.info(f"?????? BigQuery: Fallback training status retrieved in {time.time() - t0:.2f}s")
                     return "training_status", fallback_data
 
-            log.info(f"⏱️ BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
             if status_data:
                 status_data["fallback_applied"] = False
             return "training_status", status_data
         except Exception as e:
-            log.warning(f"❌ Training status retrieval failed: {e}")
+            log.warning(f"??? Training status retrieval failed: {e}")
             return "training_status", None
 
     def fetch_sleep_history() -> tuple[str, dict[str, Any] | None]:
@@ -278,7 +279,7 @@ def _retrieve_biometric_data_cached(
                 ORDER BY date DESC LIMIT 1
             """
             sleep_rows = list(client.query(query_sleep).result())
-            log.info(f"⏱️ BigQuery: Sleep history retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? BigQuery: Sleep history retrieved in {time.time() - t0:.2f}s")
             return "sleep", (dict(sleep_rows[0]) if sleep_rows else None)
         except Exception:
             return "sleep", None
@@ -294,7 +295,7 @@ def _retrieve_biometric_data_cached(
                 ORDER BY date DESC LIMIT 7
             """
             hrv_rows = [dict(row) for row in client.query(query_hrv).result()]
-            log.info(f"⏱️ BigQuery: HRV history retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? BigQuery: HRV history retrieved in {time.time() - t0:.2f}s")
             return "hrv", hrv_rows
         except Exception:
             return "hrv", []
@@ -307,10 +308,10 @@ def _retrieve_biometric_data_cached(
             if profile and isinstance(profile, dict):
                 profile = dict(profile)
                 profile.pop("personal_calibration_profile", None)
-            log.info(f"⏱️ Firestore: User profile retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? Firestore: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", profile
         except Exception as e:
-            log.warning(f"❌ Firestore profile retrieval failed: {e}")
+            log.warning(f"??? Firestore profile retrieval failed: {e}")
             return "user_profile", None
 
     def fetch_body_composition() -> tuple[str, dict[str, Any] | None]:
@@ -323,7 +324,7 @@ def _retrieve_biometric_data_cached(
                 f"ORDER BY date DESC LIMIT 1"
             )
             body_rows = list(client.query(query_body).result())
-            log.info(f"⏱️ BigQuery: Body composition retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? BigQuery: Body composition retrieved in {time.time() - t0:.2f}s")
             return "latest_body_composition", (dict(body_rows[0]) if body_rows else None)
         except Exception:
             return "latest_body_composition", None
@@ -334,10 +335,10 @@ def _retrieve_biometric_data_cached(
             t0 = time.time()
             profile = get_user_profile(user_id)
             health = profile.get("latest_health_status")
-            log.info(f"⏱️ Firestore: Health status retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? Firestore: Health status retrieved in {time.time() - t0:.2f}s")
             return "latest_health_status", health
         except Exception as e:
-            log.warning(f"❌ Firestore health status retrieval failed: {e}")
+            log.warning(f"??? Firestore health status retrieval failed: {e}")
             return "latest_health_status", None
 
     def fetch_user_goals() -> tuple[str, list[dict[str, Any]]]:
@@ -346,10 +347,10 @@ def _retrieve_biometric_data_cached(
             t0 = time.time()
             profile = get_user_profile(user_id)
             goals = profile.get("active_goals", [])
-            log.info(f"⏱️ Firestore: Active goals retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? Firestore: Active goals retrieved in {time.time() - t0:.2f}s")
             return "active_goals", goals
         except Exception as e:
-            log.warning(f"❌ Firestore goals retrieval failed: {e}")
+            log.warning(f"??? Firestore goals retrieval failed: {e}")
             return "active_goals", []
 
     def fetch_daily_physiology() -> tuple[str, list[dict[str, Any]]]:
@@ -363,10 +364,10 @@ def _retrieve_biometric_data_cached(
                 ORDER BY date DESC LIMIT 7
             """
             daily_rows = [dict(row) for row in client.query(query_daily).result()]
-            log.info(f"⏱️ BigQuery: Daily physiology retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? BigQuery: Daily physiology retrieved in {time.time() - t0:.2f}s")
             return "daily_physiology_7d", daily_rows
         except Exception as e:
-            log.warning(f"❌ Daily physiology retrieval failed: {e}")
+            log.warning(f"??? Daily physiology retrieval failed: {e}")
             return "daily_physiology_7d", []
 
     def fetch_calibration_profile() -> tuple[str, list[dict[str, Any]]]:
@@ -381,10 +382,10 @@ def _retrieve_biometric_data_cached(
                 calib_list.append(
                     {"marker_type": m_type, "marker_value": m_data.get("value"), "context": m_data.get("context")}
                 )
-            log.info(f"⏱️ Firestore: Calibration profile retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? Firestore: Calibration profile retrieved in {time.time() - t0:.2f}s")
             return "personal_calibration_profile", calib_list
         except Exception as e:
-            log.warning(f"❌ Firestore calibration profile retrieval failed: {e}")
+            log.warning(f"??? Firestore calibration profile retrieval failed: {e}")
             return "personal_calibration_profile", []
 
     def fetch_scheduled_workouts() -> tuple[str, list[dict[str, Any]]]:
@@ -403,10 +404,10 @@ def _retrieve_biometric_data_cached(
                 LIMIT 5
             """
             sched_rows = [dict(row) for row in client.query(query_sched).result()]
-            log.info(f"⏱️ BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s")
+            log.info(f"?????? BigQuery: Scheduled workouts retrieved in {time.time() - t0:.2f}s")
             return "scheduled_workouts", sched_rows
         except Exception as e:
-            log.warning(f"❌ Scheduled workouts retrieval failed: {e}")
+            log.warning(f"??? Scheduled workouts retrieval failed: {e}")
             return "scheduled_workouts", []
 
     def fetch_semantic_memories() -> tuple[str, list[str]]:
@@ -426,10 +427,12 @@ def _retrieve_biometric_data_cached(
                 if memory_text:
                     memories.append(f"{date_str}{memory_text}")
 
-            log.info(f"⏱️ Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s ({len(memories)} entries)")
+            log.info(
+                f"?????? Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s ({len(memories)} entries)"
+            )
             return "semantic_memories", memories
         except Exception as e:
-            log.warning(f"❌ Semantic memory retrieval failed: {e}")
+            log.warning(f"??? Semantic memory retrieval failed: {e}")
             return "semantic_memories", []
 
     def fetch_telemetry(activity_ids: list[str]) -> tuple[str, str]:
@@ -604,13 +607,13 @@ def _retrieve_biometric_data_cached(
                 compact_series.append(f"{activity_label}: {' '.join(segments_list)}")
 
             log.info(
-                f"⏱️ BigQuery: Telemetry event segments retrieved in {time.time() - t0:.2f}s ({len(rows)} segments)"
+                f"?????? BigQuery: Telemetry event segments retrieved in {time.time() - t0:.2f}s ({len(rows)} segments)"
             )
             return "last_3_runs_timeseries_summary", (
                 "\n".join(compact_series) if compact_series else "No detailed telemetry found."
             )
         except Exception as e:
-            log.error(f"❌ Telemetry retrieval failed: {e}")
+            log.error(f"??? Telemetry retrieval failed: {e}")
             return (
                 "last_3_runs_timeseries_summary",
                 f"Error retrieving telemetry: {e}",
@@ -682,7 +685,7 @@ def _retrieve_biometric_data_cached(
     if not context.get("hrv"):
         context["hrv"] = [{"info": "HRV baseline not yet established."}]
 
-    log.info(f"✅ Total context retrieval time: {time.time() - start_total:.2f}s")
+    log.info(f"??? Total context retrieval time: {time.time() - start_total:.2f}s")
 
     def serialize_dates(obj: Any) -> Any:
         """Serializes dates and datetimes to ISO format."""
