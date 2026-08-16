@@ -58,7 +58,7 @@ graph TD
 | **Metabolic Nutrition** | ⚖️ | Calculates carbohydrate/glycogen depletion based on mechanical power output (kJ) vs. HR zone distribution, providing targeted post-run fueling recommendations. |
 | **Exercise Science RAG** | 📚 | Performs `VECTOR_SEARCH` against BigQuery vector store using `gemini-embedding-001` embeddings to retrieve research-backed methodology (e.g. 80/20 polarized training, cardiac decoupling). |
 | **Data Scientist** | 🧪 | Autonomous exploratory agent that formulates and tests hypotheses against the BigQuery Data Lake. Operates under an SRE Dry-Run Mandate to prevent costly full-table scans. |
-| **Head Coach Synthesis** | 🧠 | Core reasoning node that synthesizes reports from all specialist agents into actionable, tailored advice or structured Garmin workout plans. |
+| **Head Coach Synthesis** | 🧠 | Core reasoning node that synthesizes reports from all specialist agents into actionable, tailored advice, calibrated sport-specific zones (Running vs Swimming AeT), or structured Garmin workout plans. |
 | **Semantic Memory Extractor** | 🧠 | Post-processing node that captures long-term factual constraints (injuries, preferences, gear setup) and saves them as golden nuggets in Firestore. |
 
 ---
