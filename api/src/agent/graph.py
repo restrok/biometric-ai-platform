@@ -2,7 +2,7 @@ from src.tools.alerting import check_proactive_alerts
 from src.tools.historical_biometrics import compare_shoe_biomechanics
 from src.tools.nutrition_modeler import assess_glycogen_readiness
 from src.tools.predictive_modeler import calculate_critical_power_and_w_prime
-from src.tools.profile_manager import calibrate_profile_max_hr
+from src.tools.profile_manager import calibrate_profile_max_hr, get_sport_zones, update_sport_zones
 
 """LangGraph definition for the Biometric AI Coach agent."""
 
@@ -511,6 +511,8 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             calculate_critical_power_and_w_prime,
             compare_shoe_biomechanics,
             calibrate_profile_max_hr,
+            update_sport_zones,
+            get_sport_zones,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
@@ -709,6 +711,8 @@ def tool_node(state: AgentState) -> Any:
             calculate_critical_power_and_w_prime,
             compare_shoe_biomechanics,
             calibrate_profile_max_hr,
+            update_sport_zones,
+            get_sport_zones,
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,

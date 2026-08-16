@@ -122,3 +122,102 @@ class UserCalibrationProfile(BaseModel):
                 elif m_type == "hrv_unbalanced_risk_multiplier":
                     data["hrv_unbalanced_risk_multiplier"] = float(m_val)
         return cls(**data)
+
+
+class SportHeartRateZones(BaseModel):
+    """Heart rate zone thresholds for a specific sport discipline."""
+
+    sport: str = Field("running", description="Sport discipline: 'running', 'swimming', 'cycling'")
+    z1_max: int = Field(..., description="Max HR for Zone 1 (Active Recovery)")
+    z2_max: int = Field(..., description="Max HR for Zone 2 (Aerobic Threshold / AeT)")
+    z3_max: int = Field(..., description="Max HR for Zone 3 (Tempo / Aerobic Power)")
+    z4_max: int = Field(..., description="Max HR for Zone 4 (Anaerobic / Lactate Threshold / AnT)")
+    z5_max: int | None = Field(None, description="Max HR for Zone 5 (VO2 Max / Neuromuscular Peak)")
+    aet_hr: int | None = Field(None, description="Aerobic Threshold (AeT) in bpm")
+    ant_hr: int | None = Field(None, description="Anaerobic Threshold (AnT) in bpm")
+    hr_offset_from_running_bpm: int = Field(
+        0, description="Offset in bpm relative to running baseline (e.g. -13 bpm for swimming)"
+    )
+
+
+def calculate_sport_hr_zones(
+    running_zones: dict[str, Any] | None = None,
+    max_hr: float | None = None,
+    resting_hr: float | None = None,
+    sport: str = "running",
+) -> SportHeartRateZones:
+    """
+    Computes sport-specific heart rate zones (running, swimming, cycling).
+
+    Physiological Rationale:
+    - Running: Vertical posture with full gravitational load on the cardiovascular system.
+    - Swimming: Horizontal body position increases venous return and stroke volume (Frank-Starling law),
+      while water immersion provides convective cooling. As a result, swimming AeT, AnT, and Max HR
+      are typically 10 to 15 bpm lower (average ~13 bpm) than running.
+    - Cycling: Seated posture without upper body vertical impact reduces HR by 5 to 8 bpm relative to running.
+    """
+    sport_lower = sport.lower()
+
+    # 1. Base Running Zones Resolution
+    if running_zones and all(k in running_zones for k in ["z1_max", "z2_max", "z3_max", "z4_max"]):
+        r_z1 = int(running_zones["z1_max"])
+        r_z2 = int(running_zones["z2_max"])
+        r_z3 = int(running_zones["z3_max"])
+        r_z4 = int(running_zones["z4_max"])
+        r_z5 = int(running_zones.get("z5_max", max_hr or (r_z4 + 15)))
+    else:
+        # Fallback to Karvonen calculation from Max HR / Resting HR
+        m_hr = float(max_hr or 180.0)
+        r_hr = float(resting_hr or 60.0)
+        hrr = m_hr - r_hr
+        r_z1 = int(round(r_hr + 0.50 * hrr))
+        r_z2 = int(round(r_hr + 0.60 * hrr))
+        r_z3 = int(round(r_hr + 0.70 * hrr))
+        r_z4 = int(round(r_hr + 0.80 * hrr))
+        r_z5 = int(round(m_hr))
+
+    if sport_lower in ("swimming", "lap_swimming", "pool_swimming", "open_water_swimming"):
+        # Swimming offset: ~12-14 bpm lower
+        offset = -13
+        z1 = max(r_z1 + offset, 80)
+        z2 = max(r_z2 + offset, 105)
+        z3 = max(r_z3 + offset, 120)
+        z4 = max(r_z4 + offset, 135)
+        z5 = max(r_z5 + offset, 150) if r_z5 else None
+        return SportHeartRateZones(
+            sport="swimming",
+            z1_max=z1,
+            z2_max=z2,
+            z3_max=z3,
+            z4_max=z4,
+            z5_max=z5,
+            aet_hr=z2,
+            ant_hr=z4,
+            hr_offset_from_running_bpm=offset,
+        )
+    if sport_lower in ("cycling", "biking", "indoor_cycling"):
+        # Cycling offset: ~6 bpm lower
+        offset = -6
+        return SportHeartRateZones(
+            sport="cycling",
+            z1_max=r_z1 + offset,
+            z2_max=r_z2 + offset,
+            z3_max=r_z3 + offset,
+            z4_max=r_z4 + offset,
+            z5_max=r_z5 + offset if r_z5 else None,
+            aet_hr=r_z2 + offset,
+            ant_hr=r_z4 + offset,
+            hr_offset_from_running_bpm=offset,
+        )
+    # Default: Running
+    return SportHeartRateZones(
+        sport="running",
+        z1_max=r_z1,
+        z2_max=r_z2,
+        z3_max=r_z3,
+        z4_max=r_z4,
+        z5_max=r_z5,
+        aet_hr=r_z2,
+        ant_hr=r_z4,
+        hr_offset_from_running_bpm=0,
+    )

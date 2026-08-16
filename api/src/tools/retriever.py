@@ -301,17 +301,43 @@ def _retrieve_biometric_data_cached(
             return "hrv", []
 
     def fetch_user_profile() -> tuple[str, dict[str, Any] | None]:
-        """Fetches user profile information from Firestore."""
+        """Fetches user profile information from Firestore enriched with sport-specific HR zones."""
+        from src.utils.physiology import calculate_sport_hr_zones
+
         try:
             t0 = time.time()
             profile = get_user_profile(user_id)
             if profile and isinstance(profile, dict):
                 profile = dict(profile)
                 profile.pop("personal_calibration_profile", None)
-            log.info(f"?????? Firestore: User profile retrieved in {time.time() - t0:.2f}s")
+
+                # Enrich with sport-specific heart rate zones (running & swimming)
+                sport_zones = dict(profile.get("sport_zones") or {})
+                running_base = sport_zones.get("running") or profile.get("custom_zones")
+                max_hr = profile.get("max_hr")
+                resting_hr = profile.get("resting_hr")
+
+                if "running" not in sport_zones:
+                    sport_zones["running"] = calculate_sport_hr_zones(
+                        running_zones=running_base,
+                        max_hr=float(max_hr) if max_hr else None,
+                        resting_hr=float(resting_hr) if resting_hr else None,
+                        sport="running",
+                    ).model_dump()
+
+                if "swimming" not in sport_zones:
+                    sport_zones["swimming"] = calculate_sport_hr_zones(
+                        running_zones=running_base,
+                        max_hr=float(max_hr) if max_hr else None,
+                        resting_hr=float(resting_hr) if resting_hr else None,
+                        sport="swimming",
+                    ).model_dump()
+
+                profile["sport_zones"] = sport_zones
+            log.info(f"⏱️ Firestore: User profile retrieved in {time.time() - t0:.2f}s")
             return "user_profile", profile
         except Exception as e:
-            log.warning(f"??? Firestore profile retrieval failed: {e}")
+            log.warning(f"⚠️ Firestore profile retrieval failed: {e}")
             return "user_profile", None
 
     def fetch_body_composition() -> tuple[str, dict[str, Any] | None]:

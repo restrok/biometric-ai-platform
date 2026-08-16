@@ -470,3 +470,149 @@ def calibrate_profile_max_hr(
     except Exception as e:
         log.error(f"❌ Failed calibrating profile Max HR: {e}")
         return json.dumps({"error": str(e)})
+
+
+class SportZoneUpdate(BaseModel):
+    sport: str = Field("running", description="Sport discipline: 'running', 'swimming', 'cycling'")
+    z1_max: int = Field(..., description="Max HR for Zone 1 (Active Recovery)")
+    z2_max: int = Field(..., description="Max HR for Zone 2 (Aerobic Threshold / AeT)")
+    z3_max: int = Field(..., description="Max HR for Zone 3 (Tempo / Aerobic Power)")
+    z4_max: int = Field(..., description="Max HR for Zone 4 (Anaerobic / Lactate Threshold / AnT)")
+    z5_max: int | None = Field(None, description="Max HR for Zone 5 (VO2 Max / Neuromuscular Peak)")
+    user_id: str | None = Field(None, description="The ID of the user.")
+
+
+@tool(args_schema=SportZoneUpdate)
+def update_sport_zones(
+    z1_max: int,
+    z2_max: int,
+    z3_max: int,
+    z4_max: int,
+    sport: str = "running",
+    z5_max: int | None = None,
+    user_id: str | None = None,
+) -> str:
+    """
+    Updates the user's sport-specific heart rate zones (running, swimming, cycling).
+    Saves sport-specific profiles to Firestore (e.g. running_zones with AeT ~142 bpm,
+    swimming_zones with AeT ~128-130 bpm).
+    """
+    config = get_config()
+    project_id = config["project_id"]
+    dataset = config["dataset_id"]
+    user_id = user_id or "fsirio"
+    sport_key = sport.lower().strip()
+
+    try:
+        profile = get_user_profile(user_id)
+        current_sport_zones = profile.get("sport_zones", {})
+
+        current_sport_zones[sport_key] = {
+            "sport": sport_key,
+            "z1_max": z1_max,
+            "z2_max": z2_max,
+            "z3_max": z3_max,
+            "z4_max": z4_max,
+            "z5_max": z5_max,
+            "aet_hr": z2_max,
+            "ant_hr": z4_max,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+        update_data = {
+            "sport_zones": current_sport_zones,
+        }
+        if sport_key == "running":
+            update_data["custom_zones"] = {
+                "z1_max": z1_max,
+                "z2_max": z2_max,
+                "z3_max": z3_max,
+                "z4_max": z4_max,
+            }
+
+        update_user_profile(user_id, update_data)
+        log.info(f"✅ Firestore: Updated sport zones ({sport_key}) for {user_id}")
+
+        if sport_key == "running":
+            client = bigquery.Client(project=project_id)
+            table_id = f"{project_id}.{dataset}.user_profile"
+            query = f"""
+                UPDATE `{table_id}`
+                SET 
+                    custom_z1_max = {z1_max},
+                    custom_z2_max = {z2_max},
+                    custom_z3_max = {z3_max},
+                    custom_z4_max = {z4_max},
+                    updated_at = CURRENT_DATETIME()
+                WHERE user_id = '{user_id}'
+            """
+            try:
+                client.query(query).result()
+            except Exception as bq_e:
+                log.warning(f"⚠️ BigQuery sync for running zones failed: {bq_e}")
+
+        return (
+            f"Successfully updated {sport_key} heart rate zones: "
+            f"Z1 (Recovery): <{z1_max} bpm, Z2 (AeT): {z1_max}-{z2_max} bpm, "
+            f"Z3 (Tempo): {z2_max}-{z3_max} bpm, Z4 (AnT): {z3_max}-{z4_max} bpm"
+            f"{f', Z5 (Peak): >{z4_max} bpm' if z5_max else ''}."
+        )
+    except Exception as e:
+        log.error(f"❌ Failed updating sport zones: {e}")
+        return f"Error updating sport zones: {e}"
+
+
+class GetSportZonesInput(BaseModel):
+    sport: str = Field("running", description="Sport discipline: 'running', 'swimming', 'cycling'")
+    user_id: str | None = Field(None, description="The ID of the user.")
+
+
+@tool(args_schema=GetSportZonesInput)
+def get_sport_zones(sport: str = "running", user_id: str | None = None) -> str:
+    """
+    Retrieves the user's heart rate zones for a specific sport (running vs swimming vs cycling).
+    If sport-specific zones are not yet customized, automatically derives them based on physiological principles
+    (e.g., swimming zones are 10-15 bpm lower than running due to horizontal posture and convective water cooling).
+    """
+    from src.utils.physiology import calculate_sport_hr_zones
+
+    user_id = user_id or "fsirio"
+    sport_key = sport.lower().strip()
+
+    try:
+        profile = get_user_profile(user_id)
+        sport_zones_dict = profile.get("sport_zones", {})
+
+        if sport_key in sport_zones_dict:
+            res_data = dict(sport_zones_dict[sport_key])
+            res_data["source"] = "customized_user_profile"
+        else:
+            running_base = sport_zones_dict.get("running") or profile.get("custom_zones")
+            max_hr = profile.get("max_hr")
+            resting_hr = profile.get("resting_hr")
+            derived = calculate_sport_hr_zones(
+                running_zones=running_base,
+                max_hr=float(max_hr) if max_hr else None,
+                resting_hr=float(resting_hr) if resting_hr else None,
+                sport=sport_key,
+            )
+            res_data = derived.model_dump()
+            res_data["source"] = "physiologically_derived"
+
+        return json.dumps(
+            {
+                "user_id": user_id,
+                "sport": sport_key,
+                "zones": res_data,
+                "physiological_note": (
+                    "Swimming heart rate zones are ~12-14 bpm lower than running due to the Frank-Starling mechanism "
+                    "(enhanced venous return in horizontal posture) and water convective cooling."
+                    if sport_key in ("swimming", "lap_swimming", "pool_swimming")
+                    else "Standard gravitational weight-bearing cardiovascular load."
+                ),
+            },
+            indent=2,
+        )
+    except Exception as e:
+        log.error(f"❌ Failed getting sport zones: {e}")
+        return json.dumps({"error": str(e)})

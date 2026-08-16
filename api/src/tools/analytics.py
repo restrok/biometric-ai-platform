@@ -132,6 +132,49 @@ def _analyze_swim_efficiency(
         for z in zone_rows
     ]
 
+    # 4. Sport-Specific Swimming Heart Rate Zones Evaluation
+    from src.utils.firestore import get_user_profile
+    from src.utils.physiology import calculate_sport_hr_zones
+
+    swim_zones = None
+    swim_intensity_classification = "Standard Endurance"
+    if user_id:
+        try:
+            profile = get_user_profile(user_id)
+            sport_zones_dict = profile.get("sport_zones", {})
+            if "swimming" in sport_zones_dict:
+                swim_zones = sport_zones_dict["swimming"]
+            else:
+                running_base = sport_zones_dict.get("running") or profile.get("custom_zones")
+                max_hr_val = profile.get("max_hr")
+                resting_hr_val = profile.get("resting_hr")
+                derived_zones = calculate_sport_hr_zones(
+                    running_zones=running_base,
+                    max_hr=float(max_hr_val) if max_hr_val else None,
+                    resting_hr=float(resting_hr_val) if resting_hr_val else None,
+                    sport="swimming",
+                )
+                swim_zones = derived_zones.model_dump()
+
+            if summary_data.get("avg_hr") and swim_zones:
+                s_avg_hr = float(summary_data["avg_hr"])
+                z2_m = float(swim_zones["z2_max"])
+                z4_m = float(swim_zones["z4_max"])
+                if s_avg_hr <= z2_m:
+                    swim_intensity_classification = (
+                        f"Zone 2 Aerobic Base (Avg HR {s_avg_hr} bpm <= Swim AeT {z2_m} bpm)"
+                    )
+                elif s_avg_hr <= z4_m:
+                    swim_intensity_classification = (
+                        f"Zone 3-4 Threshold / Tempo (Avg HR {s_avg_hr} bpm between {z2_m}-{z4_m} bpm)"
+                    )
+                else:
+                    swim_intensity_classification = (
+                        f"Zone 5 High Intensity / Anaerobic (Avg HR {s_avg_hr} bpm > Swim AnT {z4_m} bpm)"
+                    )
+        except Exception as e:
+            log.warning(f"Could not load swimming zones for {user_id}: {e}")
+
     paces = [r["pace_per_100m_sec"] for r in length_rows if r.get("pace_per_100m_sec")]
     best_pace = round(float(np.min(paces)), 1) if paces else None
     avg_pace = round(float(np.mean(paces)), 1) if paces else None
@@ -165,6 +208,8 @@ def _analyze_swim_efficiency(
         "is_personal_record": summary_data.get("is_personal_record", False),
         "moderate_intensity_min": summary_data.get("moderate_intensity_min"),
         "vigorous_intensity_min": summary_data.get("vigorous_intensity_min"),
+        "swimming_hr_zones_profile": swim_zones,
+        "swim_intensity_classification": swim_intensity_classification,
     }
 
     log.info(f"??? Full Swimming Efficiency analysis complete for {activity_id}")

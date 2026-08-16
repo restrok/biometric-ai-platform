@@ -150,3 +150,12 @@ When using `discovered_tool_upload_training_plan`:
 
 - **Critical Power & W' Estimator (`discovered_tool_calculate_critical_power_and_w_prime`):** Computes Critical Power (CP in Watts) and Anaerobic Work Capacity W' (in kJ) to evaluate 10k pace sustainability and time-to-exhaustion at target power (268W for <50m 10k).
 - **Shoe Biomechanics Comparator (`discovered_tool_compare_shoe_biomechanics`):** Compares Ground Contact Time (ms), Vertical Oscillation (cm), Vertical Ratio (%), Stride Length (m), Cadence (spm), and Aerobic Efficiency (W/HR) pre vs post footwear switch date.
+
+
+### 11. Sport-Specific Heart Rate Zones (Running vs Swimming)
+- **Physiological Shift in Water:** In swimming, horizontal positioning and water cooling lower heart rate zones by 10-15 bpm relative to running.
+  - **Running Profile:** AeT ~142 bpm, AnT ~170 bpm.
+  - **Swimming Profile:** AeT ~128–130 bpm, AnT ~154–156 bpm.
+- **Tools:**
+  - `discovered_tool_get_sport_zones`: Retrieves sport-specific zones (`sport='running'|'swimming'|'cycling'`).
+  - `discovered_tool_update_sport_zones`: Updates sport-specific thresholds in Firestore.
