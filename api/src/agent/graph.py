@@ -4,7 +4,6 @@ from src.tools.nutrition_modeler import assess_glycogen_readiness
 from src.tools.predictive_modeler import calculate_critical_power_and_w_prime
 from src.tools.profile_manager import calibrate_profile_max_hr, get_sport_zones, update_sport_zones
 
-
 """LangGraph definition for the Biometric AI Coach agent."""
 
 import json
@@ -514,7 +513,6 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             calibrate_profile_max_hr,
             update_sport_zones,
             get_sport_zones,
-
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
@@ -715,7 +713,6 @@ def tool_node(state: AgentState) -> Any:
             calibrate_profile_max_hr,
             update_sport_zones,
             get_sport_zones,
-
             generate_deep_historical_report,
             execute_exploratory_query,
             execute_exploratory_query_dry_run,
