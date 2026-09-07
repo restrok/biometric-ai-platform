@@ -68,7 +68,7 @@ jobs:
     name: Build and Push Docker Image
     needs: [python-quality]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
 
     steps:
       - uses: actions/checkout@v4
@@ -92,9 +92,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}/biometric-api
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
 
       - name: Build and push
         uses: docker/build-push-action@v6
