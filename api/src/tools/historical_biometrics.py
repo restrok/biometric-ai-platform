@@ -67,7 +67,7 @@ async def save_to_gcs(project_id: str, bucket_name: str, file_name: str, content
 class HistoricalBiometricsInput(BaseModel):
     """Input schema for analyzing historical biometric evolution."""
 
-    user_id: str = Field(..., description="El ID interno del usuario (ej., 'fsirio').")
+    user_id: str = Field(..., description="El ID interno del usuario (ej., 'athlete_1').")
     project_id: str | None = Field(None, description="GCP Project ID.")
     dataset: str | None = Field(None, description="BigQuery Dataset ID.")
 

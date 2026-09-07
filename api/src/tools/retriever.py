@@ -59,7 +59,7 @@ class RetrieverInput(BaseModel):
     activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
     start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
     end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
-    user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'fsirio').")
+    user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'athlete_1').")
     force_reload: bool = Field(False, description="Bypass cache and force reload from BigQuery")
     include_telemetry: bool = Field(False, description="Include detailed timeseries summary for runs.")
 

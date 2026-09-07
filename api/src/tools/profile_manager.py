@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import date, datetime
 from typing import Literal
 
@@ -31,7 +32,7 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_i
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-    user_id = user_id or "fsirio"
+    user_id = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
 
     # 1. Update Firestore (OLTP - Source of Truth for Agent)
     try:
@@ -99,7 +100,7 @@ def log_health_status(
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-    user_id = user_id or "fsirio"
+    user_id = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
 
     target_date = status_date if status_date else date.today().isoformat()
 
@@ -252,7 +253,7 @@ def manage_goals(
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-    user_id = user_id or "fsirio"
+    user_id = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
 
     import uuid
 
@@ -344,7 +345,7 @@ def save_calibration_marker(
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-    user_id = user_id or "fsirio"
+    user_id = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
 
     # 1. Update Firestore (PCP Markers)
     try:
@@ -500,7 +501,7 @@ def update_sport_zones(
     config = get_config()
     project_id = config["project_id"]
     dataset = config["dataset_id"]
-    user_id = user_id or "fsirio"
+    user_id = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
     sport_key = sport.lower().strip()
 
     try:
@@ -576,7 +577,7 @@ def get_sport_zones(sport: str = "running", user_id: str | None = None) -> str:
     """
     from src.utils.physiology import calculate_sport_hr_zones
 
-    user_id = user_id or "fsirio"
+    user_id = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
     sport_key = sport.lower().strip()
 
     try:

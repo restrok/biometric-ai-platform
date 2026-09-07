@@ -565,7 +565,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     # STRICT USER ISOLATION: Add a dedicated system instruction for the current user ID
     user_id = state.get("user_id", "unknown")
     intent = state.get("intent", "full")
-    isolation_prompt = f"\n\n### 🛡️ MULTI-TENANT ISOLATION (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** You are EXCLUSIVELY acting for user '{user_id}'. You MUST use this ID for all tool calls (e.g., `user_id='{user_id}'`). NEVER use 'fsirio' or any other ID unless the user ID is explicitly '{user_id}'."
+    isolation_prompt = f"\n\n### 🛡️ MULTI-TENANT ISOLATION (MANDATORY)\n- **CURRENT USER ID:** {user_id}\n- **RULE:** You are EXCLUSIVELY acting for user '{user_id}'. You MUST use this ID for all tool calls (e.g., `user_id='{user_id}'`). NEVER use another user's ID unless the user ID is explicitly '{user_id}'."
 
     # SYNC OPTIMIZATION: If intent is sync, add a high-priority instruction
     sync_instruction = ""

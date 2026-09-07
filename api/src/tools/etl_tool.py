@@ -23,7 +23,7 @@ def sync_biometric_data(
     stale, or if they explicitly ask to 'sync' or 'update'.
 
     Args:
-        user_id: Internal ID of the user (defaults to 'fsirio').
+        user_id: Internal ID of the user (defaults to 'default_user').
         days_back: Number of days to look back (safety default is applied).
         start_date: Explicit start date (YYYY-MM-DD).
         end_date: Explicit end date (YYYY-MM-DD).

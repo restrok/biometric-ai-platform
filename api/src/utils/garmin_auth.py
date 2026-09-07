@@ -49,7 +49,7 @@ def get_all_garmin_user_ids() -> list[str]:
 
     # 3. Fallback to default user if nothing found
     if not user_ids:
-        default_user = os.getenv("DEFAULT_USER_ID", "fsirio")
+        default_user = os.getenv("DEFAULT_USER_ID", "default_user")
         user_ids.add(default_user)
 
     return list(user_ids)

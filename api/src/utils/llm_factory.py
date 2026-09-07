@@ -32,7 +32,7 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
             **kwargs,
         )
     if provider == "lmstudio":
-        lm_studio_url = os.getenv("LM_STUDIO_BASE_URL", "http://192.168.88.240:1234/v1")
+        lm_studio_url = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
         return ChatOpenAI(
             model=model_name,
             base_url=lm_studio_url,

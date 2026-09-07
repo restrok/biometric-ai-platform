@@ -71,7 +71,7 @@ async def save_artifact_to_gcs(project_id: str, bucket_name: str, file_name: str
 class DeepReportingInput(BaseModel):
     """Input schema for generating a deep historical biometric report."""
 
-    user_id: str = Field(..., description="The internal ID of the user (e.g., 'fsirio').")
+    user_id: str = Field(..., description="The internal ID of the user (e.g., 'athlete_1').")
     months_back: int = Field(3, description="Number of months to analyze (default 3).")
     project_id: str | None = Field(None, description="GCP Project ID.")
     dataset: str | None = Field(None, description="BigQuery Dataset ID.")

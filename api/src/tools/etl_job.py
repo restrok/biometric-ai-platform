@@ -383,7 +383,7 @@ def run_etl(
         from src.utils.notifications import send_proactive_notification
 
         send_proactive_notification(
-            user_id=user_id or "fsirio",
+            user_id=str(user_id or os.getenv("DEFAULT_USER_ID", "default_user")),
             message="?????? **Action Required:** Your Garmin connection has expired or is invalid. Please reconnect by typing `/garmin_login` to generate a new link.",
         )
         return None

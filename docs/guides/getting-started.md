@@ -133,7 +133,7 @@ The API supports **Multi-User Context Isolation** via the `X-User-ID` header:
     curl -X 'POST' \
       'http://localhost:8000/v1/chat/completions' \
       -H 'Content-Type: application/json' \
-      -H 'X-User-ID: fsirio' \
+      -H 'X-User-ID: athlete_1' \
       -d '{
         "model": "biometric-coach",
         "messages": [{"role": "user", "content": "Analyze my last run efficiency."}]
@@ -145,7 +145,7 @@ The API supports **Multi-User Context Isolation** via the `X-User-ID` header:
     curl -X 'POST' \
       'http://localhost:8000/api/v1/tools/zones/update' \
       -H 'Content-Type: application/json' \
-      -H 'X-User-ID: fsirio' \
+      -H 'X-User-ID: athlete_1' \
       -d '{"z1_max": 143, "z2_max": 165, "z3_max": 176, "z4_max": 186}'
     ```
 
