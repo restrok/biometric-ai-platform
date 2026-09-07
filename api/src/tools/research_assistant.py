@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 from google.cloud import bigquery
 from langchain_core.tools import tool
@@ -26,11 +26,12 @@ def get_embeddings_model():
     embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
     if embedding_base_url:
         from langchain_openai import OpenAIEmbeddings
+        from pydantic import SecretStr
 
         return OpenAIEmbeddings(
             model=embedding_model,
             base_url=embedding_base_url,
-            api_key="ollama",
+            api_key=SecretStr("ollama"),
             check_embedding_ctx_length=False,
         )
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
