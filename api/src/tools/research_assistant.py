@@ -1,8 +1,8 @@
+import os
 import logging
 
 from google.cloud import bigquery
 from langchain_core.tools import tool
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from src.utils.config import get_config, setup_environment
 
@@ -20,6 +20,24 @@ if not PROJECT_ID:
     log.error("GOOGLE_CLOUD_PROJECT environment variable is not set. BigQuery tools will fail.")
 
 
+def get_embeddings_model():
+    """Returns local OpenAI-compatible embeddings (nomic-embed-text, 768 dims) if configured, else Google fallback."""
+    embedding_base_url = os.getenv("EMBEDDING_BASE_URL", "http://192.168.89.32:11434/v1")
+    embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+    if embedding_base_url:
+        from langchain_openai import OpenAIEmbeddings
+
+        return OpenAIEmbeddings(
+            model=embedding_model,
+            base_url=embedding_base_url,
+            api_key="ollama",
+            check_embedding_ctx_length=False,
+        )
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+    return GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+
+
 @tool
 def search_exercise_science(query: str) -> str:
     """
@@ -29,8 +47,8 @@ def search_exercise_science(query: str) -> str:
     """
     client = bigquery.Client(project=PROJECT_ID)
 
-    # 1. Generate Embedding for the query
-    embeddings_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+    # 1. Generate Embedding for the query (using local 768-dim embeddings by default)
+    embeddings_model = get_embeddings_model()
     query_embedding = embeddings_model.embed_query(query)
 
     # 2. Execute BigQuery Vector Search
