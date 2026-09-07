@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.4] - 2026-09-07
 ### 🚀 Features
 - **Sport-Specific Heart Rate Zones (`SportHeartRateZones`, `calculate_sport_hr_zones`):** Added support for sport-specific HR zones in Firestore profile (`running_zones` with AeT ~142 bpm vs `swimming_zones` with AeT ~128–130 bpm), reflecting horizontal hemodynamic efficiency (Frank-Starling law) and water convective cooling (-12 to -14 bpm shift).
 - **Sport Zones Management Tools (`update_sport_zones`, `get_sport_zones`):** Added tools for querying and customizing sport-specific zones. Enriched `fetch_user_profile` in `retriever.py` and `_analyze_swim_efficiency` in `analytics.py` to evaluate swimming activities against swimming-specific thresholds.
