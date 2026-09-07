@@ -218,7 +218,11 @@ def node_router(state: AgentState) -> dict[str, Any]:
     log.info(f"🧠 Classifying intent for: {last_msg[:50]}...")
 
     try:
-        structured_llm = model.with_structured_output(IntentClassifier)
+        provider = os.getenv("LLM_PROVIDER", "google").lower()
+        if provider in ["ollama", "openai", "lmstudio"]:
+            structured_llm = model.with_structured_output(IntentClassifier, method="function_calling")
+        else:
+            structured_llm = model.with_structured_output(IntentClassifier)
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
 
         # Enhanced prompt to detect cross-user queries and out-of-scope requests
@@ -821,7 +825,11 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         return {"messages": [response], "loop_count": loop_count + 1}
 
     # Once tools are done (or if no tools needed), force a structured output
-    structured_llm = llm.with_structured_output(DataScientistOutput)
+    provider = os.getenv("LLM_PROVIDER", "google").lower()
+    if provider in ["ollama", "openai", "lmstudio"]:
+        structured_llm = llm.with_structured_output(DataScientistOutput, method="function_calling")
+    else:
+        structured_llm = llm.with_structured_output(DataScientistOutput)
     try:
         raw_output = structured_llm.invoke(messages + [response])
         if not raw_output:

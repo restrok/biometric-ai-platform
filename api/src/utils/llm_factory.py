@@ -47,6 +47,17 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
             temperature=temperature,
             **kwargs,
         )
+    if provider == "ollama":
+        base_url = os.getenv("OLLAMA_BASE_URL", "https://ollama.com/v1")
+        api_key = os.getenv("OLLAMA_API_KEY") or os.getenv("OPENAI_API_KEY") or "ollama"
+        return ChatOpenAI(
+            model=model_name,
+            base_url=base_url,
+            api_key=SecretStr(api_key),
+            temperature=temperature,
+            timeout=kwargs.get("timeout", 120),
+            **{k: v for k, v in kwargs.items() if k not in ["timeout"]},
+        )
     # For Google, we can pass through extra kwargs like automatic_function_calling
     return ChatGoogleGenerativeAI(
         model=model_name, google_api_key=os.getenv("GOOGLE_API_KEY"), temperature=temperature, **kwargs
