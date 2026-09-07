@@ -26,7 +26,7 @@ The **Biometric AI Platform** utilizes a **Hybrid Lakehouse Architecture**, stri
 Firestore handles real-time operational state requiring document-level ACID guarantees and fast lookup speeds.
 
 ### Key Collections:
-- **`user_profiles/{user_id}`**: Stores user biological profiles, physiological HR zones, and latest health status logs.
+- **`user_profiles/{user_id}`**: Stores user biological profiles, sport-specific physiological HR zones (`sport_zones` for `running` [AeT ~142 bpm] vs `swimming` [AeT ~128-130 bpm]), and latest health status logs.
 - **`user_profiles/{user_id}/semantic_memories`**: Stores factual "golden nuggets" extracted by the memory extractor (`memory_type`, `memory_text`, `is_active`).
 - **`user_profiles/{user_id}/calibration_markers`**: Stores custom physiological threshold overrides (e.g. `ac_ratio_red_line`, `hrv_sensitivity_index`).
 

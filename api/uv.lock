@@ -91,7 +91,7 @@ wheels = [
 
 [[package]]
 name = "api"
-version = "0.4.2"
+version = "0.4.3"
 source = { virtual = "." }
 dependencies = [
     { name = "db-dtypes" },
@@ -133,7 +133,7 @@ dev = [
 requires-dist = [
     { name = "db-dtypes", specifier = ">=1.5.1" },
     { name = "fastapi", specifier = ">=0.136.0" },
-    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.7.2" },
+    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.8.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
     { name = "google-cloud-firestore", specifier = ">=2.21.0" },
@@ -515,8 +515,8 @@ http = [
 
 [[package]]
 name = "garmin-training-toolkit-sdk"
-version = "0.7.2"
-source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.7.2#b11b87cce644fbe8badb8b57b4aacd4bf11af5da" }
+version = "0.8.0"
+source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.8.0#e900211202bbfedd65f022b8a8f660d67afaa444" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },
