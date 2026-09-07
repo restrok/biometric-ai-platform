@@ -22,7 +22,7 @@ if not PROJECT_ID:
 
 def get_embeddings_model():
     """Returns local OpenAI-compatible embeddings (nomic-embed-text, 768 dims) if configured, else Google fallback."""
-    embedding_base_url = os.getenv("EMBEDDING_BASE_URL", "http://192.168.89.32:11434/v1")
+    embedding_base_url = os.getenv("EMBEDDING_BASE_URL", "http://localhost:11434/v1")
     embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
     if embedding_base_url:
         from langchain_openai import OpenAIEmbeddings
