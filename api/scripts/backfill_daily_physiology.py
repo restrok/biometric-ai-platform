@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 def run_backfill():
     setup_environment()
-    user_id = "fsirio"
+    user_id = "default_user"
     log.info(f"🚀 Starting 1-year daily physiology backfill for {user_id}...")
 
     provider = get_provider(user_id=user_id, refresh=True)

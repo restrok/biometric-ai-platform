@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 def audit_telemetry_precision(
     activity_id: str | None = None,
-    user_id: str = "fsirio",
+    user_id: str = "default_user",
     json_path: str | None = None,
 ) -> None:
     """Audits the current Event-Based Telemetry Architecture.

@@ -10,7 +10,7 @@ def test_proactive() -> None:
     # Configure logging to see what's happening
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
-    user_id = "fsirio"
+    user_id = "default_user"
     print(f"🚀 Manually triggering proactive analysis for user: {user_id}")
     run_proactive_analysis(user_id)
     print("✅ Done.")

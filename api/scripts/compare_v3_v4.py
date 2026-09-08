@@ -15,7 +15,7 @@ load_dotenv(env_path)
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT", "bio-intelligence-dev")
 DATASET_ID = os.getenv("DATASET_ID", "biometric_data_dev")
-USER_ID = "fsirio"
+USER_ID = "default_user"
 
 
 def compare_v3_v4_v35():

@@ -217,7 +217,7 @@ async def update_zones(zones: ZoneUpdate):
 
 
 @app.post("/sync", tags=["ETL"])
-async def trigger_sync(user_id: str = "fsirio", days_back: int = 3):
+async def trigger_sync(user_id: str = "default_user", days_back: int = 3):
     """
     Manually triggers a biometric sync for a specific user.
     """
@@ -232,7 +232,7 @@ async def trigger_sync(user_id: str = "fsirio", days_back: int = 3):
 @app.post("/v1/chat/completions")
 async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None, alias="X-User-ID")):
     """OpenAI-compatible endpoint for chat completions."""
-    user_id = x_user_id or "fsirio"
+    user_id = x_user_id or os.getenv("DEFAULT_USER_ID", "default_user")
     log.info(f"📩 Incoming request | User: {user_id} | Model: {req.model} | Stream: {req.stream}")
 
     # Extract user messages for the agent

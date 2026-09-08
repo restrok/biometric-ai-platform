@@ -15,13 +15,13 @@ def run_discovery():
         a.type,
         a.avg_hr
     FROM `biometric_data_dev.recent_activities` a
-    WHERE a.user_id = 'fsirio'
+    WHERE a.user_id = 'default_user'
       AND a.date >= UNIX_SECONDS(TIMESTAMP('2026-05-01'))
     ORDER BY a.date DESC
     """
 
     # Using the tool's invoke method as recommended
-    result = execute_exploratory_query.invoke({"sql": query, "user_id": "fsirio"})
+    result = execute_exploratory_query.invoke({"sql": query, "user_id": "default_user"})
     print(json.dumps(result))
 
 

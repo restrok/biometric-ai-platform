@@ -18,7 +18,7 @@ def aggregate_history():
             avg_hr,
             type
         FROM `{project_id}.{dataset}.recent_activities`
-        WHERE user_id = 'fsirio' AND type = 'running'
+        WHERE user_id = 'default_user' AND type = 'running'
     """
     df = client.query(query).to_dataframe()
 

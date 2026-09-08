@@ -31,7 +31,7 @@ We will implement a **Decoupled Notification Flow**:
 
 1.  **Orchestrator (`telegram-agent-orchestrator`):**
     - Expose a generic `POST /api/notify` endpoint.
-    - Payload: `{ "user_id": "fsirio", "agent_id": "biometric-coach", "message": "..." }`.
+    - Payload: `{ "user_id": "default_user", "agent_id": "biometric-coach", "message": "..." }`.
     - Function: Map `user_id` to Telegram `chat_id` and push the message.
 
 2.  **Biometric Platform (`biometric-ai-platform`):**

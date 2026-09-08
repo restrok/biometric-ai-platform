@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def iterate_methodology():
-    user_id = "fsirio"
+    user_id = "default_user"
     latest_id = "22946951415"
     pid = "bio-intelligence-dev"
     ds = "biometric_data_dev"

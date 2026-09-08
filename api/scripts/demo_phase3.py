@@ -18,7 +18,7 @@ async def run_demo():
 
     inputs: AgentState = {
         "messages": [HumanMessage(content=user_message)],
-        "user_id": "fsirio",
+        "user_id": "default_user",
         "intent": "full",
         "biometric_context": {},
         "usage_stats": {},

@@ -14,7 +14,7 @@ def send_custom(message):
         print("❌ Error: ORCHESTRATOR_NOTIFY_URL not found in .env")
         return
 
-    payload = {"user_id": "fsirio", "agent_id": "biometric-coach", "message": message}
+    payload = {"user_id": os.getenv("DEFAULT_USER_ID", "default_user"), "agent_id": "biometric-coach", "message": message}
 
     try:
         resp = httpx.post(url, json=payload, timeout=10.0)

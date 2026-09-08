@@ -10,7 +10,7 @@ load_dotenv(env_path)
 
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 DATASET_ID = os.getenv("DATASET_NAME", "biometric_data_dev")
-DEFAULT_USER_ID = "fsirio"  # The user confirmed all existing data is theirs
+DEFAULT_USER_ID = "default_user"  # The user confirmed all existing data is theirs
 
 TABLES = [
     "user_profile",

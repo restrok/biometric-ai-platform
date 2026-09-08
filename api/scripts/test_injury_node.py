@@ -51,7 +51,7 @@ async def test_agent():
                 "notes": "Physiological Profile: Ectomorph. Needs high calorie/carb intake.",
             },
         },
-        "user_id": "fsirio",
+        "user_id": "default_user",
         "intent": "full",
         "loop_count": 0,
         "usage_stats": {},

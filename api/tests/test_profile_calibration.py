@@ -44,11 +44,11 @@ def test_calibrate_profile_max_hr_no_change(mock_get_profile):
 
     raw_res = calibrate_profile_max_hr.invoke(
         {
-            "user_id": "fsirio",
+            "user_id": "test_user",
             "observed_peak_hr": 165.0,
         }
     )
 
     res = json.loads(raw_res)
-    assert res["user_id"] == "fsirio"
+    assert res["user_id"] == "test_user"
     assert res["action"] == "NO_CHANGE_NEEDED"

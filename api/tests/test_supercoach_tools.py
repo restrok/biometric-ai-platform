@@ -16,14 +16,14 @@ def test_calculate_critical_power_and_w_prime(mock_bq):
 
     raw_res = calculate_critical_power_and_w_prime.invoke(
         {
-            "user_id": "fsirio",
+            "user_id": "test_user",
             "target_power_watts": 268.0,
             "target_duration_mins": 50.0,
         }
     )
 
     res = json.loads(raw_res)
-    assert res["user_id"] == "fsirio"
+    assert res["user_id"] == "test_user"
     assert "critical_power_cp_watts" in res["critical_power_model"]
     assert "w_prime_anaerobic_reserve_kj" in res["critical_power_model"]
     assert res["target_event_assessment"]["target_10k_power_watts"] == 268.0
@@ -63,13 +63,13 @@ def test_compare_shoe_biomechanics(mock_bq):
 
     raw_res = compare_shoe_biomechanics.invoke(
         {
-            "user_id": "fsirio",
+            "user_id": "test_user",
             "switch_date": "2026-07-18",
         }
     )
 
     res = json.loads(raw_res)
-    assert res["user_id"] == "fsirio"
+    assert res["user_id"] == "test_user"
     assert res["switch_date"] == "2026-07-18"
     assert "metrics_comparison" in res
     assert res["metrics_comparison"]["ground_contact_time_ms"]["delta_ms"] == -10.0

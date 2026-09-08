@@ -484,7 +484,7 @@ async def save_setup(payload: SetupConfigPayload):
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(user_id: str | None = None):
     """Renders the visual biometric dashboard with ApexCharts and Tailwind CSS."""
-    default_user = str(user_id or os.getenv("DEFAULT_USER_ID", "fsirio"))
+    default_user = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
     content = DASHBOARD_HTML_TEMPLATE.replace("{{ATHLETE_ID}}", default_user)
     return HTMLResponse(content=content)
 
@@ -492,7 +492,7 @@ async def dashboard_page(user_id: str | None = None):
 @router.get("/dashboard/data")
 async def dashboard_data(user_id: str | None = None):
     """Returns biometric summary JSON payload for the dashboard."""
-    target_user = str(user_id or os.getenv("DEFAULT_USER_ID", "fsirio"))
+    target_user = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
     engine = get_storage_engine()
 
     profile = engine.get_user_profile(target_user)
