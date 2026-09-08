@@ -180,3 +180,59 @@ def test_dashboard_users(client: TestClient):
     data = response.json()
     assert "users" in data
     assert isinstance(data["users"], list)
+
+
+from unittest.mock import patch
+
+
+def test_garmin_exchange_endpoint_invalid_ticket(client: TestClient):
+    response = client.post(
+        "/auth/garmin/exchange",
+        json={"ticket_or_url": "invalid-url-without-st", "user_id": "athlete_test"}
+    )
+    assert response.status_code == 400
+    assert "No se encontró un ticket válido" in response.json()["detail"]
+
+
+def test_garmin_exchange_endpoint_mocked(client: TestClient):
+    mock_tokens = {
+        "di_token": "mock_di_token_abc",
+        "di_refresh_token": "mock_ref_123",
+        "di_client_id": "test_client"
+    }
+    with patch("garmin_training_toolkit_sdk.auth.get_tokens_from_ticket", return_value=mock_tokens):
+        response = client.post(
+            "/auth/garmin/exchange",
+            json={
+                "ticket_or_url": "https://sso.garmin.com/sso/embed?ticket=ST-TEST-TICKET-999",
+                "user_id": "athlete_garmin_mock_exchange"
+            }
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+        saved = get_vault().retrieve_tokens("garmin", "athlete_garmin_mock_exchange")
+        assert saved is not None
+        assert saved.get("di_token") == "mock_di_token_abc"
+
+
+def test_setup_save_with_garmin_ticket_url(client: TestClient):
+    mock_tokens = {
+        "di_token": "mock_di_token_from_setup",
+        "di_refresh_token": "mock_ref_from_setup",
+        "di_client_id": "test_client"
+    }
+    with patch("garmin_training_toolkit_sdk.auth.get_tokens_from_ticket", return_value=mock_tokens):
+        payload = {
+            "storage_mode": "local",
+            "user_id": "athlete_garmin_ticket_setup",
+            "watch_provider": "garmin",
+            "garmin_sso_tokens": "https://sso.garmin.com/sso/embed?ticket=ST-12345-SETUP-TEST",
+            "generate_key": True,
+        }
+        response = client.post("/setup/save", json=payload)
+        assert response.status_code == 200
+
+        saved = get_vault().retrieve_tokens("garmin", "athlete_garmin_ticket_setup")
+        assert saved is not None
+        assert saved.get("di_token") == "mock_di_token_from_setup"

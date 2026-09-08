@@ -4,17 +4,29 @@ import json
 import logging
 import math
 import os
+import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from src.storage.base import StorageEngine
 from src.storage.factory import get_storage_engine
 from src.utils.vault import get_vault
+
+GARMIN_SSO_LOGIN_URL = (
+    "https://sso.garmin.com/sso/embed"
+    "?id=gauth-widget"
+    "&embedWidget=true"
+    "&gauthHost=https://sso.garmin.com/sso"
+    "&clientId=GarminConnect"
+    "&locale=en_US"
+    "&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed"
+    "&service=https://sso.garmin.com/sso/embed"
+)
 
 log = logging.getLogger(__name__)
 
@@ -369,7 +381,7 @@ SETUP_HTML = """<!DOCTYPE html>
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Garmin Connect Integration</span>
-            <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-mono">SSO Token / FIT</span>
+            <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-mono">SSO / FIT</span>
           </div>
           <span class="text-xs text-slate-400">connect.garmin.com</span>
         </div>
@@ -378,17 +390,52 @@ SETUP_HTML = """<!DOCTYPE html>
         <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
           <label class="flex items-center space-x-2.5 cursor-pointer select-none">
             <input type="checkbox" id="use_mock_garmin" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
-            <span class="text-xs font-semibold text-slate-200">🧪 Enable Simulated Garmin Device (Offline Demo Data)</span>
+            <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Garmin (Demo Offline)</span>
           </label>
-          <p class="text-[11px] text-slate-400 pl-6.5">Zero credentials needed. Automatically seeds 14 days of realistic HRV, sleep stages, Body Battery, and running sessions with Garmin Running Dynamics (cadence, vertical oscillation, GCT balance).</p>
+          <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera automáticamente 14 días de fisiología (HRV, sueño, Body Battery) y actividades con Running Dynamics (cadencia 176–182 spm, oscilación vertical, balance de contacto con el suelo).</p>
         </div>
 
-        <!-- Mode 2: Paste Garmin SSO Token JSON -->
-        <div class="space-y-1.5 pt-1">
-          <label class="block text-xs font-medium text-slate-300">Live Device: Garmin SSO Token JSON (di_token)</label>
-          <textarea id="garmin_sso_tokens" rows="2" placeholder='{"di_token": "...", "di_refresh_token": "...", "di_client_id": "..."}'
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
-          <p class="text-[10px] text-slate-500">🔒 <strong>Zero password exposure:</strong> Paste your Garmin SSO token JSON. It will be encrypted into your local AES vault immediately.</p>
+        <!-- Mode 2: Real Garmin Connection via SSO Ticket -->
+        <div class="space-y-3 pt-2 border-t border-slate-700/50">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-sky-400">🔗 Conexión Real con tu Reloj Garmin</span>
+            <a href="https://sso.garmin.com/sso/embed?id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso&clientId=GarminConnect&locale=en_US&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed"
+               target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              <span>1. Abrir Garmin SSO Login ↗</span>
+            </a>
+          </div>
+
+          <div class="bg-slate-900/80 border border-slate-700/70 rounded-lg p-3 text-xs space-y-1.5 text-slate-300 leading-relaxed">
+            <p class="font-semibold text-sky-300">¿Cómo obtener el token en 3 pasos?</p>
+            <ol class="list-decimal list-inside space-y-1 text-slate-400 text-[11px]">
+              <li>Hacé clic en el botón azul <strong class="text-slate-200">"1. Abrir Garmin SSO Login ↗"</strong> (abrirá Garmin en una nueva pestaña).</li>
+              <li>Ingresá tu correo y contraseña habituales de Garmin y presioná <strong class="text-slate-200">Iniciar sesión</strong>.</li>
+              <li>Al finalizar con éxito, el navegador mostrará una pantalla en blanco con una dirección como:<br>
+                <code class="text-sky-300 select-all font-mono">https://sso.garmin.com/sso/embed?ticket=ST-XXXXX-XXXXXX</code><br>
+                Copiá esa dirección completa de la barra de tu navegador (o solo el ticket <code>ST-...</code>) y pegala abajo.
+              </li>
+            </ol>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-medium text-slate-300">2. Pegar URL de Garmin con Ticket (ST-...) o Token JSON:</label>
+              <span id="garmin-ticket-status" class="text-[11px] text-slate-400"></span>
+            </div>
+            <div class="flex space-x-2">
+              <textarea id="garmin_sso_tokens" rows="2"
+                        placeholder="https://sso.garmin.com/sso/embed?ticket=ST-... (o ST-... o JSON {&quot;di_token&quot;: ...})"
+                        class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-emerald-400 placeholder-slate-600 focus:outline-none focus:border-sky-500"></textarea>
+              <button type="button" onclick="exchangeGarminTicket()"
+                      class="self-start px-3 py-2 bg-sky-600/30 hover:bg-sky-600/50 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+                ⚡ Canjear Ticket
+              </button>
+            </div>
+          </div>
+
+          <p class="text-[10px] text-slate-500">🔒 <strong>Seguridad Local:</strong> El ticket se canjea automáticamente por tokens OAuth oficiales de Garmin en el servidor y se cifra inmediatamente en tu bóveda local (<code>/app/data/vault/</code>). Cero contraseñas almacenadas.</p>
         </div>
       </div>
 
@@ -403,34 +450,40 @@ SETUP_HTML = """<!DOCTYPE html>
         </div>
 
         <!-- Mode 1: Simulated Fitbit Device -->
-        <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+        <div class="bg-slate-900/60 border border-teal-800/40 rounded-lg p-3 space-y-1.5">
           <label class="flex items-center space-x-2.5 cursor-pointer select-none">
-            <input type="checkbox" id="use_mock_fitbit" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
-            <span class="text-xs font-semibold text-slate-200">🧪 Enable Simulated Fitbit Device (Instant Offline Demo Data)</span>
+            <input type="checkbox" id="use_mock_fitbit" checked class="w-4 h-4 text-teal-500 rounded bg-slate-800 border-slate-700 focus:ring-teal-500">
+            <span class="text-xs font-semibold text-teal-300">🧪 Habilitar Dispositivo Simulado Fitbit (Recomendado para pruebas locales)</span>
           </label>
-          <p class="text-[11px] text-slate-400 pl-6.5">Zero credentials needed. Seeds realistic daily cardio fitness, sleep stages, and workouts via MockFitbitProvider.</p>
+          <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera 14 días de métricas de cardio fitness, zonas de frecuencia cardíaca y entrenamientos vía MockFitbitProvider sin necesidad de crear una App de desarrollador.</p>
         </div>
 
         <!-- Mode 2: Live Device Connection -->
-        <div class="space-y-2 pt-1">
-          <label class="block text-xs font-medium text-slate-300">Live Device: Fitbit OAuth Client ID</label>
+        <div class="space-y-2 pt-2 border-t border-slate-700/50">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-medium text-slate-300">Conexión en Vivo: Fitbit OAuth Client ID</label>
+            <a href="https://dev.fitbit.com/apps/new" target="_blank" rel="noopener noreferrer" class="text-[11px] text-teal-400 hover:underline">Registrar App en dev.fitbit.com ↗</a>
+          </div>
+          <div class="p-2.5 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px] text-slate-400 space-y-1">
+            <p>💡 <em>Para conectar un dispositivo real de Fitbit en vivo, necesitás crear una App gratuita en dev.fitbit.com con Callback URL: <code class="text-teal-300 select-all" id="fitbit-callback-display">.../auth/fitbit/callback</code>.</em></p>
+          </div>
           <div class="flex space-x-2">
-            <input type="text" id="fitbit_client_id" placeholder="e.g. 23BXYZ"
-                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+            <input type="text" id="fitbit_client_id" placeholder="Ingresá tu Client ID (ej: 23ABCD)"
+                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-teal-500">
             <button type="button" onclick="connectFitbitOAuth()"
                     class="bg-teal-500 hover:bg-teal-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
-              <span>Connect with Fitbit</span>
+              <span>Conectar con Fitbit</span>
             </button>
           </div>
-          <p class="text-[10px] text-slate-500">Redirects to <code>fitbit.com/oauth2/authorize</code> for PKCE authorization. Callback: <code>/auth/fitbit/callback</code></p>
+          <div id="fitbit-oauth-warning" class="hidden text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/60 p-2.5 rounded-lg"></div>
         </div>
 
         <!-- Mode 3: Manual Token JSON Paste -->
         <details class="text-[11px] text-slate-400">
-          <summary class="cursor-pointer hover:text-slate-300 select-none">Or paste raw Fitbit token JSON manually</summary>
+          <summary class="cursor-pointer hover:text-slate-300 select-none">O pegar JSON de tokens de Fitbit manualmente</summary>
           <div class="mt-2 space-y-1">
             <textarea id="fitbit_token_json" rows="2" placeholder='{"access_token": "...", "refresh_token": "...", "user_id": "..."}'
-                       class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
+                       class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-teal-500"></textarea>
           </div>
         </details>
       </div>
@@ -446,32 +499,38 @@ SETUP_HTML = """<!DOCTYPE html>
         </div>
 
         <!-- Mode 1: Simulated / Mock Device -->
-        <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+        <div class="bg-slate-900/60 border border-blue-800/40 rounded-lg p-3 space-y-1.5">
           <label class="flex items-center space-x-2.5 cursor-pointer select-none">
-            <input type="checkbox" id="use_mock_google" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
-            <span class="text-xs font-semibold text-slate-200">🧪 Enable Simulated Fitbit Air (Instant Offline Demo Data)</span>
+            <input type="checkbox" id="use_mock_google" checked class="w-4 h-4 text-blue-500 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
+            <span class="text-xs font-semibold text-blue-300">🧪 Habilitar Dispositivo Simulado Fitbit Air (Recomendado para pruebas locales)</span>
           </label>
-          <p class="text-[11px] text-slate-400 pl-6.5">Zero credentials needed. Seeds 14 days of realistic HRV, sleep stages, Body Battery, and running sessions into DuckDB.</p>
+          <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera 14 días de HRV RMSSD, RHR, sueño y sesiones en DuckDB sin necesidad de configurar Google Cloud Console.</p>
         </div>
 
         <!-- Mode 2: Live Device Connection -->
-        <div class="space-y-2 pt-1">
-          <label class="block text-xs font-medium text-slate-300">Live Device: Google Cloud OAuth Client ID</label>
+        <div class="space-y-2 pt-2 border-t border-slate-700/50">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-medium text-slate-300">Conexión en Vivo: Google Cloud OAuth Client ID</label>
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" class="text-[11px] text-blue-400 hover:underline">Google Cloud Console ↗</a>
+          </div>
+          <div class="p-2.5 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px] text-slate-400 space-y-1">
+            <p>💡 <em>Requiere un Client ID de Google Cloud con Health API habilitada y Redirect URI: <code class="text-blue-300 select-all" id="google-callback-display">.../auth/google/callback</code>.</em></p>
+          </div>
           <div class="flex space-x-2">
-            <input type="text" id="google_client_id" placeholder="e.g. 123456-xxx.apps.googleusercontent.com"
+            <input type="text" id="google_client_id" placeholder="123456-xxx.apps.googleusercontent.com"
                    class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
             <button type="button" onclick="connectGoogleOAuth()"
                     class="bg-white hover:bg-slate-100 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
-              <span>Connect with Google</span>
+              <span>Conectar con Google</span>
             </button>
           </div>
-          <p class="text-[10px] text-slate-500">Redirects to Google Accounts for PKCE authorization. Callback: <code>/auth/google/callback</code></p>
+          <div id="google-oauth-warning" class="hidden text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/60 p-2.5 rounded-lg"></div>
         </div>
 
         <!-- Mode 3: Manual Token JSON Paste -->
         <details class="text-[11px] text-slate-400">
-          <summary class="cursor-pointer hover:text-slate-300 select-none">Or paste raw Google token JSON manually</summary>
+          <summary class="cursor-pointer hover:text-slate-300 select-none">O pegar JSON de tokens de Google manualmente</summary>
           <div class="mt-2 space-y-1">
             <textarea id="google_token_json" rows="2" placeholder='{"access_token": "ya29...", "refresh_token": "1//..."}'
                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
@@ -578,23 +637,73 @@ SETUP_HTML = """<!DOCTYPE html>
       }
     }
 
+    window.addEventListener('DOMContentLoaded', () => {
+      const base = window.location.origin;
+      const fcb = document.getElementById('fitbit-callback-display');
+      if (fcb) fcb.innerText = base + '/auth/fitbit/callback';
+      const gcb = document.getElementById('google-callback-display');
+      if (gcb) gcb.innerText = base + '/auth/google/callback';
+    });
+
+    async function exchangeGarminTicket() {
+      const val = document.getElementById('garmin_sso_tokens').value.trim();
+      const statusEl = document.getElementById('garmin-ticket-status');
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      if (!val) {
+        statusEl.className = 'text-[11px] text-amber-400 font-semibold';
+        statusEl.innerText = '⚠️ Pegá primero la URL con ticket (ST-...) de Garmin.';
+        return;
+      }
+      statusEl.className = 'text-[11px] text-sky-400';
+      statusEl.innerText = '🔄 Canjeando ticket con Garmin...';
+      try {
+        const res = await fetch('/auth/garmin/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket_or_url: val, user_id: userId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusEl.className = 'text-[11px] text-emerald-400 font-semibold';
+          statusEl.innerText = '✅ ' + data.message;
+          const mockGarmin = document.getElementById('use_mock_garmin');
+          if (mockGarmin) mockGarmin.checked = false;
+        } else {
+          throw new Error(data.detail || 'Fallo al canjear ticket');
+        }
+      } catch (err) {
+        statusEl.className = 'text-[11px] text-rose-400 font-semibold';
+        statusEl.innerText = '❌ ' + err.message;
+      }
+    }
+
     function connectGoogleOAuth() {
       const userId = document.getElementById('user_id').value || 'athlete_1';
-      const clientId = document.getElementById('google_client_id').value;
-      let url = '/auth/google/login?user_id=' + encodeURIComponent(userId);
-      if (clientId) {
-        url += '&client_id=' + encodeURIComponent(clientId);
+      const clientId = document.getElementById('google_client_id').value.trim();
+      const warn = document.getElementById('google-oauth-warning');
+      if (!clientId) {
+        if (warn) {
+          warn.innerHTML = '⚠️ <strong>Client ID requerido:</strong> Para conectar con Google Health en vivo ingresá tu Client ID registrado en <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="underline text-blue-300">Google Cloud Console</a>, o activá el <strong>Modo Simulado</strong> para probar sin credenciales.';
+          warn.classList.remove('hidden');
+        }
+        return;
       }
+      let url = '/auth/google/login?user_id=' + encodeURIComponent(userId) + '&client_id=' + encodeURIComponent(clientId);
       window.location.href = url;
     }
 
     function connectFitbitOAuth() {
       const userId = document.getElementById('user_id').value || 'athlete_1';
-      const clientId = document.getElementById('fitbit_client_id').value;
-      let url = '/auth/fitbit/login?user_id=' + encodeURIComponent(userId);
-      if (clientId) {
-        url += '&client_id=' + encodeURIComponent(clientId);
+      const clientId = document.getElementById('fitbit_client_id').value.trim();
+      const warn = document.getElementById('fitbit-oauth-warning');
+      if (!clientId) {
+        if (warn) {
+          warn.innerHTML = '⚠️ <strong>Client ID requerido:</strong> Para conectar con Fitbit en vivo ingresá tu Client ID de <a href="https://dev.fitbit.com/apps/new" target="_blank" class="underline text-teal-300">dev.fitbit.com</a>, o activá el <strong>Modo Simulado</strong> para probar sin credenciales.';
+          warn.classList.remove('hidden');
+        }
+        return;
       }
+      let url = '/auth/fitbit/login?user_id=' + encodeURIComponent(userId) + '&client_id=' + encodeURIComponent(clientId);
       window.location.href = url;
     }
 
@@ -1070,16 +1179,38 @@ async def save_setup(payload: SetupConfigPayload):
     # 2. Encrypted Vault token persistence
     has_tokens = False
 
-    # A. Garmin SSO Token Paste
+    # A. Garmin SSO Token or Ticket Paste
     if payload.garmin_sso_tokens:
-        try:
-            tok = json.loads(payload.garmin_sso_tokens)
-            vault.store_tokens("garmin", payload.user_id, tok)
+        tok = None
+        raw_val = payload.garmin_sso_tokens.strip()
+        ticket_match = re.search(r"(ST-[A-Za-z0-9\-]+)", raw_val)
+        if ticket_match:
+            ticket = ticket_match.group(1)
+            try:
+                from garmin_training_toolkit_sdk.auth import get_tokens_from_ticket
+                tok = get_tokens_from_ticket(ticket)
+                log.info(f"🎫 Exchanged Garmin SSO ticket '{ticket[:10]}...' for user '{payload.user_id}'.")
+            except Exception as e:
+                log.error(f"Failed to exchange Garmin ticket: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Error al canjear el ticket de Garmin ({ticket[:10]}...): {str(e)}. Verificá que el ticket sea reciente ya que expira a los pocos segundos."
+                )
 
+        if not tok:
+            try:
+                tok = json.loads(raw_val)
+            except Exception:
+                if not ticket_match:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Formato de token de Garmin no reconocido. Pegá la URL con 'ticket=ST-...' generada tras iniciar sesión o el JSON de sesión."
+                    )
+
+        if tok:
+            vault.store_tokens("garmin", payload.user_id, tok)
             has_tokens = True
-            log.info(f"🔒 Garmin SSO tokens encrypted into vault for '{payload.user_id}'.")
-        except Exception as e:
-            log.warning(f"Failed to parse garmin_sso_tokens: {e}")
+            log.info(f"🔒 Garmin tokens encrypted into vault for '{payload.user_id}'.")
 
     # B. Fitbit Token JSON Paste
     if payload.fitbit_token_json:
@@ -1119,6 +1250,39 @@ async def save_setup(payload: SetupConfigPayload):
         "watch_provider": payload.watch_provider,
     }
 
+
+
+
+class GarminExchangePayload(BaseModel):
+    ticket_or_url: str
+    user_id: str = "athlete_1"
+
+
+@router.post("/auth/garmin/exchange")
+async def exchange_garmin_ticket_endpoint(payload: GarminExchangePayload):
+    """Exchanges an SSO ticket from sso.garmin.com for OAuth tokens and stores them in LocalSecureVault."""
+    ticket_match = re.search(r"(ST-[A-Za-z0-9\-]+)", payload.ticket_or_url.strip())
+    if not ticket_match:
+        raise HTTPException(
+            status_code=400,
+            detail="No se encontró un ticket válido (debe contener 'ST-...'). Verificá que copiaste la URL completa generada por Garmin tras el login."
+        )
+    ticket = ticket_match.group(1)
+    try:
+        from garmin_training_toolkit_sdk.auth import get_tokens_from_ticket
+        tok = get_tokens_from_ticket(ticket)
+        get_vault().store_tokens("garmin", payload.user_id, tok)
+        return {
+            "status": "success",
+            "message": f"¡Sesión de Garmin vinculada y cifrada con éxito para '{payload.user_id}'!",
+            "user_id": payload.user_id,
+        }
+    except Exception as e:
+        log.error(f"Failed to exchange Garmin ticket: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error al canjear ticket con Garmin ({ticket[:10]}...): {str(e)}. Los tickets de Garmin duran pocos segundos. Por favor abrí el enlace de login nuevamente y generá uno nuevo."
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Health OAuth 2.0 PKCE Endpoints
