@@ -66,7 +66,6 @@ from langchain_core.runnables import RunnableConfig
 from src.agent.graph import graph
 from src.agent.proactive import run_proactive_analysis
 from src.routers import tools, web_ui
-from src.mcp_server import mcp_server
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
 from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
@@ -159,7 +158,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Biometric AI API", lifespan=lifespan)
 app.include_router(tools.router)
 app.include_router(web_ui.router)
-app.mount("/mcp", mcp_server.sse_app())
+try:
+    from src.mcp_server import mcp_server
+
+    app.mount("/mcp", mcp_server.sse_app())
+    log.info("📡 Mounted MCP Server at /mcp")
+except Exception as e:
+    log.warning(f"⚠️ Could not mount MCP Server: {e}")
 
 # ── Telemetry ──────────────────────────────────────────────────────────────
 # OpenTelemetry: instruments every HTTP request on this FastAPI app.
