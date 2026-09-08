@@ -10,7 +10,7 @@ The Biometric AI Platform currently operates as a single-user system, hardcoded 
 - **Data Layer (BigQuery):** Existing tables (`user_profile`, `recent_activities`, etc.) need a `user_id` column to partition data per user.
 
 ## Proposed Solution
-1.  **Identity:** Trust the internal network. Clients will pass `X-User-ID: <username>` (e.g., `fsirio`, `wife_username`) in HTTP headers.
+1.  **Identity:** Trust the internal network. Clients will pass `X-User-ID: <username>` (e.g., `default_user`, `wife_username`) in HTTP headers.
 2.  **Secret Management:** 
     - Enable Google Secret Manager API on the GCP project.
     - Store Garmin tokens as secrets named `garmin_tokens_<user_id>`.
@@ -25,7 +25,7 @@ The Biometric AI Platform currently operates as a single-user system, hardcoded 
 
 ### Phase 1: Database Migration (Completed ✅)
 - Modify `init_profile_tables.py` to add a `user_id` (STRING) column to all tables.
-- Create a migration script to backfill the existing single-user data with a default `user_id` (e.g., `fsirio`).
+- Create a migration script to backfill the existing single-user data with a default `user_id` (e.g., `default_user`).
 
 ### Phase 2: Secret Manager Integration (Completed ✅)
 - Create a utility script to upload local `garmin_tokens.json` to Google Secret Manager under the user's ID.

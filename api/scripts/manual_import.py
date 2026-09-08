@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def manual_import(start_date: date, end_date: date, user_id: str = "fsirio") -> None:
+def manual_import(start_date: date, end_date: date, user_id: str = "default_user") -> None:
     """Manually fetches and imports activities for a given date range.
 
     Args:

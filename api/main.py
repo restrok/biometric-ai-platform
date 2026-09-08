@@ -65,7 +65,7 @@ from langchain_core.runnables import RunnableConfig
 
 from src.agent.graph import graph
 from src.agent.proactive import run_proactive_analysis
-from src.routers import tools
+from src.routers import tools, web_ui
 from src.tools.etl_job import run_etl
 from src.tools.profile_manager import ZoneUpdate, update_user_zones
 from src.utils.garmin_auth import get_all_garmin_user_ids, refresh_garmin_tokens
@@ -157,6 +157,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Biometric AI API", lifespan=lifespan)
 app.include_router(tools.router)
+app.include_router(web_ui.router)
+try:
+    from src.mcp_server import mcp_server
+
+    app.mount("/mcp", mcp_server.sse_app())
+    log.info("📡 Mounted MCP Server at /mcp")
+except Exception as e:
+    log.warning(f"⚠️ Could not mount MCP Server: {e}")
 
 # ── Telemetry ──────────────────────────────────────────────────────────────
 # OpenTelemetry: instruments every HTTP request on this FastAPI app.
@@ -209,7 +217,7 @@ async def update_zones(zones: ZoneUpdate):
 
 
 @app.post("/sync", tags=["ETL"])
-async def trigger_sync(user_id: str = "fsirio", days_back: int = 3):
+async def trigger_sync(user_id: str = "default_user", days_back: int = 3):
     """
     Manually triggers a biometric sync for a specific user.
     """
@@ -221,10 +229,72 @@ async def trigger_sync(user_id: str = "fsirio", days_back: int = 3):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class DirectChatPayload(BaseModel):
+    message: str
+    user_id: str | None = None
+
+
+@app.post("/chat", tags=["Chat"])
+async def direct_chat(
+    payload: DirectChatPayload,
+    x_user_id: str | None = Header(None, alias="X-User-ID"),
+):
+    """Direct chat endpoint for the Dashboard and lightweight clients."""
+    user_id = payload.user_id or x_user_id or os.getenv("DEFAULT_USER_ID", "default_user")
+    log.info(f"💬 Direct chat request | User: {user_id} | Message: {payload.message[:60]}")
+
+    if not payload.message or not payload.message.strip():
+        raise HTTPException(status_code=400, detail="Empty message.")
+
+    initial_state = {"messages": [HumanMessage(content=payload.message)], "user_id": user_id}
+    session_id = f"session-{user_id}"
+    langfuse_cb = get_langfuse_callback(
+        session_id=session_id,
+        user_id=user_id,
+        tags=["chat", "web-dashboard"],
+    )
+    callbacks = [langfuse_cb] if langfuse_cb else []
+    config: RunnableConfig = {
+        "configurable": {"thread_id": user_id},
+        "callbacks": callbacks,
+        "metadata": {
+            "langfuse_session_id": session_id,
+            "langfuse_user_id": user_id,
+            "session_id": session_id,
+            "user_id": user_id,
+        },
+    }
+
+    try:
+        result = await graph.ainvoke(cast(Any, initial_state), config=config)
+        ai_reply = ""
+        for msg in reversed(result["messages"]):
+            if msg.type == "ai" and msg.content:
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                    continue
+                if isinstance(msg.content, list):
+                    text_parts = [item if isinstance(item, str) else item.get("text", "") for item in msg.content]
+                    ai_reply = "\n".join(filter(None, text_parts))
+                else:
+                    ai_reply = str(msg.content)
+                if ai_reply.strip():
+                    break
+
+        if not ai_reply:
+            ai_reply = (
+                "El entrenador analizó la consulta pero no generó respuesta de texto. Por favor intenta de nuevo."
+            )
+
+        return {"response": ai_reply, "message": ai_reply, "user_id": user_id}
+    except Exception as e:
+        log.error(f"❌ Error processing direct chat: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/v1/chat/completions")
 async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None, alias="X-User-ID")):
     """OpenAI-compatible endpoint for chat completions."""
-    user_id = x_user_id or "fsirio"
+    user_id = x_user_id or os.getenv("DEFAULT_USER_ID", "default_user")
     log.info(f"📩 Incoming request | User: {user_id} | Model: {req.model} | Stream: {req.stream}")
 
     # Extract user messages for the agent

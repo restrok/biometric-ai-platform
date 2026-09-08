@@ -1,16 +1,12 @@
 import logging
-import uuid
-from datetime import UTC, datetime
 from typing import Literal
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from src.utils.firestore import get_firestore_client
+from src.storage.factory import get_storage_engine
 
 log = logging.getLogger(__name__)
-
-COLLECTION_NAME = "user_memories"
 
 
 class SemanticMemoryInput(BaseModel):
@@ -36,23 +32,15 @@ def save_semantic_memory(
     """Saves a 'Golden Nugget' fact about the user to long-term semantic memory.
     Use this when the user states a clear preference, constraint, or recurring health fact.
     """
-    db = get_firestore_client()
-    doc_id = str(uuid.uuid4())
-    now = datetime.now(UTC)
-
-    memory_data = {
-        "user_id": user_id,
-        "memory_type": memory_type,
-        "memory_text": memory_text,
-        "source_session_id": source_session_id,
-        "confidence_score": confidence_score,
-        "is_active": True,
-        "created_at": now,
-        "updated_at": now,
-    }
-
     try:
-        db.collection(COLLECTION_NAME).document(doc_id).set(memory_data)
+        engine = get_storage_engine()
+        doc_id = engine.save_semantic_memory(
+            user_id=user_id,
+            memory_text=memory_text,
+            memory_type=memory_type,
+            source_session_id=source_session_id,
+            confidence_score=confidence_score,
+        )
         log.info(f"✅ Semantic memory saved: {doc_id} for user {user_id}")
         return f"Successfully saved memory (ID: {doc_id}): {memory_text}"
     except Exception as e:
@@ -72,24 +60,11 @@ def update_semantic_memory(memory_id: str, new_text: str) -> str:
     """Updates the content of an existing semantic memory.
     Use this when a user contradicts or refines a previously stored fact.
     """
-    db = get_firestore_client()
-    now = datetime.now(UTC)
-
     try:
-        doc_ref = db.collection(COLLECTION_NAME).document(memory_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return f"Error: Memory with ID {memory_id} not found."
-
-        doc_ref.update(
-            {
-                "memory_text": new_text,
-                "updated_at": now,
-                "is_active": True,  # Ensure it's active if updated
-            }
-        )
+        engine = get_storage_engine()
+        result = engine.update_semantic_memory(memory_id, new_text)
         log.info(f"✅ Semantic memory updated: {memory_id}")
-        return f"Successfully updated memory {memory_id} to: {new_text}"
+        return result
     except Exception as e:
         log.error(f"❌ Failed to update semantic memory {memory_id}: {e}")
         return f"Error updating memory: {e}"
@@ -106,18 +81,11 @@ def retire_semantic_memory(memory_id: str) -> str:
     """Soft-deletes a semantic memory by marking it as inactive.
     Use this when a fact is no longer relevant or was saved in error.
     """
-    db = get_firestore_client()
-    now = datetime.now(UTC)
-
     try:
-        doc_ref = db.collection(COLLECTION_NAME).document(memory_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return f"Error: Memory with ID {memory_id} not found."
-
-        doc_ref.update({"is_active": False, "updated_at": now})
+        engine = get_storage_engine()
+        result = engine.retire_semantic_memory(memory_id)
         log.info(f"✅ Semantic memory retired: {memory_id}")
-        return f"Successfully retired memory {memory_id}."
+        return result
     except Exception as e:
         log.error(f"❌ Failed to retire semantic memory {memory_id}: {e}")
         return f"Error retiring memory: {e}"

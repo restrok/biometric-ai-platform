@@ -59,6 +59,12 @@ from src.tools.profile_manager import (
 from src.utils.llm_factory import get_chat_model
 
 MODEL_NAME = os.getenv("CORE_MODEL_NAME", "gemini-3.1-flash-lite")
+
+
+def get_active_core_model() -> str:
+    return os.getenv("CORE_MODEL_NAME") or os.getenv("LLM_MODEL") or MODEL_NAME
+
+
 DS_MODEL_NAME = os.getenv("DS_MODEL_NAME", "gemini-pro")
 
 from src.tools.read_report_artifact import read_report_artifact
@@ -208,7 +214,7 @@ def node_router(state: AgentState) -> dict[str, Any]:
 
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     model = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name=get_active_core_model(),
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -330,7 +336,7 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     """Specialized node for injury risk analysis."""
     log.info("🛡️ Injury Prevention Agent scanning biometrics...")
     model = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name=get_active_core_model(),
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -364,7 +370,7 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     """Specialized node for sleep and recovery analysis."""
     log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
     model = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name=get_active_core_model(),
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -400,7 +406,7 @@ def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     """Specialized node for metabolic nutrition analysis."""
     log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
     model = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name=get_active_core_model(),
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -450,7 +456,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     t0 = time.time()
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     llm = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name=get_active_core_model(),
         temperature=0.2,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -879,7 +885,7 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
 
     # Use a standard config for extraction
     llm = get_chat_model(
-        model_name=MODEL_NAME,
+        model_name=get_active_core_model(),
         temperature=0,
         model_kwargs={
             "automatic_function_calling": {"disable": True},

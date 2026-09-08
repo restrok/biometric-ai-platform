@@ -102,6 +102,27 @@ def setup_environment():
     env_path = Path(__file__).parent.parent.parent / ".env"
     load_dotenv(env_path)
 
+    # Load persistent system configuration if saved by Setup Wizard
+    data_dirs = [
+        Path(os.getenv("LOCAL_STORAGE_DIR", "/app/data")),
+        Path(__file__).parent.parent.parent / "data",
+    ]
+    for d in data_dirs:
+        cfg_file = d / "system_config.json"
+        if cfg_file.exists():
+            try:
+                import json
+
+                with open(cfg_file) as f:
+                    saved_cfg = json.load(f)
+                for k, v in saved_cfg.items():
+                    if v is not None:
+                        os.environ[k] = str(v)
+                log.info(f"⚙️ Loaded persistent system configuration from {cfg_file}")
+                break
+            except Exception as e:
+                log.warning(f"Could not load persistent system config from {cfg_file}: {e}")
+
     # Handle GOOGLE_APPLICATION_CREDENTIALS container vs host path mismatch
     gac = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if gac and not os.path.exists(gac):

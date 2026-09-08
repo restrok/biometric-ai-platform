@@ -24,14 +24,14 @@ def test_assess_glycogen_readiness_high_band(mock_retrieve, mock_bq):
 
     raw_res = assess_glycogen_readiness.invoke(
         {
-            "user_id": "fsirio",
+            "user_id": "test_user",
             "target_power_watts": 300.0,
             "duration_mins": 20.0,
         }
     )
 
     res = json.loads(raw_res)
-    assert res["user_id"] == "fsirio"
+    assert res["user_id"] == "test_user"
     assert res["glycogen_readiness"]["band"] == "HIGH"
     assert res["glycogen_readiness"]["readiness_status"] == "OPTIMAL"
     assert res["target_workout"]["work_kj"] == 360.0

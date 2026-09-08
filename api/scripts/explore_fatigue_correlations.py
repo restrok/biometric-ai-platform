@@ -8,7 +8,7 @@ def run_analysis():
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = config["dataset_id"]
-    user_id = "fsirio"
+    user_id = "default_user"
 
     query = f"""
     WITH telemetry_base AS (

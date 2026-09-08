@@ -8,17 +8,25 @@ from garminconnect import Garmin
 
 from src.utils.config import get_config, get_secret, set_secret
 from src.utils.notifications import send_proactive_notification
+from src.utils.vault import get_vault
 
 log = logging.getLogger(__name__)
 
 
 def get_all_garmin_user_ids() -> list[str]:
     """
-    Scans the token directories and BigQuery to return a list of all known user IDs.
+    Scans the encrypted vault, legacy directories, and BigQuery to return a list of all known user IDs.
     """
     user_ids = set()
 
-    # 1. Scan Local Files (Legacy/Dev)
+    # 1. Scan LocalSecureVault (Encrypted Local Storage)
+    try:
+        for uid in get_vault().list_users("garmin"):
+            user_ids.add(uid)
+    except Exception as e:
+        log.debug(f"Failed to list vault users: {e}")
+
+    # 2. Scan Local Files (Legacy/Dev fallback)
     possible_dirs = [
         Path("/root/.garminconnect"),
         Path.home() / ".garminconnect",
@@ -34,20 +42,21 @@ def get_all_garmin_user_ids() -> list[str]:
         except PermissionError:
             continue
 
-    # 2. Scan BigQuery (Source of truth for registered users)
+    # 3. Scan BigQuery (Source of truth for registered users in GCP)
     try:
         from google.cloud import bigquery
 
         config = get_config()
-        client = bigquery.Client(project=config["project_id"])
-        query = f"SELECT DISTINCT user_id FROM `{config['project_id']}.{config['dataset_id']}.user_profile` WHERE user_id IS NOT NULL"
-        results = client.query(query).result()
-        for row in results:
-            user_ids.add(row.user_id)
+        if config.get("project_id"):
+            client = bigquery.Client(project=config["project_id"])
+            query = f"SELECT DISTINCT user_id FROM `{config['project_id']}.{config['dataset_id']}.user_profile` WHERE user_id IS NOT NULL"
+            results = client.query(query).result()
+            for row in results:
+                user_ids.add(row.user_id)
     except Exception as e:
         log.debug(f"Failed to fetch user_ids from BigQuery: {e}")
 
-    # 3. Fallback to default user if nothing found
+    # 4. Fallback to default user if nothing found
     if not user_ids:
         default_user = os.getenv("DEFAULT_USER_ID", "default_user")
         user_ids.add(default_user)
@@ -57,7 +66,7 @@ def get_all_garmin_user_ids() -> list[str]:
 
 def refresh_garmin_tokens() -> bool:
     """
-    Refreshes Garmin tokens for all users found in Secret Manager or local files.
+    Refreshes Garmin tokens for all users found in Secret Manager, Vault, or legacy files.
     """
     user_ids = get_all_garmin_user_ids()
     if not user_ids:
@@ -70,16 +79,16 @@ def refresh_garmin_tokens() -> bool:
     all_success = True
 
     for user_id in user_ids:
-        # Check if user has tokens before attempting refresh
         secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
         secret_name = f"{secret_base_name}-{user_id}"
 
-        token_json = get_secret(secret_name)
+        token_json = get_secret(secret_name) if os.getenv("GOOGLE_CLOUD_PROJECT") else None
+        has_vault = get_vault().has_tokens("garmin", user_id)
         file_exists = (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json").exists() or (
             Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json"
         ).exists()
 
-        if not token_json and not file_exists:
+        if not token_json and not has_vault and not file_exists:
             log.debug(f"Skipping user {user_id}: no tokens found.")
             continue
 
@@ -93,29 +102,36 @@ def refresh_garmin_tokens() -> bool:
 def refresh_user_token(user_id: str) -> bool:
     """
     Refreshes Garmin tokens for a specific user.
+    Prioritizes LocalSecureVault in local environments and Secret Manager in GCP.
     """
     log.info(f"🕒 Refreshing tokens for user: {user_id}")
 
-    # 1. Try to load tokens (Secret Manager -> Local File)
     tokens = None
-    original_source = None  # 'secret' or 'file'
+    original_source = None  # 'vault', 'secret', or 'file'
     working_source_path = None
 
-    secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
-    secret_name = f"{secret_base_name}-{user_id}"
+    # A. Check LocalSecureVault first (Local encrypted storage)
+    vault_tokens = get_vault().retrieve_tokens("garmin", user_id)
+    if vault_tokens:
+        tokens = vault_tokens
+        original_source = "vault"
+        log.debug(f"Loaded tokens for {user_id} from LocalSecureVault.")
 
-    # A. Check Secret Manager
-    token_json = get_secret(secret_name)
-    if token_json:
-        try:
-            tokens = json.loads(token_json)
-            original_source = "secret"
-            log.debug(f"Loaded tokens for {user_id} from Secret Manager.")
-        except Exception as e:
-            log.warning(f"Failed to parse secret for {user_id}: {e}")
+    # B. Check Secret Manager (if on GCP)
+    if not tokens and os.getenv("GOOGLE_CLOUD_PROJECT"):
+        secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
+        secret_name = f"{secret_base_name}-{user_id}"
+        token_json = get_secret(secret_name)
+        if token_json:
+            try:
+                tokens = json.loads(token_json)
+                original_source = "secret"
+                log.debug(f"Loaded tokens for {user_id} from Secret Manager.")
+            except Exception as e:
+                log.warning(f"Failed to parse secret for {user_id}: {e}")
 
-    # Helper to load from file
-    def get_tokens_from_file():
+    # C. Fallback to legacy unencrypted file
+    if not tokens:
         possible_files = [
             Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
             Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json",
@@ -124,10 +140,17 @@ def refresh_user_token(user_id: str) -> bool:
             if pf.exists():
                 try:
                     with open(pf) as f:
-                        return json.load(f), pf
+                        tokens = json.load(f)
+                        working_source_path = pf
+                        original_source = "file"
+                        log.debug(f"Loaded legacy tokens for {user_id} from {pf}")
+                        break
                 except Exception as e:
                     log.warning(f"Failed to read file {pf}: {e}")
-        return None, None
+
+    if not tokens:
+        log.warning(f"No existing tokens could be loaded for user {user_id}")
+        return False
 
     # 2. Refresh Attempt Logic
     def attempt_refresh(tokens_to_refresh):
@@ -144,43 +167,35 @@ def refresh_user_token(user_id: str) -> bool:
                 continue
         return None
 
-    # B. Try Refreshing what we have
-    refreshed_tokens = None
-    if tokens:
-        refreshed_tokens = attempt_refresh(tokens)
+    refreshed_tokens = attempt_refresh(tokens)
 
-    # C. Fallback: If Secret Manager refresh failed (or no secret), try local file
-    if not refreshed_tokens:
-        if original_source == "secret":
-            log.info(f"🔄 SM tokens for {user_id} failed. Attempting local file fallback...")
-
-        file_tokens, file_path = get_tokens_from_file()
-        if file_tokens:
-            refreshed_tokens = attempt_refresh(file_tokens)
-            if refreshed_tokens:
-                working_source_path = file_path
-
-    # 3. Save back (Update Secret Manager AND Local File if possible)
+    # 3. Save back refreshed tokens
     if refreshed_tokens:
-        # Always try to update Secret Manager if the user is supposed to have one
+        # A. Always update LocalSecureVault
+        try:
+            get_vault().store_tokens("garmin", user_id, refreshed_tokens)
+            log.info(f"🔒 Persisted refreshed tokens to LocalSecureVault for '{user_id}'.")
+        except Exception as e:
+            log.warning(f"Failed to store in vault for {user_id}: {e}")
+
+        # B. Update Secret Manager if configured
         if original_source == "secret" or os.getenv("GOOGLE_CLOUD_PROJECT"):
+            secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
+            secret_name = f"{secret_base_name}-{user_id}"
             if not set_secret(secret_name, json.dumps(refreshed_tokens)):
                 log.error(f"❌ Failed to update secret for {user_id}")
-                # We don't return False here if file update might still work
             else:
                 log.info(f"✨ Repaired/Updated Secret Manager for {user_id}")
 
-        # Also update local file if we have one
-        target_file = working_source_path or Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json"
-        try:
-            # Ensure directory exists
-            target_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(target_file, "w") as f:
-                json.dump(refreshed_tokens, f, indent=4)
-            log.debug(f"Updated local file for {user_id}: {target_file}")
-        except Exception as e:
-            log.warning(f"Failed to update local file for {user_id}: {e}")
-            # If secret worked, we still consider it a success
+        # C. Update legacy file ONLY if it originally came from an unencrypted file and not strictly local mode
+        if working_source_path and os.getenv("STORAGE_MODE") != "local":
+            try:
+                working_source_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(working_source_path, "w") as f:
+                    json.dump(refreshed_tokens, f, indent=4)
+                log.debug(f"Updated legacy file for {user_id}: {working_source_path}")
+            except Exception as e:
+                log.warning(f"Failed to update legacy file for {user_id}: {e}")
 
         return True
 

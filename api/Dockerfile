@@ -35,11 +35,11 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Copy the pre-built virtual environment from the builder stage
-COPY --from=builder /app/.venv /app/.venv
-
 # Copy the application code
 COPY . .
+
+# Copy the pre-built virtual environment from the builder stage
+COPY --from=builder /app/.venv /app/.venv
 
 # Ensure the PATH includes the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"

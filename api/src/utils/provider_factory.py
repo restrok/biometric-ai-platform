@@ -1,11 +1,13 @@
-"""Biometric provider factory utility."""
+import contextlib
+
+"""Biometric provider factory utility supporting Garmin and Fitbit."""
 
 import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
-from garmin_training_toolkit_sdk.core.base import BaseBiometricProvider
 from garmin_training_toolkit_sdk.core.garmin import GarminProvider
 from garmin_training_toolkit_sdk.utils import find_token_file
 
@@ -13,39 +15,112 @@ from src.utils.config import get_secret
 
 log = logging.getLogger(__name__)
 
-_providers: dict[str, BaseBiometricProvider] = {}
+_providers: dict[str, Any] = {}
 
 
 def get_provider(
     user_id: str | None = None,
     force_reload: bool = False,
     refresh: bool = False,
-) -> BaseBiometricProvider:
+) -> Any:
     """
-    Returns the active biometric provider (currently hardcoded to Garmin,
-    but swappable for future brands).
-
-    If user_id is provided, it attempts to load user-specific tokens.
-    If refresh is True, it proactively refreshes the tokens with Garmin before loading.
+    Returns the active biometric provider (Garmin or Fitbit),
+    swapping based on user profile or WATCH_PROVIDER environment variable.
     """
     global _providers
-
-    if user_id and refresh:
-        from src.utils.garmin_auth import refresh_user_token
-
-        try:
-            refresh_user_token(user_id)
-            # If we refresh, we MUST force a reload from disk/SM to use the new tokens
-            force_reload = True
-        except Exception as e:
-            log.warning(f"Proactive refresh failed in factory for {user_id}: {e}")
 
     cache_key = user_id or "default"
     if cache_key in _providers and not force_reload:
         return _providers[cache_key]
 
-    # 1. Try to load from Secret Manager first using configurable name
-    # Defaulting to garmin-tokens for single-user, or garmin-tokens-{user_id} for multi-user
+    # Determine watch provider preference
+    provider: Any = None
+    target_user: str = str(user_id or os.getenv("DEFAULT_USER_ID") or "default_user")
+    watch_provider = os.getenv("WATCH_PROVIDER", "garmin")
+    try:
+        from src.storage.factory import get_storage_engine
+
+        profile = get_storage_engine().get_user_profile(target_user)
+        if profile and profile.get("watch_provider"):
+            watch_provider = profile["watch_provider"]
+    except Exception as e:
+        log.debug(f"Could not load watch provider from profile: {e}")
+
+    if str(watch_provider).lower() in ("google_health", "google"):
+        from fitbit_training_toolkit_sdk.core.google_health import GoogleHealthProvider
+        from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
+
+        from src.utils.vault import get_vault
+
+        vault_tokens = get_vault().retrieve_tokens("google_health", target_user)
+        google_token_file = Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
+        if vault_tokens:
+            provider = GoogleHealthProvider(tokens=vault_tokens)
+        elif google_token_file.exists():
+            provider = GoogleHealthProvider(token_path=google_token_file)
+        else:
+            log.info(
+                f"No Google Health tokens found on disk for {user_id}, falling back to MockFitbitProvider for simulated testing."
+            )
+            provider = MockFitbitProvider()
+        _providers[cache_key] = provider
+        return provider
+
+    if str(watch_provider).lower() == "fitbit":
+        from fitbit_training_toolkit_sdk.core.fitbit import FitbitProvider
+        from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
+
+        from src.utils.vault import get_vault
+
+        vault_tokens = get_vault().retrieve_tokens("fitbit", target_user)
+        fitbit_token_file = Path.home() / ".fitbit" / f"fitbit_tokens_{user_id or 'default'}.json"
+        if vault_tokens:
+            provider = FitbitProvider(tokens=vault_tokens)
+        elif fitbit_token_file.exists():
+            provider = FitbitProvider(token_path=fitbit_token_file)
+        else:
+            log.info(f"No Fitbit tokens on disk for {user_id}, using MockFitbitProvider for testing.")
+            provider = MockFitbitProvider()
+        _providers[cache_key] = provider
+        return provider
+
+    # --- Garmin Provider Flow ---
+    if user_id and refresh:
+        from src.utils.garmin_auth import refresh_user_token
+
+        try:
+            refresh_user_token(user_id)
+            force_reload = True
+        except Exception as e:
+            log.warning(f"Proactive refresh failed in factory for {user_id}: {e}")
+
+    # 1. Try to load from LocalSecureVault first (Local-first encrypted storage)
+    try:
+        from src.utils.vault import get_vault
+
+        vault_tokens = get_vault().retrieve_tokens("garmin", target_user)
+        if vault_tokens:
+            token_dir = Path.home() / ".garminconnect"
+            token_dir.mkdir(parents=True, exist_ok=True)
+            token_file = token_dir / f"garmin_tokens_{target_user}.json"
+            with open(token_file, "w") as f:
+                json.dump(vault_tokens, f, indent=4)
+            with contextlib.suppress(Exception):
+                os.chmod(token_file, 0o600)
+            log.info(f"Using Garmin tokens from LocalSecureVault for user: {target_user}")
+            provider = GarminProvider(token_path=token_file)
+            if hasattr(provider, "client") and not getattr(provider.client, "display_name", None):
+                try:
+                    settings = provider.client.get_userprofile_settings()
+                    provider.client.display_name = settings.get("displayName")
+                except Exception as e:
+                    log.debug(f"Could not populate display_name for GarminProvider: {e}")
+            _providers[cache_key] = provider
+            return provider
+    except Exception as e:
+        log.warning(f"Failed to load Garmin tokens from LocalSecureVault for {target_user}: {e}")
+
+    # 2. Try to load from Secret Manager
     secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
     secret_name = f"{secret_base_name}-{user_id}" if user_id else secret_base_name
 
@@ -53,8 +128,6 @@ def get_provider(
     if token_json:
         try:
             tokens = json.loads(token_json)
-
-            # Save to standard local path so it can be managed and written back by the SDK
             token_dir = Path.home() / ".garminconnect"
             token_dir.mkdir(parents=True, exist_ok=True)
             token_file = token_dir / f"garmin_tokens_{user_id or 'default'}.json"
@@ -62,9 +135,7 @@ def get_provider(
             with open(token_file, "w") as f:
                 json.dump(tokens, f, indent=4)
 
-            log.info(
-                f"Successfully loaded and synchronized Garmin tokens for {user_id or 'default'} from Secret Manager"
-            )
+            log.info(f"Successfully synchronized Garmin tokens for {user_id or 'default'}")
             provider = GarminProvider(token_path=token_file)
             _providers[cache_key] = provider
             return provider
@@ -72,16 +143,14 @@ def get_provider(
             log.warning(f"Failed to load tokens from Secret Manager: {e}")
 
     # 2. Fallback to local token file
-    # We look for garmin_tokens_{user_id}.json or the default from the SDK
     if user_id:
-        # Search in common locations with the user suffix
         possible_paths = [
             Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json",
             Path(__file__).parent.parent.parent / f"garmin_tokens_{user_id}.json",
         ]
         for path in possible_paths:
             if path.exists():
-                log.info(f"Using local tokens for user: {user_id}")
+                log.info(f"Using local Garmin tokens for user: {user_id}")
                 provider = GarminProvider(token_path=path)
                 _providers[cache_key] = provider
                 return provider
@@ -91,5 +160,11 @@ def get_provider(
         raise Exception("Authentication token not found in Secret Manager or local file.")
 
     provider = GarminProvider(token_path=found_token_file)
+    if hasattr(provider, "client") and not getattr(provider.client, "display_name", None):
+        try:
+            settings = provider.client.get_userprofile_settings()
+            provider.client.display_name = settings.get("displayName")
+        except Exception:
+            pass
     _providers[cache_key] = provider
     return provider

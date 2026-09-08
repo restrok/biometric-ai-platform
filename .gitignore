@@ -62,3 +62,9 @@ Thumbs.db
 api/*.log
 docs/interview_cheatsheet.md
 docs/guides/interview-cheatsheet.md
+
+# Local Databases & Data
+api/data/
+*.sqlite
+*.duckdb
+*.duckdb.wal

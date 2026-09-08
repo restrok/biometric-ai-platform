@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from src.utils.provider_factory import get_provider
 
 
-def export_telemetry(activity_id=None, user_id="fsirio"):
+def export_telemetry(activity_id=None, user_id="default_user"):
     provider = get_provider(user_id=user_id)
 
     if not activity_id:

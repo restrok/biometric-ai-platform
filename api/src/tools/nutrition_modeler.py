@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 
 from google.cloud import bigquery
@@ -55,9 +56,8 @@ def assess_glycogen_readiness(
     Evaluates fueling readiness against target mechanical work (kJ) and predicts efficiency (W/HR).
     """
     config = get_config()
-    pid = config["project_id"]
-    ds = config["dataset_id"]
-    client = bigquery.Client(project=pid)
+    pid = config.get("project_id")
+    ds = config.get("dataset_id")
 
     try:
         # 1. Retrieve Semantic Memories to find Nutritional Logs
@@ -110,17 +110,22 @@ def assess_glycogen_readiness(
         # Carbohydrate burn proxy: ~0.25g carbs per kJ at threshold/high intensity
         est_carbs_burned_g = round(target_work_kj * 0.25, 1)
 
-        # 5. Query Historical W/HR Efficiency from BigQuery
-        query_efficiency = f"""
-            SELECT 
-                ROUND(AVG(SAFE_DIVIDE(avg_power, NULLIF(avg_hr, 0))), 3) as avg_efficiency_w_hr
-            FROM `{pid}.{ds}.recent_activities`
-            WHERE user_id = '{user_id}' AND avg_power IS NOT NULL AND avg_hr IS NOT NULL
-        """
-        eff_rows = list(client.query(query_efficiency).result())
-        historical_w_hr = (
-            float(eff_rows[0].avg_efficiency_w_hr) if eff_rows and eff_rows[0].avg_efficiency_w_hr else 1.50
-        )
+        # 5. Query Historical W/HR Efficiency from BigQuery or Local Engine
+        historical_w_hr = 1.50
+        if os.getenv("STORAGE_MODE") != "local" and pid:
+            try:
+                client = bigquery.Client(project=pid)
+                query_efficiency = f"""
+                    SELECT 
+                        ROUND(AVG(SAFE_DIVIDE(avg_power, NULLIF(avg_hr, 0))), 3) as avg_efficiency_w_hr
+                    FROM `{pid}.{ds}.recent_activities`
+                    WHERE user_id = '{user_id}' AND avg_power IS NOT NULL AND avg_hr IS NOT NULL
+                """
+                eff_rows = list(client.query(query_efficiency).result())
+                if eff_rows and eff_rows[0].avg_efficiency_w_hr:
+                    historical_w_hr = float(eff_rows[0].avg_efficiency_w_hr)
+            except Exception as e:
+                log.warning(f"Could not query BigQuery efficiency: {e}")
 
         # Efficiency Impact Prediction
         if glycogen_band == "LOW" and target_power_watts >= 250.0:

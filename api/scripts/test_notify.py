@@ -16,7 +16,7 @@ def test_notification() -> None:
     if not os.getenv("ORCHESTRATOR_NOTIFY_URL"):
         os.environ["ORCHESTRATOR_NOTIFY_URL"] = "http://localhost:8001/api/notify"
 
-    user_id = "fsirio"
+    user_id = "default_user"
     message = "Test notification from Gemini CLI! The proactive infrastructure is now live. 🚀"
 
     print(f"Sending test notification to {user_id}...")

@@ -19,7 +19,7 @@ def debug_proactive_date() -> None:
     config = get_config()
     client = bigquery.Client(project=config["project_id"])
     dataset = "biometric_data_dev"
-    user_id = "fsirio"
+    user_id = "default_user"
 
     query_latest = f"""
         SELECT id, date, type, name 

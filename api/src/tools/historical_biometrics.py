@@ -261,10 +261,32 @@ def query_macro_load_history(user_id: str, group_by: str = "weekly", limit_month
     to retrieve 1 to 6-month historical training volume, work (kJ), TRIMP, and intensity trends.
     Optimized for token efficiency when analyzing long-term evolution.
     """
+    if os.getenv("STORAGE_MODE") == "local":
+        try:
+            from src.storage.factory import get_storage_engine
+
+            engine = get_storage_engine(mode="local")
+            records = engine.query_macro_load_history(user_id=user_id, group_by=group_by, limit_months=limit_months)
+            for r in records:
+                if "period" in r and r["period"] is not None:
+                    r["period"] = str(r["period"])
+            return json.dumps(
+                {
+                    "user_id": user_id,
+                    "group_by": group_by,
+                    "view_queried": "local_duckdb_activities",
+                    "record_count": len(records),
+                    "macro_history": records,
+                },
+                indent=2,
+            )
+        except Exception as e:
+            log.error(f"❌ Local macro load query failed: {e}")
+            return json.dumps({"user_id": user_id, "group_by": group_by, "record_count": 0, "macro_history": []})
+
     config = get_config()
     pid = config["project_id"]
     ds = config["dataset_id"]
-    client = get_bq_client(pid)
 
     view_name = "view_weekly_load_analytics" if group_by.lower() == "weekly" else "view_monthly_load_analytics"
     date_col = "week_start_date" if group_by.lower() == "weekly" else "month_start_date"
@@ -278,6 +300,7 @@ def query_macro_load_history(user_id: str, group_by: str = "weekly", limit_month
         LIMIT {limit_count}
     """
     try:
+        client = get_bq_client(pid)
         rows = list(client.query(query).result())
         records = [dict(r) for r in rows]
         for r in records:
@@ -296,7 +319,7 @@ def query_macro_load_history(user_id: str, group_by: str = "weekly", limit_month
         )
     except Exception as e:
         log.error(f"❌ Macro load query failed: {e}")
-        return json.dumps({"error": str(e)})
+        return json.dumps({"error": str(e), "macro_history": []})
 
 
 import logging
