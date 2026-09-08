@@ -7,8 +7,27 @@ import pytest
 from fastapi.testclient import TestClient
 
 # Ensure local test environment
-os.environ["STORAGE_MODE"] = "local"
-os.environ["AUTH_DISABLED"] = "true"
+os.environ.setdefault("STORAGE_MODE", "local")
+os.environ.setdefault("AUTH_DISABLED", "true")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def clean_env_teardown():
+    orig_mode = os.environ.get("STORAGE_MODE")
+    orig_auth = os.environ.get("AUTH_DISABLED")
+    os.environ["STORAGE_MODE"] = "local"
+    os.environ["AUTH_DISABLED"] = "true"
+    yield
+    if orig_mode is not None:
+        os.environ["STORAGE_MODE"] = orig_mode
+    else:
+        os.environ.pop("STORAGE_MODE", None)
+    if orig_auth is not None:
+        os.environ["AUTH_DISABLED"] = orig_auth
+    else:
+        os.environ.pop("AUTH_DISABLED", None)
+    from src.storage.factory import reset_storage_engine
+    reset_storage_engine()
 
 from main import app
 from src.utils.vault import get_vault
