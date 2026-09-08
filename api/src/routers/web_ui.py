@@ -1155,57 +1155,41 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>📊</span> Indicadores Fisiológicos Clave
+              <span>????</span> Indicadores Clave del Atleta
             </span>
           </div>
           <div class="flex items-center space-x-1.5">
-            <button onclick="cycleWidgetSize('widget-kpis')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
-              <span>↔</span> <span id="size-label-widget-kpis">100%</span>
+            <button onclick="openKpiModal()" class="text-[11px] text-slate-300 hover:text-sky-400 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800/90 hover:bg-slate-800 transition flex items-center gap-1.5 shadow-sm" title="Elegir y personalizar m??tricas visibles">
+              <span>??????</span> <span>M??tricas</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+            <button onclick="cycleWidgetSize('widget-kpis')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
+              <span>???</span> <span id="size-label-widget-kpis">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
           </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
-            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Resting Heart Rate</div>
-            <div id="kpi-rhr" class="text-2xl font-bold text-white">-- bpm</div>
-            <div class="text-[11px] text-sky-400">Frecuencia en reposo</div>
-          </div>
-          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
-            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">HRV (RMSSD)</div>
-            <div id="kpi-hrv" class="text-2xl font-bold text-white">-- ms</div>
-            <div class="text-[11px] text-emerald-400">Recuperación autonómica</div>
-          </div>
-          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
-            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Body Battery</div>
-            <div id="kpi-bb" class="text-2xl font-bold text-blue-400">-- / 100</div>
-            <div class="text-[11px] text-slate-400">Reservas energéticas</div>
-          </div>
-          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
-            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Sensación Subjetiva</div>
-            <div id="kpi-feeling" class="text-2xl font-bold text-emerald-400 capitalize">--</div>
-            <div class="text-[11px] text-slate-400">Check-in del atleta</div>
-          </div>
+        <div id="kpis-dynamic-container" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <!-- Populated dynamically by renderKpis() -->
         </div>
       </div>
 
       <!-- WIDGET 2: 14-Day Physiology Chart (Default 2/3 = 8 cols) -->
-      <div id="widget-chart" data-widget-id="widget-chart" class="dashboard-widget col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>📈</span> Tendencias de Recuperación (14 Días)
+              <span>????</span> Tendencias de Recuperaci??n (14 D??as)
             </span>
           </div>
           <div class="flex items-center space-x-2">
             <span class="text-xs text-slate-400 hidden sm:inline">RHR vs HRV RMSSD</span>
-            <button onclick="cycleWidgetSize('widget-chart')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
-              <span>↔</span> <span id="size-label-widget-chart">2/3</span>
+            <button onclick="cycleWidgetSize('widget-chart-physio')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
+              <span>???</span> <span id="size-label-widget-chart-physio">2/3</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-chart', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+            <button onclick="toggleWidgetVisibility('widget-chart-physio', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
           </div>
         </div>
         <div id="chart-physio" class="h-64"></div>
@@ -1230,6 +1214,66 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <div id="zones-container" class="space-y-3">
           <!-- Populated by JS -->
         </div>
+      </div>
+
+      <!-- WIDGET: Weekly Training Volume (km & hours) -->
+      <div id="widget-chart-volume" data-widget-id="widget-chart-volume" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>????</span> Volumen Semanal Acumulado
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">Distancia (km) & Horas</span>
+            <button onclick="cycleWidgetSize('widget-chart-volume')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
+              <span>???</span> <span id="size-label-widget-chart-volume">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-chart-volume', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+          </div>
+        </div>
+        <div id="chart-volume" class="h-64"></div>
+      </div>
+
+      <!-- WIDGET: Daily Stress vs Body Battery & Sleep -->
+      <div id="widget-chart-stress-bb" data-widget-id="widget-chart-stress-bb" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>???</span> Estr??s Diario vs Body Battery & Sue??o
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">Carga Simp??tica vs Reposici??n</span>
+            <button onclick="cycleWidgetSize('widget-chart-stress-bb')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
+              <span>???</span> <span id="size-label-widget-chart-stress-bb">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-chart-stress-bb', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+          </div>
+        </div>
+        <div id="chart-stress-bb" class="h-64"></div>
+      </div>
+
+      <!-- WIDGET: Training Load & ACWR Risk Ratio -->
+      <div id="widget-chart-acwr" data-widget-id="widget-chart-acwr" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>??????</span> Ratio de Carga ACWR (Prevenci??n de Lesiones)
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">Zona Segura: 0.8 - 1.3</span>
+            <button onclick="cycleWidgetSize('widget-chart-acwr')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
+              <span>???</span> <span id="size-label-widget-chart-acwr">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-chart-acwr', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+          </div>
+        </div>
+        <div id="chart-acwr" class="h-64"></div>
       </div>
 
       <!-- WIDGET 4: Active Goals -->
@@ -1320,6 +1364,29 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- KPI Metrics Customizer Modal -->
+  <div id="kpi-customizer-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 space-y-5 shadow-2xl mx-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>??????</span> Personalizar Indicadores Clave (KPIs)
+        </h3>
+        <button onclick="closeKpiModal()" class="text-slate-400 hover:text-white text-lg">???</button>
+      </div>
+      <p class="text-xs text-slate-400">Seleccion?? las m??tricas que quer??s visualizar en la tarjeta principal de tu dashboard:</p>
+      <div id="kpi-checkbox-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
+        <!-- Populated by JS -->
+      </div>
+      <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+        <button onclick="resetKpisToDefault()" class="text-xs text-slate-400 hover:text-rose-400 transition">Restablecer sugeridos</button>
+        <div class="flex space-x-3">
+          <button onclick="closeKpiModal()" class="px-4 py-1.5 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">Cancelar</button>
+          <button onclick="saveKpiPreferences()" class="px-4 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition shadow-md">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Widget Catalog Modal -->
   <div id="widget-catalog-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
@@ -1343,37 +1410,79 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
   <script>
     let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
+    let stressBbChart = null;
+    let volumeChart = null;
+    let acwrChart = null;
+    let cachedDashboardData = null;
     let isCustomizeMode = false;
     let sortableInstance = null;
     let currentLayout = null;
 
+    const KPI_CATALOG = [
+      { id: 'rhr', label: 'Resting Heart Rate', sub: 'Frecuencia en reposo', color: 'text-white', extract: d => (d.latest_physio?.resting_heart_rate ? `${d.latest_physio.resting_heart_rate} bpm` : '-- bpm') },
+      { id: 'hrv', label: 'HRV (RMSSD)', sub: 'Recuperaci??n auton??mica', color: 'text-emerald-400', extract: d => (d.latest_physio?.hrv_rmssd != null && !isNaN(d.latest_physio.hrv_rmssd) ? `${Math.round(d.latest_physio.hrv_rmssd)} ms` : '-- ms') },
+      { id: 'body_battery', label: 'Body Battery', sub: 'Reservas energ??ticas', color: 'text-blue-400', extract: d => {
+        const bb = (d.latest_physio?.body_battery_max != null) ? d.latest_physio.body_battery_max : (d.latest_physio?.body_battery_end_of_day != null ? d.latest_physio.body_battery_end_of_day : null);
+        return (bb != null) ? `${bb} / 100` : '-- / 100';
+      }},
+      { id: 'feeling', label: 'Sensaci??n Subjetiva', sub: 'Check-in del atleta', color: 'text-emerald-400', extract: d => (d.health_status?.feeling || 'Optimal') },
+      { id: 'stress_avg', label: 'Estr??s Diario', sub: 'Carga simp??tica', color: 'text-amber-400', extract: d => (d.latest_physio?.all_day_stress_avg != null && d.latest_physio.all_day_stress_avg >= 0 ? `${d.latest_physio.all_day_stress_avg} / 100` : '--') },
+      { id: 'sleep', label: 'Puntuaci??n de Sue??o', sub: 'Calidad del descanso', color: 'text-indigo-400', extract: d => (d.latest_physio?.sleep_score != null && d.latest_physio.sleep_score > 0 ? `${d.latest_physio.sleep_score} pts` : (d.latest_physio?.sleep_duration_hrs ? `${d.latest_physio.sleep_duration_hrs}h` : '--')) },
+      { id: 'acwr', label: 'Ratio Carga (ACWR)', sub: 'Riesgo lesivo (0.8 - 1.3)', color: 'text-sky-400', extract: d => (d.acwr != null ? `${d.acwr.toFixed(2)}` : '1.00') },
+      { id: 'vo2max', label: 'VO2 Max Estimado', sub: 'Capacidad aer??bica', color: 'text-teal-400', extract: d => (d.profile?.vo2max || d.latest_activity?.vo2max ? `${d.profile?.vo2max || d.latest_activity?.vo2max} ml/kg` : '52 ml/kg') },
+      { id: 'weekly_km', label: 'Volumen Semanal', sub: 'Distancia acumulada', color: 'text-purple-400', extract: d => (d.weekly_km != null ? `${d.weekly_km} km` : '-- km') },
+      { id: 'steps', label: 'Pasos Diarios', sub: 'Actividad basal', color: 'text-emerald-300', extract: d => (d.latest_physio?.total_steps != null && d.latest_physio.total_steps > 0 ? `${d.latest_physio.total_steps.toLocaleString()}` : '--') }
+    ];
+
+    const DEFAULT_KPIS = ['rhr', 'hrv', 'body_battery', 'feeling', 'stress_avg', 'sleep', 'acwr', 'weekly_km'];
+
     const WIDGET_DEFINITIONS = [
-      { id: 'widget-kpis', icon: '📊', name: 'Métricas Principales (KPIs)', desc: 'RHR, HRV RMSSD, Body Battery y sensaciones' },
-      { id: 'widget-chart', icon: '📈', name: 'Tendencias Fisiológicas', desc: 'Gráfico interactivo de 14 días de recuperación' },
-      { id: 'widget-zones', icon: '💓', name: 'Zonas de Ritmo Cardíaco', desc: 'Distribución de frecuencias cardíacas (Z1 a Z5)' },
-      { id: 'widget-goals', icon: '🎯', name: 'Objetivos de Rendimiento', desc: 'Metas y objetivos activos del atleta' },
-      { id: 'widget-activities', icon: '🏃', name: 'Sesiones Recientes', desc: 'Tabla de actividades con distancia, ritmo y potencia' },
-      { id: 'widget-coach', icon: '🤖', name: 'Entrenador AI (Chat)', desc: 'Asistente conversacional biométrico' }
+      { id: 'widget-kpis', icon: '????', name: 'M??tricas Principales (KPIs)', desc: 'Tarjetas personalizables de salud y carga (RHR, HRV, Sue??o, etc.)' },
+      { id: 'widget-chart-physio', icon: '????', name: 'Recuperaci??n Fisiol??gica (14 D??as)', desc: 'Gr??fico dual de RHR vs HRV RMSSD' },
+      { id: 'widget-zones', icon: '????', name: 'Zonas de Ritmo Card??aco', desc: 'Distribuci??n de frecuencias card??acas (Z1 a Z5)' },
+      { id: 'widget-chart-volume', icon: '????', name: 'Volumen Semanal Acumulado', desc: 'Historial de distancia (km) y horas de entrenamiento' },
+      { id: 'widget-chart-stress-bb', icon: '???', name: 'Estr??s Diario vs Body Battery', desc: 'Fatiga simp??tica vs recarga energ??tica diaria' },
+      { id: 'widget-chart-acwr', icon: '??????', name: 'Control de Carga (ACWR)', desc: 'Carga aguda vs cr??nica con banda de zona ??ptima segura' },
+      { id: 'widget-goals', icon: '????', name: 'Objetivos de Rendimiento', desc: 'Metas y objetivos activos del atleta' },
+      { id: 'widget-activities', icon: '????', name: 'Sesiones Recientes', desc: 'Tabla de actividades con distancia, ritmo y potencia' },
+      { id: 'widget-coach', icon: '????', name: 'Entrenador AI (Chat)', desc: 'Asistente conversacional biom??trico' }
     ];
 
     const DEFAULT_LAYOUT = {
-      order: ['widget-kpis', 'widget-chart', 'widget-zones', 'widget-goals', 'widget-activities', 'widget-coach'],
+      order: [
+        'widget-kpis',
+        'widget-chart-physio',
+        'widget-zones',
+        'widget-chart-volume',
+        'widget-chart-stress-bb',
+        'widget-chart-acwr',
+        'widget-goals',
+        'widget-activities',
+        'widget-coach'
+      ],
       visible: {
         'widget-kpis': true,
-        'widget-chart': true,
+        'widget-chart-physio': true,
         'widget-zones': true,
+        'widget-chart-volume': true,
+        'widget-chart-stress-bb': false,
+        'widget-chart-acwr': false,
         'widget-goals': true,
         'widget-activities': true,
         'widget-coach': true
       },
       sizes: {
         'widget-kpis': '12',
-        'widget-chart': '8',
+        'widget-chart-physio': '8',
         'widget-zones': '4',
+        'widget-chart-volume': '12',
+        'widget-chart-stress-bb': '12',
+        'widget-chart-acwr': '12',
         'widget-goals': '12',
         'widget-activities': '12',
         'widget-coach': '12'
-      }
+      },
+      active_kpis: DEFAULT_KPIS
     };
 
     const SIZE_CLASSES = {
@@ -1396,11 +1505,81 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       return 'biometric_dashboard_layout_' + (userId || currentUserId || 'default');
     }
 
-    async function loadAthleteLayout(userId) {
+        function redrawAllCharts() {
+      setTimeout(() => {
+        const vis = (currentLayout && currentLayout.visible) || DEFAULT_LAYOUT.visible;
+        if (physioChart && vis['widget-chart-physio'] !== false) {
+          try { physioChart.render(); } catch(e) {}
+        }
+        if (stressBbChart && vis['widget-chart-stress-bb'] !== false) {
+          try { stressBbChart.render(); } catch(e) {}
+        }
+        if (volumeChart && vis['widget-chart-volume'] !== false) {
+          try { volumeChart.render(); } catch(e) {}
+        }
+        if (acwrChart && vis['widget-chart-acwr'] !== false) {
+          try { acwrChart.render(); } catch(e) {}
+        }
+      }, 120);
+    }
+
+    function openKpiModal() {
+      const modal = document.getElementById('kpi-customizer-modal');
+      const listEl = document.getElementById('kpi-checkbox-list');
+      if (!modal || !listEl) return;
+      const active = (currentLayout && currentLayout.active_kpis) || DEFAULT_KPIS;
+      listEl.innerHTML = KPI_CATALOG.map(k => {
+        const isChecked = active.includes(k.id);
+        return `
+          <label class="flex items-center space-x-3 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition select-none">
+            <input type="checkbox" value="${k.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+            <div>
+              <div class="text-sm font-semibold text-white">${k.label}</div>
+              <div class="text-xs text-slate-400">${k.sub}</div>
+            </div>
+          </label>
+        `;
+      }).join('');
+      modal.classList.remove('hidden');
+    }
+
+    function closeKpiModal() {
+      const modal = document.getElementById('kpi-customizer-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function resetKpisToDefault() {
+      const checkboxes = document.querySelectorAll('#kpi-checkbox-list input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.checked = DEFAULT_KPIS.includes(cb.value);
+      });
+    }
+
+    function saveKpiPreferences() {
+      const checkboxes = document.querySelectorAll('#kpi-checkbox-list input[type="checkbox"]');
+      const selected = [];
+      checkboxes.forEach(cb => {
+        if (cb.checked) selected.push(cb.value);
+      });
+      if (selected.length === 0) {
+        showToast('Debes seleccionar al menos una m??trica');
+        return;
+      }
+      if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      currentLayout.active_kpis = selected;
+      closeKpiModal();
+      if (cachedDashboardData) {
+        renderKpis(cachedDashboardData);
+      }
+      persistLayout(currentLayout);
+      showToast('M??tricas actualizadas correctamente');
+    }
+
+async function loadAthleteLayout(userId) {
       const targetUser = userId || currentUserId;
       let layout = null;
 
-      // 1. Check client local cache for immediate rendering without UI flash
+      // 1. Check client local cache
       try {
         const raw = localStorage.getItem(getStorageKey(targetUser));
         if (raw) layout = JSON.parse(raw);
@@ -1422,6 +1601,22 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
       if (!layout) {
         layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      }
+
+      // Backward compatibility: migrate widget-chart to widget-chart-physio
+      if (layout.visible && 'widget-chart' in layout.visible) {
+        layout.visible['widget-chart-physio'] = layout.visible['widget-chart'];
+        delete layout.visible['widget-chart'];
+      }
+      if (layout.sizes && 'widget-chart' in layout.sizes) {
+        layout.sizes['widget-chart-physio'] = layout.sizes['widget-chart'];
+        delete layout.sizes['widget-chart'];
+      }
+      if (layout.order) {
+        layout.order = layout.order.map(x => x === 'widget-chart' ? 'widget-chart-physio' : x);
+      }
+      if (!layout.active_kpis) {
+        layout.active_kpis = DEFAULT_KPIS.slice();
       }
 
       // Merge defaults for visible, order, and sizes
@@ -1446,6 +1641,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       const container = document.getElementById('dashboard-widgets-container');
       if (container) {
         layout.order = Array.from(container.children).map(el => el.id).filter(Boolean);
+      }
+      if (!layout.active_kpis) {
+        layout.active_kpis = DEFAULT_KPIS.slice();
       }
 
       currentLayout = layout;
@@ -1499,15 +1697,13 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         }
       });
 
-      // Trigger ApexCharts recalculation
+      // Trigger redraw of charts
       window.dispatchEvent(new Event('resize'));
-      if (physioChart && layout.visible['widget-chart']) {
-        setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
-      }
+      redrawAllCharts();
     }
 
     function cycleWidgetSize(widgetId) {
-      if (!currentLayout) currentLayout = loadSavedLayout();
+      if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
       if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
 
       const currentSize = currentLayout.sizes[widgetId] || '12';
@@ -1521,7 +1717,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function setWidgetSize(widgetId, newSize) {
-      if (!currentLayout) currentLayout = loadSavedLayout();
+      if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
       if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
       currentLayout.sizes[widgetId] = newSize;
       applyLayout(currentLayout);
@@ -1597,9 +1793,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       persistLayout(currentLayout);
       populateCatalogList();
 
-      if (widgetId === 'widget-chart' && newState && physioChart) {
-        setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
-      }
+      redrawAllCharts();
     }
 
     function openWidgetCatalog() {
@@ -1755,28 +1949,23 @@ Esta acción es irreversible.`)) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
-        // Update KPIs
-        if (data.health_status) {
-          document.getElementById('kpi-feeling').innerText = data.health_status.feeling || 'Normal';
-        } else {
-          document.getElementById('kpi-feeling').innerText = 'Optimal';
-        }
-
+        cachedDashboardData = data;
         if (data.daily_physiology && data.daily_physiology.length > 0) {
-          const latest = data.daily_physiology[0];
-          document.getElementById('kpi-rhr').innerText = (latest.resting_heart_rate != null) ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
-          document.getElementById('kpi-hrv').innerText = (latest.hrv_rmssd != null && !isNaN(latest.hrv_rmssd)) ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
-          const bbVal = (latest.body_battery_max != null) ? latest.body_battery_max : (latest.body_battery_end_of_day != null ? latest.body_battery_end_of_day : null);
-          document.getElementById('kpi-bb').innerText = (bbVal != null) ? (bbVal + ' / 100') : '-- / 100';
-
-          renderPhysioChart(data.daily_physiology.slice().reverse());
-        } else {
-          document.getElementById('kpi-rhr').innerText = '-- bpm';
-          document.getElementById('kpi-hrv').innerText = '-- ms';
-          document.getElementById('kpi-bb').innerText = '-- / 100';
-          if (physioChart) { physioChart.destroy(); physioChart = null; }
-          document.getElementById('chart-physio').innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiológicos registrados aún.</div>';
+          data.latest_physio = data.daily_physiology[0];
         }
+        if (data.activities && data.activities.length > 0) {
+          data.latest_activity = data.activities[0];
+        }
+
+        // Render dynamic KPIs
+        renderKpis(data);
+
+        // Render all charts
+        const physioSeries = (data.daily_physiology || []).slice().reverse();
+        renderPhysioChart(physioSeries);
+        renderStressBBChart(physioSeries);
+        renderVolumeChart(data.macro_load || []);
+        renderAcwrChart(data.macro_load || []);
 
         // Zones
         renderZones(data.profile?.custom_zones || { z1_max: 135, z2_max: 152, z3_max: 165, z4_max: 178 });
@@ -1845,7 +2034,33 @@ Esta acción es irreversible.`)) {
       }).join('');
     }
 
+    function renderKpis(data) {
+      const container = document.getElementById('kpis-dynamic-container');
+      if (!container) return;
+      const activeIds = (currentLayout && currentLayout.active_kpis) || DEFAULT_KPIS;
+      const selectedMetrics = activeIds.map(id => KPI_CATALOG.find(k => k.id === id)).filter(Boolean);
+
+      container.innerHTML = selectedMetrics.map(m => {
+        let val = '--';
+        try { val = m.extract(data); } catch(e){}
+        return `
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1 hover:border-slate-700 transition">
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">${m.label}</div>
+            <div class="text-2xl font-bold ${m.color}">${val}</div>
+            <div class="text-[11px] text-slate-400">${m.sub}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
     function renderPhysioChart(seriesData) {
+      const el = document.getElementById('chart-physio');
+      if (!el) return;
+      if (!seriesData || seriesData.length === 0) {
+        if (physioChart) { physioChart.destroy(); physioChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiol??gicos registrados a??n.</div>';
+        return;
+      }
       const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
       const rhr = seriesData.map(d => d.resting_heart_rate);
       const hrv = seriesData.map(d => (d.hrv_rmssd != null ? Math.round(d.hrv_rmssd) : null));
@@ -1855,12 +2070,7 @@ Esta acción es irreversible.`)) {
           { name: 'RHR (bpm)', data: rhr },
           { name: 'HRV RMSSD (ms)', data: hrv }
         ],
-        chart: {
-          type: 'line',
-          height: 250,
-          background: 'transparent',
-          toolbar: { show: false }
-        },
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
         colors: ['#38bdf8', '#34d399'],
         stroke: { curve: 'smooth', width: 3 },
         theme: { mode: 'dark' },
@@ -1872,11 +2082,151 @@ Esta acción es irreversible.`)) {
         grid: { borderColor: '#334155' }
       };
 
-      if (physioChart) {
-        physioChart.destroy();
-      }
-      physioChart = new ApexCharts(document.getElementById('chart-physio'), options);
+      if (physioChart) { physioChart.destroy(); }
+      physioChart = new ApexCharts(el, options);
       physioChart.render();
+    }
+
+    function renderStressBBChart(seriesData) {
+      const el = document.getElementById('chart-stress-bb');
+      if (!el) return;
+      if (!seriesData || seriesData.length === 0) {
+        if (stressBbChart) { stressBbChart.destroy(); stressBbChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos de estr??s ni Body Battery a??n.</div>';
+        return;
+      }
+      const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
+      const bb = seriesData.map(d => (d.body_battery_max != null ? d.body_battery_max : (d.body_battery_end_of_day != null ? d.body_battery_end_of_day : null)));
+      const stress = seriesData.map(d => (d.all_day_stress_avg != null && d.all_day_stress_avg >= 0 ? d.all_day_stress_avg : null));
+
+      const options = {
+        series: [
+          { name: 'Body Battery (Max/D??a)', type: 'area', data: bb },
+          { name: 'Estr??s Diario Promedio', type: 'line', data: stress }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#38bdf8', '#f59e0b'],
+        stroke: { curve: 'smooth', width: [2, 3] },
+        fill: { type: ['gradient', 'solid'], gradient: { opacityFrom: 0.35, opacityTo: 0.05 } },
+        theme: { mode: 'dark' },
+        xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          { min: 0, max: 100, title: { text: 'Body Battery', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } },
+          { min: 0, max: 100, opposite: true, title: { text: 'Estr??s (0-100)', style: { color: '#f59e0b' } }, labels: { style: { colors: '#94a3b8' } } }
+        ],
+        grid: { borderColor: '#334155' }
+      };
+
+      if (stressBbChart) { stressBbChart.destroy(); }
+      stressBbChart = new ApexCharts(el, options);
+      stressBbChart.render();
+    }
+
+    function renderVolumeChart(macroLoad) {
+      const el = document.getElementById('chart-volume');
+      if (!el) return;
+      if (!macroLoad || macroLoad.length === 0) {
+        if (volumeChart) { volumeChart.destroy(); volumeChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin historial de volumen semanal registrado a??n.</div>';
+        return;
+      }
+      const periods = macroLoad.map(m => m.period ? String(m.period).substring(5) : '');
+      const km = macroLoad.map(m => Math.round((m.total_distance_km || 0) * 10) / 10);
+      const hours = macroLoad.map(m => Math.round((m.total_hours || 0) * 10) / 10);
+
+      const options = {
+        series: [
+          { name: 'Distancia (km)', type: 'column', data: km },
+          { name: 'Duraci??n (Horas)', type: 'line', data: hours }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#a855f7', '#38bdf8'],
+        stroke: { width: [0, 3], curve: 'smooth' },
+        plotOptions: { bar: { columnWidth: '45%', borderRadius: 4 } },
+        theme: { mode: 'dark' },
+        xaxis: { categories: periods, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          { title: { text: 'Distancia (km)', style: { color: '#a855f7' } }, labels: { style: { colors: '#94a3b8' } } },
+          { opposite: true, title: { text: 'Horas', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } }
+        ],
+        grid: { borderColor: '#334155' }
+      };
+
+      if (volumeChart) { volumeChart.destroy(); }
+      volumeChart = new ApexCharts(el, options);
+      volumeChart.render();
+    }
+
+    function renderAcwrChart(macroLoad) {
+      const el = document.getElementById('chart-acwr');
+      if (!el) return;
+      if (!macroLoad || macroLoad.length < 2) {
+        if (acwrChart) { acwrChart.destroy(); acwrChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Se requieren al menos 2 semanas de actividades para proyectar ACWR.</div>';
+        return;
+      }
+
+      const periods = [];
+      const acwrSeries = [];
+
+      for (let i = 0; i < macroLoad.length; i++) {
+        const cur = macroLoad[i];
+        const pLabel = cur.period ? String(cur.period).substring(5) : `S${i+1}`;
+        periods.push(pLabel);
+
+        const recent = cur.total_distance_km || 0;
+        let pastWeeks = macroLoad.slice(Math.max(0, i - 4), i);
+        if (pastWeeks.length === 0) pastWeeks = [cur];
+        const chronic = pastWeeks.reduce((acc, w) => acc + (w.total_distance_km || 0), 0) / pastWeeks.length;
+        const ratio = chronic > 0 ? Math.round((recent / chronic) * 100) / 100 : 1.0;
+        acwrSeries.push(ratio);
+      }
+
+      const options = {
+        series: [
+          { name: 'Ratio ACWR', data: acwrSeries }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#38bdf8'],
+        stroke: { curve: 'smooth', width: 3 },
+        theme: { mode: 'dark' },
+        markers: { size: 5, colors: ['#38bdf8'], strokeColors: '#0f172a', strokeWidth: 2 },
+        xaxis: { categories: periods, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: {
+          min: 0,
+          max: Math.max(2.0, Math.ceil(Math.max(...acwrSeries, 1.5) * 1.2)),
+          title: { text: 'ACWR Ratio', style: { color: '#38bdf8' } },
+          labels: { style: { colors: '#94a3b8' } }
+        },
+        annotations: {
+          yaxis: [
+            {
+              y: 0.8,
+              y2: 1.3,
+              borderColor: '#10b981',
+              fillColor: '#10b981',
+              opacity: 0.12,
+              label: {
+                text: 'Zona ??ptima / Segura (0.8 - 1.3)',
+                style: { color: '#34d399', background: '#064e3b', fontSize: '10px' }
+              }
+            },
+            {
+              y: 1.5,
+              borderColor: '#f43f5e',
+              label: {
+                text: 'Riesgo Alto (> 1.5)',
+                style: { color: '#fb7185', background: '#881337', fontSize: '10px' }
+              }
+            }
+          ]
+        },
+        grid: { borderColor: '#334155' }
+      };
+
+      if (acwrChart) { acwrChart.destroy(); }
+      acwrChart = new ApexCharts(el, options);
+      acwrChart.render();
     }
 
     function renderActivities(activities) {
@@ -2564,18 +2914,33 @@ async def dashboard_data(user_id: str | None = None, force: bool = False):
         if now - cache_time < 60:
             return cached_payload
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=6) as executor:
         fut_profile = executor.submit(engine.get_user_profile, target_user)
         fut_health = executor.submit(engine.get_health_status, target_user)
         fut_goals = executor.submit(engine.get_user_goals, target_user)
         fut_physio = executor.submit(engine.get_daily_physiology, target_user, 14)
         fut_acts = executor.submit(engine.get_recent_activities, target_user, 10)
+        fut_macro = executor.submit(engine.query_macro_load_history, target_user, "weekly", 3)
 
         profile = fut_profile.result()
         health_status = fut_health.result()
         goals = fut_goals.result()
         daily_physio = fut_physio.result()
         recent_acts = fut_acts.result()
+        try:
+            macro_load = fut_macro.result() or []
+        except Exception as e:
+            log.warning(f"Failed to query macro load for {target_user}: {e}")
+            macro_load = []
+
+    computed_acwr = None
+    weekly_km = 0.0
+    if macro_load:
+        recent_km = float(macro_load[-1].get("total_distance_km", 0.0))
+        weekly_km = round(recent_km, 1)
+        past_weeks = macro_load[-4:-1] if len(macro_load) >= 4 else macro_load[:-1]
+        chronic_km = sum(float(w.get("total_distance_km", 0.0)) for w in past_weeks) / max(1, len(past_weeks))
+        computed_acwr = round(recent_km / chronic_km, 2) if chronic_km > 0 else 1.0
 
     raw_payload = {
         "user_id": target_user,
@@ -2584,6 +2949,9 @@ async def dashboard_data(user_id: str | None = None, force: bool = False):
         "goals": goals,
         "daily_physiology": daily_physio,
         "activities": recent_acts,
+        "macro_load": macro_load,
+        "acwr": computed_acwr,
+        "weekly_km": weekly_km,
     }
     sanitized = _sanitize_for_json(raw_payload)
     _dashboard_cache[target_user] = (now, sanitized)
@@ -2615,23 +2983,49 @@ async def trigger_athlete_sync(user_id: str, days_back: int = 7):
 
 
 DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
-    "order": ["widget-kpis", "widget-chart", "widget-zones", "widget-goals", "widget-activities", "widget-coach"],
+    "order": [
+        "widget-kpis",
+        "widget-chart-physio",
+        "widget-zones",
+        "widget-chart-volume",
+        "widget-chart-stress-bb",
+        "widget-chart-acwr",
+        "widget-goals",
+        "widget-activities",
+        "widget-coach",
+    ],
     "visible": {
         "widget-kpis": True,
-        "widget-chart": True,
+        "widget-chart-physio": True,
         "widget-zones": True,
+        "widget-chart-volume": True,
+        "widget-chart-stress-bb": False,
+        "widget-chart-acwr": False,
         "widget-goals": True,
         "widget-activities": True,
         "widget-coach": True,
     },
     "sizes": {
         "widget-kpis": "12",
-        "widget-chart": "8",
+        "widget-chart-physio": "8",
         "widget-zones": "4",
+        "widget-chart-volume": "12",
+        "widget-chart-stress-bb": "12",
+        "widget-chart-acwr": "12",
         "widget-goals": "12",
         "widget-activities": "12",
         "widget-coach": "12",
     },
+    "active_kpis": [
+        "rhr",
+        "hrv",
+        "body_battery",
+        "feeling",
+        "stress_avg",
+        "sleep",
+        "acwr",
+        "weekly_km",
+    ],
 }
 
 
@@ -2644,11 +3038,31 @@ async def get_athlete_dashboard_layout(user_id: str):
     if saved_layout and isinstance(saved_layout, dict):
         merged_visible = {**DEFAULT_DASHBOARD_LAYOUT["visible"], **saved_layout.get("visible", {})}
         merged_sizes = {**DEFAULT_DASHBOARD_LAYOUT["sizes"], **saved_layout.get("sizes", {})}
+
+        # Backward compatibility: migrate widget-chart to widget-chart-physio
+        if "widget-chart" in merged_visible:
+            merged_visible["widget-chart-physio"] = merged_visible.pop("widget-chart")
+        if "widget-chart" in merged_sizes:
+            merged_sizes["widget-chart-physio"] = merged_sizes.pop("widget-chart")
+
         order = list(saved_layout.get("order", DEFAULT_DASHBOARD_LAYOUT["order"]))
+        if "widget-chart" in order:
+            order = ["widget-chart-physio" if x == "widget-chart" else x for x in order]
+
         for wid in DEFAULT_DASHBOARD_LAYOUT["order"]:
             if wid not in order:
                 order.append(wid)
-        return {"user_id": user_id, "layout": {"order": order, "visible": merged_visible, "sizes": merged_sizes}}
+
+        active_kpis = saved_layout.get("active_kpis", DEFAULT_DASHBOARD_LAYOUT["active_kpis"])
+        return {
+            "user_id": user_id,
+            "layout": {
+                "order": order,
+                "visible": merged_visible,
+                "sizes": merged_sizes,
+                "active_kpis": active_kpis,
+            },
+        }
     return {"user_id": user_id, "layout": DEFAULT_DASHBOARD_LAYOUT}
 
 
@@ -2659,8 +3073,9 @@ async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
     order = payload.get("order", DEFAULT_DASHBOARD_LAYOUT["order"])
     visible = payload.get("visible", DEFAULT_DASHBOARD_LAYOUT["visible"])
     sizes = payload.get("sizes", DEFAULT_DASHBOARD_LAYOUT["sizes"])
-    clean_layout = {"order": order, "visible": visible, "sizes": sizes}
+    active_kpis = payload.get("active_kpis", DEFAULT_DASHBOARD_LAYOUT["active_kpis"])
+    clean_layout = {"order": order, "visible": visible, "sizes": sizes, "active_kpis": active_kpis}
 
     engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
-    log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")
+    log.info(f"???? Saved personalized dashboard layout for athlete: {user_id}")
     return {"status": "ok", "user_id": user_id, "layout": clean_layout}
