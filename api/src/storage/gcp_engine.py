@@ -1,3 +1,5 @@
+import os
+
 """GCP Cloud-Native Storage Engine implementing Firestore (OLTP) and BigQuery (OLAP + Vector)."""
 
 import hashlib
@@ -228,61 +230,107 @@ class GCPStorageEngine(StorageEngine):
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        table_id = f"{self.project_id}.{self.dataset_id}.activities"
+        table_id = f"{self.project_id}.{self.dataset_id}.recent_activities"
         where_clauses = [f"user_id = '{user_id}'"]
 
         if activity_type:
-            where_clauses.append(f"LOWER(activity_type) = '{activity_type.lower()}'")
+            where_clauses.append(f"LOWER(type) = '{activity_type.lower()}'")
         if start_date:
-            where_clauses.append(f"start_time >= '{start_date}'")
+            where_clauses.append(f"date >= UNIX_SECONDS(TIMESTAMP('{start_date}'))")
         if end_date:
-            where_clauses.append(f"start_time <= '{end_date}'")
+            where_clauses.append(f"date <= UNIX_SECONDS(TIMESTAMP('{end_date}'))")
 
         query = f"""
-            SELECT * FROM `{table_id}`
+            SELECT
+                CAST(id AS STRING) AS activity_id,
+                user_id,
+                name AS activity_name,
+                type AS activity_type,
+                TIMESTAMP_SECONDS(date) AS start_time,
+                duration_sec AS duration_seconds,
+                distance_m AS distance_meters,
+                avg_hr AS avg_heart_rate,
+                max_hr AS max_heart_rate,
+                avg_pace,
+                calories,
+                elevation_gain,
+                vo2max,
+                avg_power
+            FROM `{table_id}`
             WHERE {' AND '.join(where_clauses)}
-            ORDER BY start_time DESC
+            ORDER BY date DESC
             LIMIT {limit} OFFSET {offset}
         """
         df = self.bq.query(query).to_dataframe()
-        return df.to_dict(orient="records")
+        records = df.to_dict(orient="records")
+        for r in records:
+            if "start_time" in r and r["start_time"] is not None:
+                r["start_time"] = r["start_time"].isoformat()
+        return records
 
     def get_activity_telemetry(self, activity_id: str, _user_id: str | None = None) -> list[dict[str, Any]]:
-        table_id = f"{self.project_id}.{self.dataset_id}.activity_telemetry"
+        table_id = f"{self.project_id}.{self.dataset_id}.latest_activity_telemetry"
         query = f"""
             SELECT * FROM `{table_id}`
             WHERE activity_id = '{activity_id}'
-            ORDER BY timestamp ASC
+            ORDER BY timestamp_ms ASC
         """
         df = self.bq.query(query).to_dataframe()
         return df.to_dict(orient="records")
 
     def get_daily_physiology(self, user_id: str, days: int = 14) -> list[dict[str, Any]]:
-        table_id = f"{self.project_id}.{self.dataset_id}.daily_physiology"
+        physio_table = f"{self.project_id}.{self.dataset_id}.daily_physiology"
+        hrv_table = f"{self.project_id}.{self.dataset_id}.hrv_history"
         query = f"""
-            SELECT * FROM `{table_id}`
-            WHERE user_id = '{user_id}'
-            ORDER BY date DESC
+            SELECT
+                p.user_id,
+                CAST(p.date AS STRING) AS date,
+                p.resting_heart_rate,
+                p.max_heart_rate,
+                p.all_day_stress_avg,
+                p.body_battery_end_of_day,
+                COALESCE(p.body_battery_end_of_day, 0) AS body_battery_max,
+                p.total_steps,
+                h.avg_hrv AS hrv_rmssd
+            FROM `{physio_table}` p
+            LEFT JOIN `{hrv_table}` h
+                ON p.user_id = h.user_id AND CAST(p.date AS STRING) = h.date
+            WHERE p.user_id = '{user_id}'
+            ORDER BY p.date DESC
             LIMIT {days}
         """
-        df = self.bq.query(query).to_dataframe()
-        return df.to_dict(orient="records")
+        try:
+            df = self.bq.query(query).to_dataframe()
+            records = df.to_dict(orient="records")
+            for r in records:
+                if "date" in r and r["date"] is not None:
+                    r["date"] = str(r["date"])
+            return records
+        except Exception as e:
+            log.warning(f"⚠️ Error querying daily physiology with HRV join: {e}")
+            fallback_q = f"SELECT * FROM `{physio_table}` WHERE user_id = '{user_id}' ORDER BY date DESC LIMIT {days}"
+            df = self.bq.query(fallback_q).to_dataframe()
+            records = df.to_dict(orient="records")
+            for r in records:
+                if "date" in r and r["date"] is not None:
+                    r["date"] = str(r["date"])
+            return records
 
     def query_macro_load_history(
         self, user_id: str, group_by: str = "weekly", limit_months: int = 6
     ) -> list[dict[str, Any]]:
-        table_id = f"{self.project_id}.{self.dataset_id}.activities"
-        time_trunc = "DATE_TRUNC(DATE(start_time), WEEK)" if group_by == "weekly" else "DATE_TRUNC(DATE(start_time), MONTH)"
+        table_id = f"{self.project_id}.{self.dataset_id}.recent_activities"
+        time_trunc = "DATE_TRUNC(DATE(TIMESTAMP_SECONDS(date)), WEEK)" if group_by == "weekly" else "DATE_TRUNC(DATE(TIMESTAMP_SECONDS(date)), MONTH)"
         query = f"""
             SELECT
                 {time_trunc} AS period,
-                COUNT(activity_id) AS total_sessions,
-                COALESCE(SUM(distance_meters), 0) / 1000.0 AS total_distance_km,
-                COALESCE(SUM(duration_seconds), 0) / 3600.0 AS total_hours,
-                COALESCE(SUM(trimp), 0) AS total_trimp,
-                COALESCE(AVG(avg_heart_rate), 0) AS avg_hr
+                COUNT(id) AS total_sessions,
+                COALESCE(SUM(distance_m), 0) / 1000.0 AS total_distance_km,
+                COALESCE(SUM(duration_sec), 0) / 3600.0 AS total_hours,
+                0 AS total_trimp,
+                COALESCE(AVG(avg_hr), 0) AS avg_hr
             FROM `{table_id}`
-            WHERE user_id = '{user_id}' AND DATE(start_time) >= DATE_SUB(CURRENT_DATE(), INTERVAL {limit_months} MONTH)
+            WHERE user_id = '{user_id}' AND DATE(TIMESTAMP_SECONDS(date)) >= DATE_SUB(CURRENT_DATE(), INTERVAL {limit_months} MONTH)
             GROUP BY period
             ORDER BY period ASC
         """
@@ -342,3 +390,36 @@ class GCPStorageEngine(StorageEngine):
             .stream()
         )
         return len(list(docs)) > 0
+
+
+    def list_users(self) -> list[str]:
+        """Retrieves list of active athlete/user IDs from Firestore and BigQuery."""
+        users = set()
+        try:
+            for doc in self.db.collection("user_profiles").stream():
+                if doc.id:
+                    users.add(doc.id)
+        except Exception as e:
+            log.warning(f"Could not list users from Firestore: {e}")
+
+        try:
+            table_id = f"{self.project_id}.{self.dataset_id}.recent_activities"
+            query = f"SELECT DISTINCT user_id FROM `{table_id}`"
+            df = self.bq.query(query).to_dataframe()
+            for u in df["user_id"].dropna():
+                users.add(str(u))
+        except Exception as e:
+            log.warning(f"Could not list users from recent_activities: {e}")
+
+        try:
+            table_id = f"{self.project_id}.{self.dataset_id}.daily_physiology"
+            query = f"SELECT DISTINCT user_id FROM `{table_id}`"
+            df = self.bq.query(query).to_dataframe()
+            for u in df["user_id"].dropna():
+                users.add(str(u))
+        except Exception as e:
+            log.warning(f"Could not list users from daily_physiology: {e}")
+
+        if not users:
+            users.add(os.getenv("DEFAULT_USER_ID", "default_user"))
+        return sorted(users)

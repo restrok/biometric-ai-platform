@@ -1,8 +1,10 @@
-"""Web UI Router providing /setup (Onboarding Wizard) and /dashboard (Visual Biometric Analytics)."""
+"""Web UI router providing zero-configuration Setup wizard and dark-mode Dashboard."""
 
 import logging
+import math
 import os
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -23,7 +25,7 @@ class SetupConfigPayload(BaseModel):
     llm_base_url: str | None = "http://localhost:11434/v1"
     llm_api_key: str | None = None
     embeddings_provider: str = "fastembed"  # "fastembed", "ollama", "google"
-    watch_provider: str = "garmin"  # "garmin", "fitbit"
+    watch_provider: str = "garmin"  # "garmin", "fitbit", "google_health"
     fitbit_client_id: str | None = None
     generate_key: bool = True
 
@@ -35,18 +37,6 @@ SETUP_HTML = """<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Biometric AI Platform - Setup Wizard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: { 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' }
-          }
-        }
-      }
-    }
-  </script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
   <div class="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 space-y-6">
@@ -87,7 +77,8 @@ SETUP_HTML = """<!DOCTYPE html>
           <label class="block text-sm font-semibold text-slate-300">3. Biometric Tracker</label>
           <select id="watch_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
             <option value="garmin">Garmin Connect (FIT / Telemetry)</option>
-            <option value="fitbit">Fitbit (OAuth2 PKCE / Intraday)</option>
+            <option value="fitbit">Fitbit (OAuth2 PKCE / Web API)</option>
+            <option value="google_health">Google Health API (Fitbit Air 2026)</option>
           </select>
         </div>
       </div>
@@ -104,50 +95,68 @@ SETUP_HTML = """<!DOCTYPE html>
         </div>
         <div class="space-y-2">
           <label class="block text-sm font-semibold text-slate-300">5. Reasoning LLM Engine</label>
-          <select id="llm_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <option value="ollama">Ollama (Local inference)</option>
+          <select id="llm_provider" onchange="toggleLlmOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+            <option value="ollama">Ollama (Local or Cloud Hosted)</option>
             <option value="openrouter">OpenRouter (Cloud API)</option>
             <option value="google">Google Gemini</option>
+            <option value="openai">OpenAI Compatible</option>
           </select>
         </div>
       </div>
 
-      <!-- API Key Generation & Protection -->
-      <div class="bg-slate-800/60 border border-slate-700/80 rounded-xl p-4 space-y-2">
-        <div class="flex justify-between items-center">
-          <span class="text-sm font-semibold text-slate-200">Security & Access Key</span>
-          <span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded">Multi-Tenant Secured</span>
+      <!-- Ollama Configuration Section -->
+      <div id="ollama-config-section" class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ollama Endpoint Settings</label>
+          <span class="text-xs text-slate-400">Local or Cloud Hosted</span>
         </div>
-        <p class="text-xs text-slate-400">A high-entropy API key will be generated for your athlete profile to authenticate REST & MCP connections.</p>
-        <div id="key-display" class="hidden font-mono text-xs bg-slate-950 p-2.5 rounded border border-emerald-600/50 text-emerald-400 break-all select-all"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Base URL</label>
+            <input type="text" id="llm_base_url" value="http://localhost:11434/v1" placeholder="https://ollama.com/v1"
+                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">API Key (Cloud/Remote)</label>
+            <input type="password" id="llm_api_key" placeholder="Optional for local, required for cloud"
+                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
       </div>
 
+      <div id="status-msg" class="hidden p-4 rounded-xl text-sm"></div>
+
       <button type="submit" id="submit-btn"
-              class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl transition duration-200 shadow-lg shadow-blue-600/30 flex items-center justify-center space-x-2">
-        <span>🚀 Complete Setup & Launch Platform</span>
+              class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition duration-150 shadow-lg shadow-blue-600/30">
+        Save & Initialize System
       </button>
     </form>
-
-    <div id="status-msg" class="hidden p-4 rounded-xl text-sm"></div>
-    <div class="text-center pt-2">
-      <a href="/dashboard" class="text-xs text-slate-400 hover:text-blue-400 underline">Skip to Live Dashboard →</a>
-    </div>
   </div>
 
   <script>
+    function toggleLlmOptions(provider) {
+      const sec = document.getElementById('ollama-config-section');
+      if (provider === 'ollama' || provider === 'openai') {
+        sec.classList.remove('hidden');
+      } else {
+        sec.classList.add('hidden');
+      }
+    }
+
     async function saveSetup(e) {
       e.preventDefault();
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
-      btn.innerText = 'Saving configuration...';
+      btn.innerText = 'Initializing Storage & Keys...';
 
-      const storageMode = document.querySelector('input[name="storage_mode"]:checked').value;
       const payload = {
-        storage_mode: storageMode,
+        storage_mode: document.querySelector('input[name="storage_mode"]:checked').value,
         user_id: document.getElementById('user_id').value,
         watch_provider: document.getElementById('watch_provider').value,
         embeddings_provider: document.getElementById('embeddings_provider').value,
         llm_provider: document.getElementById('llm_provider').value,
+        llm_base_url: document.getElementById('llm_base_url').value,
+        llm_api_key: document.getElementById('llm_api_key').value || null,
         generate_key: true
       };
 
@@ -159,13 +168,12 @@ SETUP_HTML = """<!DOCTYPE html>
         });
         const data = await res.json();
         if (res.ok) {
-          const keyBox = document.getElementById('key-display');
-          keyBox.innerText = 'API Key: ' + data.api_key + '\\n(Keep this safe! Pass in X-API-Key header)';
-          keyBox.classList.remove('hidden');
-
           const msg = document.getElementById('status-msg');
-          msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300';
-          msg.innerHTML = '✅ Setup successful! Environment initialized in <b>' + storageMode.toUpperCase() + '</b> mode.<br><a href="/dashboard?user_id=' + payload.user_id + '" class="underline font-bold text-white mt-2 inline-block">Go to Dashboard →</a>';
+          msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300 space-y-2';
+          msg.innerHTML = '<p class="font-bold">✅ System Initialized Successfully!</p>' +
+            '<p class="text-xs text-slate-300">Generated API Key: <code class="font-mono bg-slate-900 px-2 py-0.5 rounded text-white">' + data.api_key + '</code></p>' +
+            '<p class="text-xs text-slate-300">Storage Engine: <span class="capitalize text-white font-semibold">' + data.storage_mode + '</span></p>' +
+            '<a href="/dashboard?user_id=' + encodeURIComponent(payload.user_id) + '" class="inline-block mt-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded transition">Go to Dashboard →</a>';
           msg.classList.remove('hidden');
           btn.innerText = '✅ Saved';
         } else {
@@ -197,20 +205,30 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="max-w-7xl mx-auto p-6 space-y-6">
     <!-- Navbar -->
-    <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+    <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-4 gap-4">
       <div class="flex items-center space-x-3">
         <span class="text-3xl">🏃‍♂️</span>
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-white">Biometric AI Coach</h1>
-          <p class="text-xs text-slate-400">Athlete: <span id="athlete-badge" class="font-mono text-blue-400">{{ATHLETE_ID}}</span></p>
+          <div class="flex items-center gap-2 mt-0.5">
+            <span class="text-xs text-slate-400">Current Athlete:</span>
+            <span id="athlete-badge" class="text-xs font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">{{ATHLETE_ID}}</span>
+          </div>
         </div>
       </div>
       <div class="flex items-center space-x-3">
-        <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition">
-          🔄 Refresh
+        <!-- Athlete Switcher Dropdown -->
+        <div class="flex items-center space-x-2 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5">
+          <span class="text-xs text-slate-400">Athlete:</span>
+          <select id="user-select" class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer" onchange="switchAthlete(this.value)">
+            <!-- Options populated dynamically -->
+          </select>
+        </div>
+        <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1">
+          <span>🔄</span> Refresh
         </button>
-        <a href="/setup" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition">
-          ⚙️ Setup
+        <a href="/setup" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition flex items-center gap-1">
+          <span>⚙️</span> Setup
         </a>
       </div>
     </header>
@@ -218,24 +236,24 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- Top KPI Row -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-xs text-slate-400">Resting Heart Rate</div>
-        <div id="kpi-rhr" class="text-2xl font-bold text-white mt-1">-- bpm</div>
-        <div class="text-xs text-emerald-400 mt-1">Daily average</div>
+        <div class="text-slate-400 text-xs font-medium">Subjective Feeling</div>
+        <div id="kpi-feeling" class="text-2xl font-bold text-white mt-1 capitalize">--</div>
+        <div class="text-xs text-slate-500 mt-1">Self-reported recovery state</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-xs text-slate-400">HRV (RMSSD)</div>
-        <div id="kpi-hrv" class="text-2xl font-bold text-white mt-1">-- ms</div>
-        <div class="text-xs text-blue-400 mt-1">Overnight baseline</div>
+        <div class="text-slate-400 text-xs font-medium">Resting Heart Rate</div>
+        <div id="kpi-rhr" class="text-2xl font-bold text-rose-400 mt-1">-- bpm</div>
+        <div class="text-xs text-slate-500 mt-1">Basal morning resting rate</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-xs text-slate-400">Body Battery</div>
-        <div id="kpi-bb" class="text-2xl font-bold text-white mt-1">-- / 100</div>
-        <div class="text-xs text-emerald-400 mt-1">Current readiness</div>
+        <div class="text-slate-400 text-xs font-medium">HRV RMSSD</div>
+        <div id="kpi-hrv" class="text-2xl font-bold text-blue-400 mt-1">-- ms</div>
+        <div class="text-xs text-slate-500 mt-1">Autonomic nervous balance</div>
       </div>
       <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-xs text-slate-400">Subjective Feeling</div>
-        <div id="kpi-feeling" class="text-2xl font-bold text-white mt-1">Normal</div>
-        <div id="kpi-fatigue" class="text-xs text-amber-400 mt-1">Fatigue: -- / 10</div>
+        <div class="text-slate-400 text-xs font-medium">Body Battery</div>
+        <div id="kpi-bb" class="text-2xl font-bold text-emerald-400 mt-1">-- / 100</div>
+        <div class="text-xs text-slate-500 mt-1">End of day energy reserve</div>
       </div>
     </div>
 
@@ -266,12 +284,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           <thead class="text-slate-400 border-b border-slate-800 uppercase tracking-wider">
             <tr>
               <th class="py-2">Date / Time</th>
+              <th class="py-2">Session Name</th>
               <th class="py-2">Type</th>
               <th class="py-2">Distance</th>
               <th class="py-2">Duration</th>
               <th class="py-2">Avg HR</th>
-              <th class="py-2">Training Effect</th>
-              <th class="py-2">TRIMP</th>
+              <th class="py-2">Avg Power</th>
             </tr>
           </thead>
           <tbody id="activities-tbody" class="divide-y divide-slate-800/60 text-slate-200">
@@ -301,27 +319,63 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <script>
-    const USER_ID = "{{ATHLETE_ID}}";
+    let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
+
+    async function initAthleteSelector() {
+      try {
+        const res = await fetch('/dashboard/users');
+        if (!res.ok) return;
+        const data = await res.json();
+        const select = document.getElementById('user-select');
+        select.innerHTML = '';
+        const users = (data.users && data.users.length > 0) ? data.users : [currentUserId];
+        users.forEach(function(u) {
+          const opt = document.createElement('option');
+          opt.value = u;
+          opt.innerText = u;
+          if (u === currentUserId) opt.selected = true;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Failed to load users list:', err);
+      }
+    }
+
+    function switchAthlete(newUserId) {
+      if (!newUserId || newUserId === currentUserId) return;
+      currentUserId = newUserId;
+      document.getElementById('athlete-badge').innerText = newUserId;
+      window.history.replaceState(null, '', '/dashboard?user_id=' + encodeURIComponent(newUserId));
+      loadDashboard();
+    }
 
     async function loadDashboard() {
       try {
-        const res = await fetch('/dashboard/data?user_id=' + USER_ID);
+        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
         // Update KPIs
         if (data.health_status) {
           document.getElementById('kpi-feeling').innerText = data.health_status.feeling || 'Normal';
-          document.getElementById('kpi-fatigue').innerText = 'Fatigue: ' + (data.health_status.fatigue_level ?? '--') + ' / 10';
+        } else {
+          document.getElementById('kpi-feeling').innerText = 'Optimal';
         }
 
         if (data.daily_physiology && data.daily_physiology.length > 0) {
           const latest = data.daily_physiology[0];
-          document.getElementById('kpi-rhr').innerText = latest.resting_heart_rate ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
-          document.getElementById('kpi-hrv').innerText = latest.hrv_rmssd ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
-          document.getElementById('kpi-bb').innerText = latest.body_battery_max ? (latest.body_battery_max + ' / 100') : '-- / 100';
+          document.getElementById('kpi-rhr').innerText = (latest.resting_heart_rate != null) ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
+          document.getElementById('kpi-hrv').innerText = (latest.hrv_rmssd != null && !isNaN(latest.hrv_rmssd)) ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
+          const bbVal = (latest.body_battery_max != null) ? latest.body_battery_max : (latest.body_battery_end_of_day != null ? latest.body_battery_end_of_day : null);
+          document.getElementById('kpi-bb').innerText = (bbVal != null) ? (bbVal + ' / 100') : '-- / 100';
 
           renderPhysioChart(data.daily_physiology.slice().reverse());
+        } else {
+          document.getElementById('kpi-rhr').innerText = '-- bpm';
+          document.getElementById('kpi-hrv').innerText = '-- ms';
+          document.getElementById('kpi-bb').innerText = '-- / 100';
+          if (physioChart) { physioChart.destroy(); physioChart = null; }
         }
 
         // Zones
@@ -360,7 +414,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     function renderPhysioChart(series) {
       const dates = series.map(function(s) { return s.date; });
       const rhr = series.map(function(s) { return s.resting_heart_rate; });
-      const hrv = series.map(function(s) { return s.hrv_rmssd; });
+      const hrv = series.map(function(s) { return (s.hrv_rmssd != null && !isNaN(s.hrv_rmssd)) ? Math.round(s.hrv_rmssd) : null; });
 
       const options = {
         chart: { type: 'line', height: 240, toolbar: { show: false }, background: 'transparent' },
@@ -383,19 +437,34 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
     function renderActivities(activities) {
       const tbody = document.getElementById('activities-tbody');
-      if (activities.length === 0) {
+      if (!activities || activities.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No activities recorded yet.</td></tr>';
         return;
       }
       tbody.innerHTML = activities.map(function(a) {
+        let dateStr = '--';
+        if (a.start_time) {
+          try {
+            dateStr = new Date(a.start_time).toLocaleDateString();
+          } catch (e) {
+            dateStr = String(a.start_time).substring(0, 10);
+          }
+        }
+        const distKm = ((a.distance_meters || a.distance_m || 0) / 1000).toFixed(2);
+        const durMin = Math.round((a.duration_seconds || a.duration_sec || 0) / 60);
+        const hr = (a.avg_heart_rate || a.avg_hr) ? Math.round(a.avg_heart_rate || a.avg_hr) + ' bpm' : '--';
+        const pwr = (a.avg_power && !isNaN(a.avg_power)) ? Math.round(a.avg_power) + ' W' : (a.aerobic_training_effect != null ? a.aerobic_training_effect : '--');
+        const actName = a.activity_name || a.name || 'Training Session';
+        const actType = a.activity_type || a.type || 'running';
+
         return '<tr class="hover:bg-slate-800/40 transition">' +
-          '<td class="py-3 font-medium">' + new Date(a.start_time).toLocaleDateString() + '</td>' +
-          '<td class="capitalize">' + (a.activity_type || 'Run') + '</td>' +
-          '<td>' + (((a.distance_meters || 0) / 1000).toFixed(2)) + ' km</td>' +
-          '<td>' + Math.round((a.duration_seconds || 0) / 60) + ' min</td>' +
-          '<td>' + Math.round(a.avg_heart_rate || 0) + ' bpm</td>' +
-          '<td>' + (a.aerobic_training_effect || '--') + '</td>' +
-          '<td>' + Math.round(a.trimp || 0) + '</td>' +
+          '<td class="py-3 font-medium text-slate-300">' + dateStr + '</td>' +
+          '<td class="font-medium text-white">' + actName + '</td>' +
+          '<td class="capitalize text-slate-400">' + actType + '</td>' +
+          '<td>' + distKm + ' km</td>' +
+          '<td>' + durMin + ' min</td>' +
+          '<td>' + hr + '</td>' +
+          '<td>' + pwr + '</td>' +
         '</tr>';
       }).join('');
     }
@@ -418,14 +487,14 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       try {
         const res = await fetch('/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-ID': USER_ID },
+          headers: { 'Content-Type': 'application/json', 'X-User-ID': currentUserId },
           body: JSON.stringify({
             messages: [{ role: 'user', content: msg }]
           })
         });
         const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content || 'No response';
-        chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal">' + reply.replace(/\\n/g, '<br>') + '</span></div>';
+        const reply = data.choices?.[0]?.message?.content || 'No response received.';
+        chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal">' + reply + '</span></div>';
       } catch (err) {
         chatBox.innerHTML += '<div class="text-rose-400">Error: Could not reach coach API.</div>';
       } finally {
@@ -439,11 +508,33 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       loadDashboard();
     }
 
-    window.onload = loadDashboard;
+    window.onload = async function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlUser = urlParams.get('user_id');
+      if (urlUser) {
+        currentUserId = urlUser;
+        document.getElementById('athlete-badge').innerText = urlUser;
+      }
+      await initAthleteSelector();
+      await loadDashboard();
+    };
   </script>
 </body>
 </html>
 """
+
+
+def _sanitize_for_json(data: Any) -> Any:
+    """Recursively replaces float NaN/Inf with None to allow safe JSON serialization."""
+    if isinstance(data, float):
+        if math.isnan(data) or math.isinf(data):
+            return None
+        return data
+    if isinstance(data, dict):
+        return {k: _sanitize_for_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_sanitize_for_json(v) for v in data]
+    return data
 
 
 @router.get("/setup", response_class=HTMLResponse)
@@ -465,26 +556,39 @@ async def save_setup(payload: SetupConfigPayload):
         "watch_provider": payload.watch_provider,
         "storage_mode": payload.storage_mode,
         "llm_provider": payload.llm_provider,
+        "llm_base_url": payload.llm_base_url,
         "embeddings_provider": payload.embeddings_provider,
         "setup_completed_at": datetime.now().isoformat(),
     }
     engine.update_user_profile(payload.user_id, updated_profile)
 
-    # 2. Generate API Key
-    api_key = engine.create_api_key(payload.user_id, name="initial_setup")
+    # 2. Generate initial API key for external agents / CLI
+    api_key = engine.create_api_key(payload.user_id, name="initial_setup_key")
 
+    log.info(f"✅ Setup completed successfully for user '{payload.user_id}' with mode '{payload.storage_mode}'")
     return {
         "status": "success",
         "user_id": payload.user_id,
         "storage_mode": payload.storage_mode,
         "api_key": api_key,
+        "watch_provider": payload.watch_provider,
     }
+
+
+@router.get("/dashboard/users")
+async def dashboard_users():
+    """Returns list of all active registered athletes/users."""
+    engine = get_storage_engine()
+    users = engine.list_users()
+    return {"users": users}
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(user_id: str | None = None):
-    """Renders the visual biometric dashboard with ApexCharts and Tailwind CSS."""
-    default_user = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
+    """Renders the dark-mode sports performance dashboard."""
+    engine = get_storage_engine()
+    users = engine.list_users()
+    default_user = str(user_id or (users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user")))
     content = DASHBOARD_HTML_TEMPLATE.replace("{{ATHLETE_ID}}", default_user)
     return HTMLResponse(content=content)
 
@@ -492,8 +596,9 @@ async def dashboard_page(user_id: str | None = None):
 @router.get("/dashboard/data")
 async def dashboard_data(user_id: str | None = None):
     """Returns biometric summary JSON payload for the dashboard."""
-    target_user = str(user_id or os.getenv("DEFAULT_USER_ID", "default_user"))
     engine = get_storage_engine()
+    users = engine.list_users()
+    target_user = str(user_id or (users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user")))
 
     profile = engine.get_user_profile(target_user)
     health_status = engine.get_health_status(target_user)
@@ -501,7 +606,7 @@ async def dashboard_data(user_id: str | None = None):
     daily_physio = engine.get_daily_physiology(target_user, days=14)
     recent_acts = engine.get_recent_activities(target_user, limit=10)
 
-    return {
+    raw_payload = {
         "user_id": target_user,
         "profile": profile,
         "health_status": health_status,
@@ -509,3 +614,4 @@ async def dashboard_data(user_id: str | None = None):
         "daily_physiology": daily_physio,
         "activities": recent_acts,
     }
+    return _sanitize_for_json(raw_payload)

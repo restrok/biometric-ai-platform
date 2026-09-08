@@ -504,6 +504,34 @@ class LocalStorageEngine(StorageEngine):
         finally:
             conn.close()
 
+
+    def list_users(self) -> list[str]:
+        """Retrieves list of active athlete/user IDs."""
+        users = set()
+        try:
+            with self._get_sqlite_conn() as conn:
+                cursor = conn.execute("SELECT DISTINCT user_id FROM user_profiles")
+                for row in cursor.fetchall():
+                    if row[0]:
+                        users.add(str(row[0]))
+        except Exception:
+            pass
+
+        try:
+            conn = self._get_duckdb_conn()
+            try:
+                df = conn.execute("SELECT DISTINCT user_id FROM activities").df()
+                for u in df["user_id"].dropna():
+                    users.add(str(u))
+            finally:
+                conn.close()
+        except Exception:
+            pass
+
+        if not users:
+            users.add(os.getenv("DEFAULT_USER_ID", "default_user"))
+        return sorted(users)
+
     # --- API Keys & Multi-Tenant Auth ---
     def _hash_key(self, api_key: str) -> str:
         return hashlib.sha256(api_key.encode("utf-8")).hexdigest()

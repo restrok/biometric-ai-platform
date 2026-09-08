@@ -139,7 +139,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.5.5" },
     { name = "fastapi", specifier = ">=0.136.0" },
     { name = "fastembed", specifier = ">=0.8.0" },
-    { name = "fitbit-training-toolkit-sdk", git = "https://github.com/restrok/fitbit-training-toolkit-sdk.git?rev=v0.1.0" },
+    { name = "fitbit-training-toolkit-sdk", git = "https://github.com/restrok/fitbit-training-toolkit-sdk.git?rev=v0.2.0" },
     { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.8.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
@@ -520,8 +520,8 @@ wheels = [
 
 [[package]]
 name = "fitbit-training-toolkit-sdk"
-version = "0.1.0"
-source = { git = "https://github.com/restrok/fitbit-training-toolkit-sdk.git?rev=v0.1.0#332a9cc543a6cb1e1cb9617310a340ede1d965e1" }
+version = "0.2.0"
+source = { git = "https://github.com/restrok/fitbit-training-toolkit-sdk.git?rev=v0.2.0#620cbec34f26a11679fb56bcc990e04c6da8c985" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },

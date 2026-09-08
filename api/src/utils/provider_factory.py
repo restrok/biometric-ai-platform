@@ -43,6 +43,17 @@ def get_provider(
     except Exception as e:
         log.debug(f"Could not load watch provider from profile: {e}")
 
+    if str(watch_provider).lower() in ("google_health", "google"):
+        from fitbit_training_toolkit_sdk.core.google_health import GoogleHealthProvider
+
+        google_token_file = Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
+        if google_token_file.exists():
+            provider = GoogleHealthProvider(token_path=google_token_file)
+        else:
+            provider = GoogleHealthProvider(client_id="default_google_client")
+        _providers[cache_key] = provider
+        return provider
+
     if str(watch_provider).lower() == "fitbit":
         from fitbit_training_toolkit_sdk.core.fitbit import FitbitProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider

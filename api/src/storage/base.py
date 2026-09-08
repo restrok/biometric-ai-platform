@@ -133,3 +133,8 @@ class StorageEngine(ABC):
     def create_api_key(self, user_id: str, name: str = "default") -> str:
         """Generates, saves, and returns a new plaintext API key for a user."""
         pass
+
+    @abstractmethod
+    def list_users(self) -> list[str]:
+        """Retrieves list of active athlete/user IDs."""
+        pass

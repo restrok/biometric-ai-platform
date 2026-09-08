@@ -64,3 +64,11 @@ def test_dashboard_data(client: TestClient):
     assert "profile" in data
     assert "goals" in data
     assert "activities" in data
+
+
+def test_dashboard_users(client: TestClient):
+    response = client.get("/dashboard/users")
+    assert response.status_code == 200
+    data = response.json()
+    assert "users" in data
+    assert isinstance(data["users"], list)
