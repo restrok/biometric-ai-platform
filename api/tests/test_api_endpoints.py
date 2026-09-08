@@ -181,6 +181,9 @@ def test_dashboard_page(client: TestClient):
     assert "widget-chart-volume" in response.text
     assert "kpi-customizer-modal" in response.text
     assert "kpis-dynamic-container" in response.text
+    assert "resize-handle" in response.text
+    assert "initResizeHandles" in response.text
+    assert "resize-drag-badge" in response.text
 
 
 def test_dashboard_data(client: TestClient):

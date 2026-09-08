@@ -1152,7 +1152,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     <div id="dashboard-widgets-container" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
       <!-- WIDGET 1: KPI Cards -->
-      <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
+      <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1173,10 +1173,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <div id="kpis-dynamic-container" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <!-- Populated dynamically by renderKpis() -->
         </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET 2: 14-Day Physiology Chart (Default 2/3 = 8 cols) -->
-      <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget relative col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1193,10 +1201,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
         <div id="chart-physio" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET 3: Heart Rate Zones (Default 1/3 = 4 cols) -->
-      <div id="widget-zones" data-widget-id="widget-zones" class="dashboard-widget col-span-12 lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-zones" data-widget-id="widget-zones" class="dashboard-widget relative col-span-12 lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1214,10 +1230,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <div id="zones-container" class="space-y-3">
           <!-- Populated by JS -->
         </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET: Weekly Training Volume (km & hours) -->
-      <div id="widget-chart-volume" data-widget-id="widget-chart-volume" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-chart-volume" data-widget-id="widget-chart-volume" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1234,10 +1258,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
         <div id="chart-volume" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET: Daily Stress vs Body Battery & Sleep -->
-      <div id="widget-chart-stress-bb" data-widget-id="widget-chart-stress-bb" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-chart-stress-bb" data-widget-id="widget-chart-stress-bb" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1254,10 +1286,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
         <div id="chart-stress-bb" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET: Training Load & ACWR Risk Ratio -->
-      <div id="widget-chart-acwr" data-widget-id="widget-chart-acwr" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-chart-acwr" data-widget-id="widget-chart-acwr" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1274,10 +1314,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
         </div>
         <div id="chart-acwr" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET 4: Active Goals -->
-      <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1295,10 +1343,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <div id="goals-container" class="space-y-2.5">
           <div class="text-slate-500 text-xs py-2">Cargando objetivos...</div>
         </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET 5: Recent Activities Table -->
-      <div id="widget-activities" data-widget-id="widget-activities" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-activities" data-widget-id="widget-activities" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1331,10 +1387,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             </tbody>
           </table>
         </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
       <!-- WIDGET 6: Chat with AI Coach -->
-      <div id="widget-coach" data-widget-id="widget-coach" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-coach" data-widget-id="widget-coach" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1359,6 +1423,14 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             Enviar
           </button>
         </form>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
     </div>
@@ -1700,6 +1772,7 @@ async function loadAthleteLayout(userId) {
       // Trigger redraw of charts
       window.dispatchEvent(new Event('resize'));
       redrawAllCharts();
+      initResizeHandles();
     }
 
     function cycleWidgetSize(widgetId) {
@@ -1716,12 +1789,304 @@ async function loadAthleteLayout(userId) {
       persistLayout(currentLayout);
     }
 
+    function initResizeHandles() {
+      const container = document.getElementById('dashboard-widgets-container');
+      if (!container || container.dataset.resizeInitialized) return;
+      container.dataset.resizeInitialized = 'true';
+
+      let activeWidget = null;
+      let activeWidgetId = null;
+      let startX = 0;
+      let startY = 0;
+      let initialWidth = 0;
+      let containerWidth = 0;
+      let currentPreviewedSize = null;
+      let badgeEl = null;
+
+      function onStart(e) {
+        const handle = e.target.closest('.resize-handle');
+        if (!handle) return;
+
+        const widget = handle.closest('.dashboard-widget');
+        if (!widget) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        activeWidget = widget;
+        activeWidgetId = widget.getAttribute('data-widget-id');
+        startX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        startY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+
+        const widgetRect = widget.getBoundingClientRect();
+        initialWidth = widgetRect.width;
+        containerWidth = container.getBoundingClientRect().width;
+
+        const currentSize = (currentLayout && currentLayout.sizes && currentLayout.sizes[activeWidgetId]) || DEFAULT_LAYOUT.sizes[activeWidgetId] || '12';
+        currentPreviewedSize = currentSize;
+
+        // Visual feedback on widget
+        widget.classList.add('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
+        document.body.style.cursor = 'se-resize';
+        document.body.style.userSelect = 'none';
+
+        // Create floating preview badge near cursor
+        badgeEl = document.createElement('div');
+        badgeEl.id = 'resize-drag-badge';
+        badgeEl.className = 'fixed pointer-events-none z-50 bg-sky-500 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1.5';
+        const initialDesc = currentSize === '12' ? '100% (Ancho Completo)' : (currentSize === '8' ? '2/3 (66%)' : (currentSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
+        badgeEl.innerHTML = '<span>\u2194</span> <span>' + initialDesc + '</span>';
+        badgeEl.style.left = (startX + 15) + 'px';
+        badgeEl.style.top = (startY - 30) + 'px';
+        document.body.appendChild(badgeEl);
+
+        window.addEventListener('mousemove', onMove, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchend', onEnd);
+      }
+
+      function onMove(e) {
+        if (!activeWidget) return;
+        e.preventDefault();
+
+        const curX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        const curY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+        const deltaX = curX - startX;
+
+        // Update badge position
+        if (badgeEl) {
+          badgeEl.style.left = (curX + 15) + 'px';
+          badgeEl.style.top = (curY - 30) + 'px';
+        }
+
+        // Calculate fraction of container
+        const projectedWidth = Math.max(100, initialWidth + deltaX);
+        const ratio = projectedWidth / (containerWidth || 1);
+
+        let targetSize = '12';
+        if (ratio < 0.42) {
+          targetSize = '4';       // 1/3 (33%)
+        } else if (ratio < 0.58) {
+          targetSize = '6';       // 1/2 (50%)
+        } else if (ratio < 0.83) {
+          targetSize = '8';       // 2/3 (66%)
+        } else {
+          targetSize = '12';      // 100%
+        }
+
+        if (targetSize !== currentPreviewedSize) {
+          currentPreviewedSize = targetSize;
+
+          // Apply classes live
+          activeWidget.classList.remove('col-span-12', 'lg:col-span-8', 'lg:col-span-6', 'lg:col-span-4');
+          const classes = SIZE_CLASSES[targetSize] || SIZE_CLASSES['12'];
+          classes.forEach(c => activeWidget.classList.add(c));
+
+          // Update widget button label
+          const labelEl = document.getElementById('size-label-' + activeWidgetId);
+          if (labelEl) {
+            labelEl.innerText = SIZE_LABELS[targetSize] || '100%';
+          }
+
+          // Update badge text
+          if (badgeEl) {
+            const desc = targetSize === '12' ? '100% (Ancho Completo)' : (targetSize === '8' ? '2/3 (66%)' : (targetSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
+            badgeEl.innerHTML = '<span>\u2194</span> <span>' + desc + '</span>';
+          }
+
+          // Trigger responsive ApexCharts adjustment
+          redrawAllCharts();
+        }
+      }
+
+      function onEnd(e) {
+        if (!activeWidget) return;
+
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('touchend', onEnd);
+
+        // Remove highlight & styles
+        activeWidget.classList.remove('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        if (badgeEl) {
+          badgeEl.remove();
+          badgeEl = null;
+        }
+
+        // Persist new layout
+        if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+        if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+        currentLayout.sizes[activeWidgetId] = currentPreviewedSize;
+
+        persistLayout(currentLayout);
+        window.dispatchEvent(new Event('resize'));
+        redrawAllCharts();
+
+        activeWidget = null;
+        activeWidgetId = null;
+      }
+
+      container.addEventListener('mousedown', onStart);
+      container.addEventListener('touchstart', onStart, { passive: false });
+    }
+
     function setWidgetSize(widgetId, newSize) {
       if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
       if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
       currentLayout.sizes[widgetId] = newSize;
       applyLayout(currentLayout);
       persistLayout(currentLayout);
+    }
+
+    function initResizeHandles() {
+      const container = document.getElementById('dashboard-widgets-container');
+      if (!container || container.dataset.resizeInitialized) return;
+      container.dataset.resizeInitialized = 'true';
+
+      let activeWidget = null;
+      let activeWidgetId = null;
+      let startX = 0;
+      let startY = 0;
+      let initialWidth = 0;
+      let containerWidth = 0;
+      let currentPreviewedSize = null;
+      let badgeEl = null;
+
+      function onStart(e) {
+        const handle = e.target.closest('.resize-handle');
+        if (!handle) return;
+
+        const widget = handle.closest('.dashboard-widget');
+        if (!widget) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        activeWidget = widget;
+        activeWidgetId = widget.getAttribute('data-widget-id');
+        startX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        startY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+
+        const widgetRect = widget.getBoundingClientRect();
+        initialWidth = widgetRect.width;
+        containerWidth = container.getBoundingClientRect().width;
+
+        const currentSize = (currentLayout && currentLayout.sizes && currentLayout.sizes[activeWidgetId]) || DEFAULT_LAYOUT.sizes[activeWidgetId] || '12';
+        currentPreviewedSize = currentSize;
+
+        // Visual feedback on widget
+        widget.classList.add('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
+        document.body.style.cursor = 'se-resize';
+        document.body.style.userSelect = 'none';
+
+        // Create floating preview badge near cursor
+        badgeEl = document.createElement('div');
+        badgeEl.id = 'resize-drag-badge';
+        badgeEl.className = 'fixed pointer-events-none z-50 bg-sky-500 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1.5';
+        const initialDesc = currentSize === '12' ? '100% (Ancho Completo)' : (currentSize === '8' ? '2/3 (66%)' : (currentSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
+        badgeEl.innerHTML = '<span>\u2194</span> <span>' + initialDesc + '</span>';
+        badgeEl.style.left = (startX + 15) + 'px';
+        badgeEl.style.top = (startY - 30) + 'px';
+        document.body.appendChild(badgeEl);
+
+        window.addEventListener('mousemove', onMove, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchend', onEnd);
+      }
+
+      function onMove(e) {
+        if (!activeWidget) return;
+        e.preventDefault();
+
+        const curX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        const curY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+        const deltaX = curX - startX;
+
+        // Update badge position
+        if (badgeEl) {
+          badgeEl.style.left = (curX + 15) + 'px';
+          badgeEl.style.top = (curY - 30) + 'px';
+        }
+
+        // Calculate fraction of container
+        const projectedWidth = Math.max(100, initialWidth + deltaX);
+        const ratio = projectedWidth / (containerWidth || 1);
+
+        let targetSize = '12';
+        if (ratio < 0.42) {
+          targetSize = '4';       // 1/3 (33%)
+        } else if (ratio < 0.58) {
+          targetSize = '6';       // 1/2 (50%)
+        } else if (ratio < 0.83) {
+          targetSize = '8';       // 2/3 (66%)
+        } else {
+          targetSize = '12';      // 100%
+        }
+
+        if (targetSize !== currentPreviewedSize) {
+          currentPreviewedSize = targetSize;
+
+          // Apply classes live
+          activeWidget.classList.remove('col-span-12', 'lg:col-span-8', 'lg:col-span-6', 'lg:col-span-4');
+          const classes = SIZE_CLASSES[targetSize] || SIZE_CLASSES['12'];
+          classes.forEach(c => activeWidget.classList.add(c));
+
+          // Update widget button label
+          const labelEl = document.getElementById('size-label-' + activeWidgetId);
+          if (labelEl) {
+            labelEl.innerText = SIZE_LABELS[targetSize] || '100%';
+          }
+
+          // Update badge text
+          if (badgeEl) {
+            const desc = targetSize === '12' ? '100% (Ancho Completo)' : (targetSize === '8' ? '2/3 (66%)' : (targetSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
+            badgeEl.innerHTML = '<span>\u2194</span> <span>' + desc + '</span>';
+          }
+
+          // Trigger responsive ApexCharts adjustment
+          redrawAllCharts();
+        }
+      }
+
+      function onEnd(e) {
+        if (!activeWidget) return;
+
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('touchend', onEnd);
+
+        // Remove highlight & styles
+        activeWidget.classList.remove('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        if (badgeEl) {
+          badgeEl.remove();
+          badgeEl = null;
+        }
+
+        // Persist new layout
+        if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+        if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+        currentLayout.sizes[activeWidgetId] = currentPreviewedSize;
+
+        persistLayout(currentLayout);
+        window.dispatchEvent(new Event('resize'));
+        redrawAllCharts();
+
+        activeWidget = null;
+        activeWidgetId = null;
+      }
+
+      container.addEventListener('mousedown', onStart);
+      container.addEventListener('touchstart', onStart, { passive: false });
     }
 
     function toggleCustomizeMode(forceState) {
@@ -2303,6 +2668,7 @@ Esta acción es irreversible.`)) {
       await initAthleteSelector();
       await loadAthleteLayout(currentUserId);
       await loadDashboard();
+      initResizeHandles();
     });
   </script>
 </body>
