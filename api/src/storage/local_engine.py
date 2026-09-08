@@ -532,7 +532,7 @@ class LocalStorageEngine(StorageEngine):
         finally:
             conn.close()
 
-    def list_users(self) -> list[str]:
+    def list_users(self, _force_refresh: bool = False) -> list[str]:
         """Retrieves list of active athlete/user IDs."""
         users = set()
         try:

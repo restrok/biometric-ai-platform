@@ -1,3 +1,5 @@
+import time
+
 """Web UI router providing zero-configuration Setup wizard and dark-mode Dashboard."""
 
 import json
@@ -1233,7 +1235,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     function refreshData() {
-      loadDashboard();
+      loadDashboard(true);
     }
 
     async function deleteCurrentAthlete() {
@@ -1258,9 +1260,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    async function loadDashboard() {
+    async function loadDashboard(force = false) {
       try {
-        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId));
+        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId) + (force ? '&force=true' : ''));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
@@ -2007,6 +2009,9 @@ async def fitbit_auth_callback(
         )
 
 
+_dashboard_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
 @router.get("/dashboard/users")
 async def dashboard_users():
     """Returns list of all active registered athletes/users."""
@@ -2026,17 +2031,35 @@ async def dashboard_page(user_id: str | None = None):
 
 
 @router.get("/dashboard/data")
-async def dashboard_data(user_id: str | None = None):
-    """Returns biometric summary JSON payload for the dashboard."""
-    engine = get_storage_engine()
-    users = engine.list_users()
-    target_user = str(user_id or (users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user")))
+async def dashboard_data(user_id: str | None = None, force: bool = False):
+    """Returns biometric summary JSON payload for the dashboard, fetching sources in parallel."""
+    from concurrent.futures import ThreadPoolExecutor
 
-    profile = engine.get_user_profile(target_user)
-    health_status = engine.get_health_status(target_user)
-    goals = engine.get_user_goals(target_user)
-    daily_physio = engine.get_daily_physiology(target_user, days=14)
-    recent_acts = engine.get_recent_activities(target_user, limit=10)
+    engine = get_storage_engine()
+    if user_id:
+        target_user = user_id
+    else:
+        users = engine.list_users()
+        target_user = str(users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user"))
+
+    now = time.time()
+    if not force and target_user in _dashboard_cache:
+        cache_time, cached_payload = _dashboard_cache[target_user]
+        if now - cache_time < 60:
+            return cached_payload
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        fut_profile = executor.submit(engine.get_user_profile, target_user)
+        fut_health = executor.submit(engine.get_health_status, target_user)
+        fut_goals = executor.submit(engine.get_user_goals, target_user)
+        fut_physio = executor.submit(engine.get_daily_physiology, target_user, 14)
+        fut_acts = executor.submit(engine.get_recent_activities, target_user, 10)
+
+        profile = fut_profile.result()
+        health_status = fut_health.result()
+        goals = fut_goals.result()
+        daily_physio = fut_physio.result()
+        recent_acts = fut_acts.result()
 
     raw_payload = {
         "user_id": target_user,
@@ -2046,7 +2069,9 @@ async def dashboard_data(user_id: str | None = None):
         "daily_physiology": daily_physio,
         "activities": recent_acts,
     }
-    return _sanitize_for_json(raw_payload)
+    sanitized = _sanitize_for_json(raw_payload)
+    _dashboard_cache[target_user] = (now, sanitized)
+    return sanitized
 
 
 @router.post("/athletes/{user_id}/sync")
@@ -2058,6 +2083,7 @@ async def trigger_athlete_sync(user_id: str, days_back: int = 7):
 
     def _sync():
         try:
+            _dashboard_cache.pop(user_id, None)
             log.info(f"🔄 Direct UI sync started for athlete {user_id} (days_back={days_back})...")
             run_etl(user_id=user_id, days_back=days_back)
         except Exception as e:
