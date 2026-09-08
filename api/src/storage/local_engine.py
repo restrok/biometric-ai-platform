@@ -545,13 +545,13 @@ class LocalStorageEngine(StorageEngine):
             pass
 
         try:
-            conn = self._get_duckdb_conn()
+            duck_conn = self._get_duckdb_conn()
             try:
-                df = conn.execute("SELECT DISTINCT user_id FROM activities").df()
+                df = duck_conn.execute("SELECT DISTINCT user_id FROM activities").df()
                 for u in df["user_id"].dropna():
                     users.add(str(u))
             finally:
-                conn.close()
+                duck_conn.close()
         except Exception:
             pass
 

@@ -21,9 +21,7 @@ def test_user_profile_crud(temp_storage: LocalStorageEngine):
     user_id = "test_athlete"
     assert temp_storage.get_user_profile(user_id) == {}
 
-    temp_storage.update_user_profile(
-        user_id, {"name": "Test Runner", "custom_zones": {"z1_max": 130, "z2_max": 145}}
-    )
+    temp_storage.update_user_profile(user_id, {"name": "Test Runner", "custom_zones": {"z1_max": 130, "z2_max": 145}})
     profile = temp_storage.get_user_profile(user_id)
     assert profile["name"] == "Test Runner"
     assert profile["custom_zones"]["z1_max"] == 130

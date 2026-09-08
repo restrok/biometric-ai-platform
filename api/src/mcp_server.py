@@ -43,21 +43,21 @@ def mcp_retrieve_biometric_data(
 ) -> str:
     """Retrieves biometric data, current fitness baseline, recent activities, and health status."""
     return str(
-        retrieve_biometric_data.invoke({
-            "user_id": user_id,
-            "limit": limit,
-            "activity_type": activity_type,
-            "include_telemetry": include_telemetry,
-        })
+        retrieve_biometric_data.invoke(
+            {
+                "user_id": user_id,
+                "limit": limit,
+                "activity_type": activity_type,
+                "include_telemetry": include_telemetry,
+            }
+        )
     )
 
 
 @mcp_server.tool()
 def mcp_analyze_activity_efficiency(activity_id: str, user_id: str | None = None) -> str:
     """Calculates advanced running/swimming efficiency metrics, cardiac drift, and biomechanics."""
-    return str(
-        analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
-    )
+    return str(analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id}))
 
 
 @mcp_server.tool()
@@ -67,16 +67,16 @@ def mcp_analyze_activity_stages(activity_id: str) -> str:
 
 
 @mcp_server.tool()
-def mcp_query_macro_load_history(
-    user_id: str | None = None, group_by: str = "weekly", limit_months: int = 6
-) -> str:
+def mcp_query_macro_load_history(user_id: str | None = None, group_by: str = "weekly", limit_months: int = 6) -> str:
     """Aggregates training volume, distance, TRIMP, and session counts."""
     return str(
-        query_macro_load_history.invoke({
-            "user_id": user_id,
-            "group_by": group_by,
-            "limit_months": limit_months,
-        })
+        query_macro_load_history.invoke(
+            {
+                "user_id": user_id,
+                "group_by": group_by,
+                "limit_months": limit_months,
+            }
+        )
     )
 
 
@@ -84,19 +84,19 @@ def mcp_query_macro_load_history(
 def mcp_calculate_critical_power(user_id: str | None = None, days_back: int = 90) -> str:
     """Calculates Critical Power (CP) and W' (anaerobic work capacity) from historical efforts."""
     return str(
-        calculate_critical_power_and_w_prime.invoke({
-            "user_id": user_id,
-            "days_back": days_back,
-        })
+        calculate_critical_power_and_w_prime.invoke(
+            {
+                "user_id": user_id,
+                "days_back": days_back,
+            }
+        )
     )
 
 
 @mcp_server.tool()
 def mcp_project_training_impact(planned_tss: float, user_id: str | None = None) -> str:
     """Simulates acute and chronic training load (CTL/ATL/TSB) for planned workouts."""
-    return str(
-        project_training_impact.invoke({"planned_tss": planned_tss, "user_id": user_id})
-    )
+    return str(project_training_impact.invoke({"planned_tss": planned_tss, "user_id": user_id}))
 
 
 @mcp_server.tool()
@@ -106,16 +106,16 @@ def mcp_assess_glycogen_readiness(user_id: str | None = None) -> str:
 
 
 @mcp_server.tool()
-def mcp_compare_shoe_biomechanics(
-    shoe_1: str, shoe_2: str, user_id: str | None = None
-) -> str:
+def mcp_compare_shoe_biomechanics(shoe_1: str, shoe_2: str, user_id: str | None = None) -> str:
     """Compares cadence, ground contact time, and efficiency between shoe models."""
     return str(
-        compare_shoe_biomechanics.invoke({
-            "shoe_1": shoe_1,
-            "shoe_2": shoe_2,
-            "user_id": user_id,
-        })
+        compare_shoe_biomechanics.invoke(
+            {
+                "shoe_1": shoe_1,
+                "shoe_2": shoe_2,
+                "user_id": user_id,
+            }
+        )
     )
 
 
@@ -136,30 +136,32 @@ def mcp_log_health_status(
 ) -> str:
     """Logs daily subjective health status, fatigue, soreness, and injury status."""
     return str(
-        log_health_status.invoke({
-            "feeling": feeling,
-            "notes": notes,
-            "fatigue_level": fatigue_level,
-            "injury_notes": injury_notes,
-            "status_date": status_date,
-            "user_id": user_id,
-        })
+        log_health_status.invoke(
+            {
+                "feeling": feeling,
+                "notes": notes,
+                "fatigue_level": fatigue_level,
+                "injury_notes": injury_notes,
+                "status_date": status_date,
+                "user_id": user_id,
+            }
+        )
     )
 
 
 @mcp_server.tool()
-def mcp_update_user_zones(
-    z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None
-) -> str:
+def mcp_update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None) -> str:
     """Updates heart rate training zones (Z1 - Z5)."""
     return str(
-        update_user_zones.invoke({
-            "z1_max": z1_max,
-            "z2_max": z2_max,
-            "z3_max": z3_max,
-            "z4_max": z4_max,
-            "user_id": user_id,
-        })
+        update_user_zones.invoke(
+            {
+                "z1_max": z1_max,
+                "z2_max": z2_max,
+                "z3_max": z3_max,
+                "z4_max": z4_max,
+                "user_id": user_id,
+            }
+        )
     )
 
 
@@ -179,19 +181,19 @@ def mcp_save_semantic_memory(
 ) -> str:
     """Saves user preference, constraint, or coaching memory nugget."""
     return str(
-        save_semantic_memory.invoke({
-            "user_id": user_id,
-            "memory_type": memory_type,
-            "memory_text": memory_text,
-            "source_session_id": source_session_id,
-            "confidence_score": confidence_score,
-        })
+        save_semantic_memory.invoke(
+            {
+                "user_id": user_id,
+                "memory_type": memory_type,
+                "memory_text": memory_text,
+                "source_session_id": source_session_id,
+                "confidence_score": confidence_score,
+            }
+        )
     )
 
 
 @mcp_server.tool()
 def mcp_sync_biometric_data(user_id: str | None = None, days_back: int = 3) -> str:
     """Triggers biometric sync from configured watch provider (Garmin/Fitbit)."""
-    return str(
-        sync_biometric_data.invoke({"user_id": user_id, "days_back": days_back})
-    )
+    return str(sync_biometric_data.invoke({"user_id": user_id, "days_back": days_back}))

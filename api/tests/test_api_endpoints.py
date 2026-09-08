@@ -27,7 +27,9 @@ def clean_env_teardown():
     else:
         os.environ.pop("AUTH_DISABLED", None)
     from src.storage.factory import reset_storage_engine
+
     reset_storage_engine()
+
 
 from main import app
 from src.utils.vault import get_vault

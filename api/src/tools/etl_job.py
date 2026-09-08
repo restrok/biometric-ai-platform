@@ -39,12 +39,17 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
     if os.getenv("STORAGE_MODE") == "local":
         try:
             from src.storage.factory import get_storage_engine
+
             engine = get_storage_engine(mode="local")
             duckdb_path = getattr(engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb"))
             import duckdb
+
             conn = duckdb.connect(duckdb_path)
             try:
-                exists = conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]).fetchone()[0] > 0
+                row = conn.execute(
+                    "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
+                ).fetchone()
+                exists = bool(row and row[0] > 0)
                 if exists:
                     cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
                     date_col = "date" if "date" in cols else ("start_time" if "start_time" in cols else None)
@@ -93,7 +98,9 @@ def _upsert_to_local_storage(
         return
 
     import uuid
+
     import duckdb
+
     from src.storage.factory import get_storage_engine
 
     if user_id and "user_id" not in df.columns:
@@ -106,7 +113,10 @@ def _upsert_to_local_storage(
     conn = duckdb.connect(duckdb_path)
     try:
         conn.register("_temp_incoming", df)
-        exists = conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]).fetchone()[0] > 0
+        row = conn.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
+        ).fetchone()
+        exists = bool(row and row[0] > 0)
         if not exists:
             conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _temp_incoming")
             log.info(f"Created local DuckDB table '{table_name}' with {len(df)} rows.")
@@ -157,12 +167,22 @@ def _upsert_to_local_storage(
                     "activity_name": str(row.get("name") or row.get("activity_name") or "Activity"),
                     "activity_type": str(row.get("type") or row.get("activity_type") or "running"),
                     "start_time": str(row.get("date") or row.get("start_time") or datetime.now(UTC).isoformat()),
-                    "duration_seconds": float(row.get("moving_duration_sec") or row.get("duration_sec") or row.get("duration_seconds") or 0.0),
+                    "duration_seconds": float(
+                        row.get("moving_duration_sec") or row.get("duration_sec") or row.get("duration_seconds") or 0.0
+                    ),
                     "distance_meters": float(row.get("distance_m") or row.get("distance_meters") or 0.0),
-                    "avg_heart_rate": float(row.get("avg_hr") or row.get("avg_heart_rate") or 0.0) if pd.notna(row.get("avg_hr") or row.get("avg_heart_rate")) else None,
-                    "max_heart_rate": float(row.get("max_hr") or row.get("max_heart_rate") or 0.0) if pd.notna(row.get("max_hr") or row.get("max_heart_rate")) else None,
-                    "aerobic_training_effect": float(row.get("aerobic_training_effect") or 0.0) if pd.notna(row.get("aerobic_training_effect")) else None,
-                    "anaerobic_training_effect": float(row.get("anaerobic_training_effect") or 0.0) if pd.notna(row.get("anaerobic_training_effect")) else None,
+                    "avg_heart_rate": float(row.get("avg_hr") or row.get("avg_heart_rate") or 0.0)
+                    if pd.notna(row.get("avg_hr") or row.get("avg_heart_rate"))
+                    else None,
+                    "max_heart_rate": float(row.get("max_hr") or row.get("max_heart_rate") or 0.0)
+                    if pd.notna(row.get("max_hr") or row.get("max_heart_rate"))
+                    else None,
+                    "aerobic_training_effect": float(row.get("aerobic_training_effect") or 0.0)
+                    if pd.notna(row.get("aerobic_training_effect"))
+                    else None,
+                    "anaerobic_training_effect": float(row.get("anaerobic_training_effect") or 0.0)
+                    if pd.notna(row.get("anaerobic_training_effect"))
+                    else None,
                     "trimp": float(row.get("trimp") or 0.0) if pd.notna(row.get("trimp")) else None,
                     "summary": row.get("summary") or {},
                 }
@@ -177,13 +197,25 @@ def _upsert_to_local_storage(
                 d_str = str(row.get("date"))[:10]
                 rec = {
                     "date": d_str,
-                    "resting_heart_rate": int(row["resting_heart_rate"]) if "resting_heart_rate" in row and pd.notna(row["resting_heart_rate"]) else None,
+                    "resting_heart_rate": int(row["resting_heart_rate"])
+                    if "resting_heart_rate" in row and pd.notna(row["resting_heart_rate"])
+                    else None,
                     "hrv_sdnn": float(row["hrv_sdnn"]) if "hrv_sdnn" in row and pd.notna(row["hrv_sdnn"]) else None,
-                    "hrv_rmssd": float(row["hrv_rmssd"]) if "hrv_rmssd" in row and pd.notna(row["hrv_rmssd"]) else (float(row["avg_hrv"]) if "avg_hrv" in row and pd.notna(row["avg_hrv"]) else None),
-                    "body_battery_max": int(row["body_battery_max"]) if "body_battery_max" in row and pd.notna(row["body_battery_max"]) else None,
-                    "body_battery_min": int(row["body_battery_min"]) if "body_battery_min" in row and pd.notna(row["body_battery_min"]) else None,
-                    "stress_avg": int(row["stress_avg"]) if "stress_avg" in row and pd.notna(row["stress_avg"]) else None,
-                    "sleep_duration_seconds": float(row["duration_sec"]) if "duration_sec" in row and pd.notna(row["duration_sec"]) else None,
+                    "hrv_rmssd": float(row["hrv_rmssd"])
+                    if "hrv_rmssd" in row and pd.notna(row["hrv_rmssd"])
+                    else (float(row["avg_hrv"]) if "avg_hrv" in row and pd.notna(row["avg_hrv"]) else None),
+                    "body_battery_max": int(row["body_battery_max"])
+                    if "body_battery_max" in row and pd.notna(row["body_battery_max"])
+                    else None,
+                    "body_battery_min": int(row["body_battery_min"])
+                    if "body_battery_min" in row and pd.notna(row["body_battery_min"])
+                    else None,
+                    "stress_avg": int(row["stress_avg"])
+                    if "stress_avg" in row and pd.notna(row["stress_avg"])
+                    else None,
+                    "sleep_duration_seconds": float(row["duration_sec"])
+                    if "duration_sec" in row and pd.notna(row["duration_sec"])
+                    else None,
                     "sleep_score": int(row["quality"]) if "quality" in row and pd.notna(row["quality"]) else None,
                 }
                 phys_records.append(rec)
@@ -192,6 +224,7 @@ def _upsert_to_local_storage(
                 log.info(f"✅ Synced {len(phys_records)} {table_name} records into LocalStorageEngine.")
     except Exception as e:
         log.warning(f"Could not map {table_name} to LocalStorageEngine canonical tables: {e}")
+
 
 def upsert_to_bq(
     df: pd.DataFrame,
@@ -401,6 +434,7 @@ def get_current_user_metrics(user_id: str | None = None) -> tuple[int | None, in
     if os.getenv("STORAGE_MODE") == "local" or not PROJECT_ID:
         try:
             from src.storage.factory import get_storage_engine
+
             p = get_storage_engine(mode="local").get_user_profile(user_id or "default_user")
             return p.get("max_hr"), p.get("resting_hr")
         except Exception:

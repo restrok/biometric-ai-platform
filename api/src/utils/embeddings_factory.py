@@ -19,10 +19,10 @@ class FastEmbedWrapper(Embeddings):
         log.info(f"🧠 FastEmbed initialized with model: {model_name}")
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return [list(vec) for vec in self._model.embed(texts)]
+        return [[float(x) for x in vec] for vec in self._model.embed(texts)]
 
     def embed_query(self, text: str) -> list[float]:
-        return list(next(self._model.embed([text])))
+        return [float(x) for x in next(iter(self._model.embed([text])))]
 
 
 def get_embeddings_model() -> Embeddings:

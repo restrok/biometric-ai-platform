@@ -1782,7 +1782,7 @@ async def google_auth_login(
         redirect_uri = "http://localhost:8002/auth/google/callback"
 
     oauth_client = GoogleHealthOAuthClient(
-        client_id=effective_client_id,
+        client_id=str(effective_client_id or ""),
         redirect_uri=redirect_uri,
         client_secret=os.getenv("GOOGLE_HEALTH_CLIENT_SECRET"),
         scopes=[
@@ -1915,7 +1915,7 @@ async def fitbit_auth_login(
     verifier, challenge = generate_pkce_pair()
     state = f"{user_id}:{secrets.token_urlsafe(16)}"
     auth_url = get_authorization_url(
-        client_id=effective_client_id,
+        client_id=str(effective_client_id or ""),
         code_challenge=challenge,
         redirect_uri=redirect_uri,
         state=state,
@@ -2048,10 +2048,12 @@ async def dashboard_data(user_id: str | None = None):
     }
     return _sanitize_for_json(raw_payload)
 
+
 @router.post("/athletes/{user_id}/sync")
 async def trigger_athlete_sync(user_id: str, days_back: int = 7):
     """Triggers an incremental background biometric sync for the athlete."""
     import threading
+
     from src.tools.etl_job import run_etl
 
     def _sync():

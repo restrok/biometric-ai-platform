@@ -1,3 +1,5 @@
+import contextlib
+
 """Biometric provider factory utility supporting Garmin and Fitbit."""
 
 import json
@@ -32,7 +34,8 @@ def get_provider(
         return _providers[cache_key]
 
     # Determine watch provider preference
-    target_user = user_id or os.getenv("DEFAULT_USER_ID", "default_user")
+    provider: Any = None
+    target_user: str = str(user_id or os.getenv("DEFAULT_USER_ID") or "default_user")
     watch_provider = os.getenv("WATCH_PROVIDER", "garmin")
     try:
         from src.storage.factory import get_storage_engine
@@ -56,7 +59,9 @@ def get_provider(
         elif google_token_file.exists():
             provider = GoogleHealthProvider(token_path=google_token_file)
         else:
-            log.info(f"No Google Health tokens found on disk for {user_id}, falling back to MockFitbitProvider for simulated testing.")
+            log.info(
+                f"No Google Health tokens found on disk for {user_id}, falling back to MockFitbitProvider for simulated testing."
+            )
             provider = MockFitbitProvider()
         _providers[cache_key] = provider
         return provider
@@ -100,10 +105,8 @@ def get_provider(
             token_file = token_dir / f"garmin_tokens_{target_user}.json"
             with open(token_file, "w") as f:
                 json.dump(vault_tokens, f, indent=4)
-            try:
+            with contextlib.suppress(Exception):
                 os.chmod(token_file, 0o600)
-            except Exception:
-                pass
             log.info(f"Using Garmin tokens from LocalSecureVault for user: {target_user}")
             provider = GarminProvider(token_path=token_file)
             if hasattr(provider, "client") and not getattr(provider.client, "display_name", None):

@@ -13,12 +13,14 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 from pathlib import Path
 
 # Add api/ to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fitbit_training_toolkit_sdk.auth.google_auth import GoogleHealthOAuthClient
+
 from src.utils.vault import LocalSecureVault
 
 DEFAULT_CLIENT_ID = os.getenv("GOOGLE_HEALTH_CLIENT_ID", "")
@@ -90,11 +92,10 @@ def main():
 
     print("\n🔄 Canjeando código por tokens con Google...")
     try:
-        import urllib.parse
         code = urllib.parse.unquote(code)
         token_data = client.exchange_code_for_tokens(code=code, code_verifier=verifier)
         print("✅ ¡Tokens obtenidos con éxito de Google!")
-        
+
         # Save to dev container vault if it exists
         dev_vault_dir = Path("/home/fsirio/homelab/biometric-coach-dev/data")
         if dev_vault_dir.exists():
