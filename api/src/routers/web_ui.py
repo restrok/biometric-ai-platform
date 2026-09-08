@@ -1061,8 +1061,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
     }
     .edit-mode-ring {
-      ring-width: 1px;
-      outline: 1px dashed rgba(56, 189, 248, 0.35);
+      outline: 1px dashed rgba(56, 189, 248, 0.45);
       outline-offset: 4px;
     }
   </style>
@@ -1124,7 +1123,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         </span>
         <div>
           <span class="font-bold text-sky-400">Modo Personalización Activo</span>
-          <p class="text-slate-400 text-[11px]">Arrastrá las tarjetas desde el ícono <span class="font-mono text-white">⠿</span> para cambiar el orden, o usá <span class="font-mono text-rose-400 font-bold">✕</span> para ocultar widgets.</p>
+          <p class="text-slate-400 text-[11px]">Arrastrá desde <span class="font-mono text-white">⠿</span> para ordenar, usá <span class="font-mono text-sky-400">↔ Tamaño</span> para poner tarjetas una al lado de otra (2/3 + 1/3, o 50/50), o <span class="font-mono text-rose-400">✕</span> para ocultar.</p>
         </div>
       </div>
       <div class="flex items-center space-x-2 self-end sm:self-auto">
@@ -1149,11 +1148,11 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <button onclick="this.parentElement.remove()" class="text-emerald-400 hover:text-emerald-200 text-xs font-bold px-2 py-1">✕</button>
     </div>
 
-    <!-- Configurable Widgets Container -->
-    <div id="dashboard-widgets-container" class="space-y-6">
+    <!-- Configurable Widgets 12-Column Grid Container -->
+    <div id="dashboard-widgets-container" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
       <!-- WIDGET 1: KPI Cards -->
-      <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
+      <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1161,7 +1160,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
               <span>📊</span> Indicadores Fisiológicos Clave
             </span>
           </div>
-          <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="cycleWidgetSize('widget-kpis')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-kpis">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
@@ -1187,33 +1191,41 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- WIDGET 2: 14-Day Physiology Chart -->
-      <div id="widget-chart" data-widget-id="widget-chart" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <!-- WIDGET 2: 14-Day Physiology Chart (Default 2/3 = 8 cols) -->
+      <div id="widget-chart" data-widget-id="widget-chart" class="dashboard-widget col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>📈</span> Tendencias Fisiológicas de Recuperación (14 Días)
+              <span>📈</span> Tendencias de Recuperación (14 Días)
             </span>
           </div>
-          <div class="flex items-center space-x-3">
-            <span class="text-xs text-slate-400 hidden sm:inline">RHR (bpm) vs HRV RMSSD (ms)</span>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">RHR vs HRV RMSSD</span>
+            <button onclick="cycleWidgetSize('widget-chart')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-chart">2/3</span>
+            </button>
             <button onclick="toggleWidgetVisibility('widget-chart', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
           </div>
         </div>
         <div id="chart-physio" class="h-64"></div>
       </div>
 
-      <!-- WIDGET 3: Heart Rate Zones -->
-      <div id="widget-zones" data-widget-id="widget-zones" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <!-- WIDGET 3: Heart Rate Zones (Default 1/3 = 4 cols) -->
+      <div id="widget-zones" data-widget-id="widget-zones" class="dashboard-widget col-span-12 lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>💓</span> Zonas de Ritmo Cardíaco (HR Zones)
+              <span>💓</span> Zonas de Ritmo Cardíaco
             </span>
           </div>
-          <button onclick="toggleWidgetVisibility('widget-zones', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="cycleWidgetSize('widget-zones')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-zones">1/3</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-zones', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div id="zones-container" class="space-y-3">
           <!-- Populated by JS -->
@@ -1221,7 +1233,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <!-- WIDGET 4: Active Goals -->
-      <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1229,7 +1241,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
               <span>🎯</span> Objetivos de Rendimiento Activos
             </span>
           </div>
-          <button onclick="toggleWidgetVisibility('widget-goals', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="cycleWidgetSize('widget-goals')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-goals">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-goals', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div id="goals-container" class="space-y-2.5">
           <div class="text-slate-500 text-xs py-2">Cargando objetivos...</div>
@@ -1237,7 +1254,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <!-- WIDGET 5: Recent Activities Table -->
-      <div id="widget-activities" data-widget-id="widget-activities" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-activities" data-widget-id="widget-activities" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1245,7 +1262,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
               <span>🏃</span> Sesiones de Entrenamiento Recientes
             </span>
           </div>
-          <button onclick="toggleWidgetVisibility('widget-activities', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="cycleWidgetSize('widget-activities')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-activities">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-activities', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-slate-400">
@@ -1268,7 +1290,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <!-- WIDGET 6: Chat with AI Coach -->
-      <div id="widget-coach" data-widget-id="widget-coach" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-coach" data-widget-id="widget-coach" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1276,7 +1298,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
               <span>🤖</span> Asistente Biométrico AI (Chat en Vivo)
             </span>
           </div>
-          <button onclick="toggleWidgetVisibility('widget-coach', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="cycleWidgetSize('widget-coach')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-coach">100%</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-coach', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300 font-sans">
           <div class="text-slate-400 text-xs">Hola, soy tu entrenador biométrico. Podés consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.</div>
@@ -1303,7 +1330,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <button onclick="closeWidgetCatalog()" class="text-slate-400 hover:text-white text-sm p-1">✕</button>
       </div>
-      <div class="p-5 space-y-3 max-h-[60vh] overflow-y-auto" id="catalog-list">
+      <div class="p-5 space-y-3.5 max-h-[60vh] overflow-y-auto" id="catalog-list">
         <!-- Generated by JS -->
       </div>
       <div class="p-4 bg-slate-950/60 border-t border-slate-800 flex justify-between items-center">
@@ -1338,8 +1365,32 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         'widget-goals': true,
         'widget-activities': true,
         'widget-coach': true
+      },
+      sizes: {
+        'widget-kpis': '12',
+        'widget-chart': '8',
+        'widget-zones': '4',
+        'widget-goals': '12',
+        'widget-activities': '12',
+        'widget-coach': '12'
       }
     };
+
+    const SIZE_CLASSES = {
+      '12': ['col-span-12'],
+      '8': ['col-span-12', 'lg:col-span-8'],
+      '6': ['col-span-12', 'lg:col-span-6'],
+      '4': ['col-span-12', 'lg:col-span-4']
+    };
+
+    const SIZE_LABELS = {
+      '12': '100%',
+      '8': '2/3',
+      '6': '1/2',
+      '4': '1/3'
+    };
+
+    const SIZE_CYCLE = ['12', '8', '6', '4'];
 
     function getStorageKey(userId) {
       return 'biometric_dashboard_layout_' + (userId || currentUserId || 'default');
@@ -1373,8 +1424,10 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
       }
 
-      // Ensure all widgets exist in visible map and order
+      // Merge defaults for visible, order, and sizes
       layout.visible = Object.assign({}, DEFAULT_LAYOUT.visible, layout.visible || {});
+      layout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes, layout.sizes || {});
+
       const order = Array.isArray(layout.order) ? layout.order.slice() : DEFAULT_LAYOUT.order.slice();
       DEFAULT_LAYOUT.order.forEach(id => {
         if (!order.includes(id)) order.push(id);
@@ -1421,21 +1474,58 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         if (el) container.appendChild(el);
       });
 
-      // Set visibility according to athlete preference
+      // Set visibility and sizes according to athlete preference
       Object.keys(layout.visible).forEach(widgetId => {
         const el = document.getElementById(widgetId);
-        if (el) {
-          if (layout.visible[widgetId]) {
-            el.classList.remove('hidden');
-          } else {
-            el.classList.add('hidden');
-          }
+        if (!el) return;
+
+        // Visibility
+        if (layout.visible[widgetId]) {
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+
+        // Size classes
+        const currentSize = (layout.sizes && layout.sizes[widgetId]) || DEFAULT_LAYOUT.sizes[widgetId] || '12';
+        el.classList.remove('col-span-12', 'lg:col-span-8', 'lg:col-span-6', 'lg:col-span-4');
+        const classes = SIZE_CLASSES[currentSize] || SIZE_CLASSES['12'];
+        classes.forEach(c => el.classList.add(c));
+
+        // Update size button label
+        const labelEl = document.getElementById('size-label-' + widgetId);
+        if (labelEl) {
+          labelEl.innerText = SIZE_LABELS[currentSize] || '100%';
         }
       });
 
+      // Trigger ApexCharts recalculation
+      window.dispatchEvent(new Event('resize'));
       if (physioChart && layout.visible['widget-chart']) {
         setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
       }
+    }
+
+    function cycleWidgetSize(widgetId) {
+      if (!currentLayout) currentLayout = loadSavedLayout();
+      if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+
+      const currentSize = currentLayout.sizes[widgetId] || '12';
+      const currentIndex = SIZE_CYCLE.indexOf(currentSize);
+      const nextIndex = (currentIndex + 1) % SIZE_CYCLE.length;
+      const newSize = SIZE_CYCLE[nextIndex];
+
+      currentLayout.sizes[widgetId] = newSize;
+      applyLayout(currentLayout);
+      persistLayout(currentLayout);
+    }
+
+    function setWidgetSize(widgetId, newSize) {
+      if (!currentLayout) currentLayout = loadSavedLayout();
+      if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+      currentLayout.sizes[widgetId] = newSize;
+      applyLayout(currentLayout);
+      persistLayout(currentLayout);
     }
 
     function toggleCustomizeMode(forceState) {
@@ -1470,6 +1560,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             chosenClass: 'sortable-chosen',
             onEnd: function() {
               persistLayout();
+              window.dispatchEvent(new Event('resize'));
               if (physioChart) {
                 setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
               }
@@ -1526,8 +1617,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       const layout = currentLayout || DEFAULT_LAYOUT;
       listEl.innerHTML = WIDGET_DEFINITIONS.map(w => {
         const isChecked = layout.visible[w.id] !== false;
+        const currentSize = (layout.sizes && layout.sizes[w.id]) || DEFAULT_LAYOUT.sizes[w.id] || '12';
         return `
-          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 transition">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 transition gap-2.5">
             <div class="flex items-center space-x-3">
               <span class="text-xl">${w.icon}</span>
               <div>
@@ -1535,10 +1627,20 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="text-xs text-slate-400">${w.desc}</div>
               </div>
             </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWidgetVisibility('${w.id}', this.checked)" class="sr-only peer">
-              <div class="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
-            </label>
+            <div class="flex items-center space-x-3 self-end sm:self-auto">
+              <!-- Size selector -->
+              <select onchange="setWidgetSize('${w.id}', this.value)" class="bg-slate-800 border border-slate-700 rounded-lg text-xs px-2.5 py-1 text-slate-200 focus:outline-none focus:border-sky-500">
+                <option value="12" ${currentSize === '12' ? 'selected' : ''}>100% Ancho</option>
+                <option value="8" ${currentSize === '8' ? 'selected' : ''}>2/3 Ancho (66%)</option>
+                <option value="6" ${currentSize === '6' ? 'selected' : ''}>1/2 Mitad (50%)</option>
+                <option value="4" ${currentSize === '4' ? 'selected' : ''}>1/3 Ancho (33%)</option>
+              </select>
+              <!-- Visibility Switch -->
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWidgetVisibility('${w.id}', this.checked)" class="sr-only peer">
+                <div class="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+              </label>
+            </div>
           </div>
         `;
       }).join('');
@@ -2522,6 +2624,14 @@ DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
         "widget-activities": True,
         "widget-coach": True,
     },
+    "sizes": {
+        "widget-kpis": "12",
+        "widget-chart": "8",
+        "widget-zones": "4",
+        "widget-goals": "12",
+        "widget-activities": "12",
+        "widget-coach": "12",
+    },
 }
 
 
@@ -2533,11 +2643,12 @@ async def get_athlete_dashboard_layout(user_id: str):
     saved_layout = profile.get("dashboard_layout")
     if saved_layout and isinstance(saved_layout, dict):
         merged_visible = {**DEFAULT_DASHBOARD_LAYOUT["visible"], **saved_layout.get("visible", {})}
+        merged_sizes = {**DEFAULT_DASHBOARD_LAYOUT["sizes"], **saved_layout.get("sizes", {})}
         order = list(saved_layout.get("order", DEFAULT_DASHBOARD_LAYOUT["order"]))
         for wid in DEFAULT_DASHBOARD_LAYOUT["order"]:
             if wid not in order:
                 order.append(wid)
-        return {"user_id": user_id, "layout": {"order": order, "visible": merged_visible}}
+        return {"user_id": user_id, "layout": {"order": order, "visible": merged_visible, "sizes": merged_sizes}}
     return {"user_id": user_id, "layout": DEFAULT_DASHBOARD_LAYOUT}
 
 
@@ -2547,7 +2658,8 @@ async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
     engine = get_storage_engine()
     order = payload.get("order", DEFAULT_DASHBOARD_LAYOUT["order"])
     visible = payload.get("visible", DEFAULT_DASHBOARD_LAYOUT["visible"])
-    clean_layout = {"order": order, "visible": visible}
+    sizes = payload.get("sizes", DEFAULT_DASHBOARD_LAYOUT["sizes"])
+    clean_layout = {"order": order, "visible": visible, "sizes": sizes}
 
     engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
     log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")
