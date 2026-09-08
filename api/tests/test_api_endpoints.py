@@ -125,10 +125,7 @@ def test_google_auth_login_redirect(client: TestClient):
 
 
 def test_google_auth_login_json(client: TestClient):
-    response = client.get(
-        "/auth/google/login?user_id=athlete_oauth_test",
-        headers={"accept": "application/json"}
-    )
+    response = client.get("/auth/google/login?user_id=athlete_oauth_test", headers={"accept": "application/json"})
     assert response.status_code == 200
     data = response.json()
     assert "auth_url" in data
@@ -146,10 +143,7 @@ def test_fitbit_auth_login_redirect(client: TestClient):
 
 
 def test_fitbit_auth_login_json(client: TestClient):
-    response = client.get(
-        "/auth/fitbit/login?user_id=athlete_fitbit_test",
-        headers={"accept": "application/json"}
-    )
+    response = client.get("/auth/fitbit/login?user_id=athlete_fitbit_test", headers={"accept": "application/json"})
     assert response.status_code == 200
     data = response.json()
     assert "auth_url" in data
@@ -187,26 +181,21 @@ from unittest.mock import patch
 
 def test_garmin_exchange_endpoint_invalid_ticket(client: TestClient):
     response = client.post(
-        "/auth/garmin/exchange",
-        json={"ticket_or_url": "invalid-url-without-st", "user_id": "athlete_test"}
+        "/auth/garmin/exchange", json={"ticket_or_url": "invalid-url-without-st", "user_id": "athlete_test"}
     )
     assert response.status_code == 400
     assert "No se encontró un ticket válido" in response.json()["detail"]
 
 
 def test_garmin_exchange_endpoint_mocked(client: TestClient):
-    mock_tokens = {
-        "di_token": "mock_di_token_abc",
-        "di_refresh_token": "mock_ref_123",
-        "di_client_id": "test_client"
-    }
+    mock_tokens = {"di_token": "mock_di_token_abc", "di_refresh_token": "mock_ref_123", "di_client_id": "test_client"}
     with patch("garmin_training_toolkit_sdk.auth.get_tokens_from_ticket", return_value=mock_tokens):
         response = client.post(
             "/auth/garmin/exchange",
             json={
                 "ticket_or_url": "https://sso.garmin.com/sso/embed?ticket=ST-TEST-TICKET-999",
-                "user_id": "athlete_garmin_mock_exchange"
-            }
+                "user_id": "athlete_garmin_mock_exchange",
+            },
         )
         assert response.status_code == 200
         assert response.json()["status"] == "success"
@@ -220,7 +209,7 @@ def test_setup_save_with_garmin_ticket_url(client: TestClient):
     mock_tokens = {
         "di_token": "mock_di_token_from_setup",
         "di_refresh_token": "mock_ref_from_setup",
-        "di_client_id": "test_client"
+        "di_client_id": "test_client",
     }
     with patch("garmin_training_toolkit_sdk.auth.get_tokens_from_ticket", return_value=mock_tokens):
         payload = {
@@ -236,3 +225,22 @@ def test_setup_save_with_garmin_ticket_url(client: TestClient):
         saved = get_vault().retrieve_tokens("garmin", "athlete_garmin_ticket_setup")
         assert saved is not None
         assert saved.get("di_token") == "mock_di_token_from_setup"
+
+
+def test_chat_endpoint_empty_message(client: TestClient):
+    response = client.post("/chat", json={"message": "", "user_id": "test_user"})
+    assert response.status_code == 400
+    assert "Empty message" in response.json()["detail"]
+
+
+def test_chat_endpoint_success_mocked(client: TestClient):
+    from langchain_core.messages import AIMessage
+
+    mock_result = {"messages": [AIMessage(content="¡Hola! Soy tu entrenador. Todo listo para empezar.")]}
+    with patch("main.graph.ainvoke", return_value=mock_result):
+        response = client.post("/chat", json={"message": "Hola coach", "user_id": "test_athlete_chat"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["user_id"] == "test_athlete_chat"
+        assert "¡Hola! Soy tu entrenador" in data["response"]
+        assert "¡Hola! Soy tu entrenador" in data["message"]

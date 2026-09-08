@@ -1,3 +1,5 @@
+import contextlib
+
 """Tools for retrieving biometric data from BigQuery."""
 
 import functools
@@ -112,6 +114,17 @@ def retrieve_biometric_data(
     Returns:
         A dictionary containing the user's biometric context.
     """
+    if os.getenv("STORAGE_MODE") == "local":
+        return _retrieve_biometric_data_local(
+            user_id=user_id or "default_user",
+            limit=limit,
+            offset=offset,
+            activity_type=activity_type,
+            start_date=start_date,
+            end_date=end_date,
+            include_telemetry=include_telemetry,
+        )
+
     cache_key = f"{user_id}_forced_{time.time()}" if force_reload else _get_cache_key(user_id, include_telemetry)
     return _retrieve_biometric_data_cached(
         project_id,
@@ -125,6 +138,107 @@ def retrieve_biometric_data(
         include_telemetry,
         cache_key,
     )
+
+
+def _retrieve_biometric_data_local(
+    user_id: str,
+    limit: int = 5,
+    offset: int = 0,
+    activity_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    include_telemetry: bool = False,
+) -> dict[str, Any]:
+    """Retrieves biometric context from the LocalStorageEngine (SQLite + DuckDB)."""
+    from src.storage.factory import get_storage_engine
+    from src.utils.physiology import calculate_sport_hr_zones
+
+    engine = get_storage_engine(mode="local")
+    profile = engine.get_user_profile(user_id) or {}
+
+    # Enrich sport zones
+    sport_zones = dict(profile.get("sport_zones") or {})
+    running_base = sport_zones.get("running") or profile.get("custom_zones")
+    max_hr = profile.get("max_hr")
+    resting_hr = profile.get("resting_hr")
+    if "running" not in sport_zones:
+        with contextlib.suppress(Exception):
+            sport_zones["running"] = calculate_sport_hr_zones(
+                running_zones=running_base,
+                max_hr=float(max_hr) if max_hr else None,
+                resting_hr=float(resting_hr) if resting_hr else None,
+                sport="running",
+            ).model_dump()
+    profile["sport_zones"] = sport_zones
+
+    daily_physio = engine.get_daily_physiology(user_id, days=7)
+    recent_acts = engine.get_recent_activities(
+        user_id, limit=limit, offset=offset, activity_type=activity_type, start_date=start_date, end_date=end_date
+    )
+    health_status = engine.get_health_status(user_id)
+    goals = engine.get_user_goals(user_id)
+    raw_mems = engine.get_semantic_memories(user_id)
+    memories = []
+    for m in raw_mems:
+        dt = m.get("updated_at") or m.get("created_at") or ""
+        date_str = f"[{str(dt)[:10]}] " if dt else ""
+        text = m.get("memory_text", "").strip()
+        if text:
+            memories.append(f"{date_str}{text}")
+
+    calib_markers = engine.get_calibration_markers(user_id) if hasattr(engine, "get_calibration_markers") else []
+
+    top_3_ids = [
+        str(a.get("activity_id") or a.get("id")) for a in recent_acts[:3] if a.get("activity_id") or a.get("id")
+    ]
+    telemetry_summary = (
+        "Detailed timeseries omitted for performance (available on-demand via analyze_activity_efficiency tool)."
+    )
+    if include_telemetry and top_3_ids:
+        telemetry_summary = "Telemetry summary available."
+
+    hrv_list = []
+    for d in daily_physio:
+        if d.get("hrv_rmssd"):
+            hrv_list.append(
+                {
+                    "date": d.get("date"),
+                    "avg_hrv": d.get("hrv_rmssd"),
+                    "min_hrv": None,
+                    "max_hrv": None,
+                    "status": "balanced",
+                    "baseline_low": None,
+                    "baseline_high": None,
+                }
+            )
+
+    latest_sleep = None
+    if daily_physio and daily_physio[0].get("sleep_duration_seconds"):
+        s = daily_physio[0]
+        latest_sleep = {
+            "date": s.get("date"),
+            "duration_sec": s.get("sleep_duration_seconds"),
+            "quality": s.get("sleep_score"),
+            "deep_sec": s.get("deep_sleep_seconds"),
+            "light_sec": s.get("light_sleep_seconds"),
+            "rem_sec": s.get("rem_sleep_seconds"),
+            "awake_sec": s.get("awake_seconds"),
+        }
+
+    return {
+        "recent_activities": recent_acts,
+        "training_status": None,
+        "sleep": latest_sleep,
+        "hrv": hrv_list,
+        "user_profile": profile,
+        "latest_health_status": health_status,
+        "active_goals": goals,
+        "daily_physiology_7d": daily_physio,
+        "personal_calibration_profile": calib_markers,
+        "scheduled_workouts": [],
+        "semantic_memories": memories,
+        "last_3_runs_timeseries_summary": telemetry_summary,
+    }
 
 
 @functools.lru_cache(maxsize=32)
@@ -156,6 +270,17 @@ def _retrieve_biometric_data_cached(
     Returns:
         A dictionary containing the user's biometric context.
     """
+    if os.getenv("STORAGE_MODE") == "local":
+        return _retrieve_biometric_data_local(
+            user_id=user_id or "default_user",
+            limit=limit,
+            offset=offset,
+            activity_type=activity_type,
+            start_date=start_date,
+            end_date=end_date,
+            include_telemetry=include_telemetry,
+        )
+
     if not project_id:
         project_id = config.get("project_id") or os.getenv("GOOGLE_CLOUD_PROJECT") or "bio-intelligence-dev"
     if not dataset:

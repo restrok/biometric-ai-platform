@@ -4,11 +4,11 @@ import json
 import logging
 import math
 import os
+import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
-import re
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
@@ -67,17 +67,19 @@ def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str 
     for i in range(14):
         d = (now - timedelta(days=13 - i)).strftime("%Y-%m-%d")
         noise = (i % 5) - 2
-        physio_records.append({
-            "date": d,
-            "resting_heart_rate": base_rhr + noise,
-            "hrv_rmssd": round(base_hrv + (noise * 3.5), 1),
-            "hrv_sdnn": round(base_hrv * 1.4, 1),
-            "body_battery_max": min(100, 88 + (noise * 3)),
-            "body_battery_min": max(15, 26 + noise),
-            "stress_avg": 24 - noise,
-            "sleep_duration_seconds": 27600 + (noise * 600),  # ~7.6 hours
-            "sleep_score": min(98, max(65, 86 + (noise * 3))),
-        })
+        physio_records.append(
+            {
+                "date": d,
+                "resting_heart_rate": base_rhr + noise,
+                "hrv_rmssd": round(base_hrv + (noise * 3.5), 1),
+                "hrv_sdnn": round(base_hrv * 1.4, 1),
+                "body_battery_max": min(100, 88 + (noise * 3)),
+                "body_battery_min": max(15, 26 + noise),
+                "stress_avg": 24 - noise,
+                "sleep_duration_seconds": 27600 + (noise * 600),  # ~7.6 hours
+                "sleep_score": min(98, max(65, 86 + (noise * 3))),
+            }
+        )
     engine.insert_daily_physiology(user_id, physio_records)
 
     # 2. Realistic Running Sessions tailored to tracker
@@ -303,23 +305,29 @@ def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str 
     engine.insert_activities(user_id, activities)
 
     # 3. Subjective Health Status & Training Goal
-    engine.log_health_status(user_id, {
-        "feeling": "Ready & Rested",
-        "soreness_level": 2,
-        "fatigue_level": 2,
-        "sleep_quality": 4,
-        "readiness_score": 88,
-        "notes": f"Simulated {provider.capitalize()} biometric telemetry active. HRV baseline stable.",
-    })
-    engine.save_user_goal(user_id, {
-        "goal_id": f"goal_{user_id}_1",
-        "goal_type": "event",
-        "description": "Sub-40min 10K Target",
-        "target_metric": "pace_10k",
-        "target_value": 240,
-        "target_date": "2026-12-01",
-        "status": "active",
-    })
+    engine.log_health_status(
+        user_id,
+        {
+            "feeling": "Ready & Rested",
+            "soreness_level": 2,
+            "fatigue_level": 2,
+            "sleep_quality": 4,
+            "readiness_score": 88,
+            "notes": f"Simulated {provider.capitalize()} biometric telemetry active. HRV baseline stable.",
+        },
+    )
+    engine.save_user_goal(
+        user_id,
+        {
+            "goal_id": f"goal_{user_id}_1",
+            "goal_type": "event",
+            "description": "Sub-40min 10K Target",
+            "target_metric": "pace_10k",
+            "target_value": 240,
+            "target_date": "2026-12-01",
+            "status": "active",
+        },
+    )
     log.info(f"✅ Simulated biometric data successfully seeded for '{user_id}'.")
 
 
@@ -1116,7 +1124,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         });
         const data = await res.json();
         const reply = data.response || data.message || 'Analysis complete.';
-        chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal">' + reply + '</span></div>';
+        chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal whitespace-pre-wrap">' + reply + '</span></div>';
       } catch (err) {
         chatBox.innerHTML += '<div class="text-rose-400 text-xs">Error communicating with coach: ' + err.message + '</div>';
       } finally {
@@ -1188,6 +1196,7 @@ async def save_setup(payload: SetupConfigPayload):
             ticket = ticket_match.group(1)
             try:
                 from garmin_training_toolkit_sdk.auth import get_tokens_from_ticket
+
                 tok = get_tokens_from_ticket(ticket)
                 log.info(f"🎫 Exchanged Garmin SSO ticket '{ticket[:10]}...' for user '{payload.user_id}'.")
             except Exception as e:
@@ -1210,7 +1219,7 @@ async def save_setup(payload: SetupConfigPayload):
                 if not ticket_match:
                     raise HTTPException(
                         status_code=400,
-                        detail="Formato de token de Garmin no reconocido. Pegá la URL con 'ticket=ST-...' generada tras iniciar sesión o el JSON de sesión."
+                        detail="Formato de token de Garmin no reconocido. Pegá la URL con 'ticket=ST-...' generada tras iniciar sesión o el JSON de sesión.",
                     )
 
         if tok:
@@ -1257,8 +1266,6 @@ async def save_setup(payload: SetupConfigPayload):
     }
 
 
-
-
 class GarminExchangePayload(BaseModel):
     ticket_or_url: str
     user_id: str = "athlete_1"
@@ -1271,11 +1278,12 @@ async def exchange_garmin_ticket_endpoint(payload: GarminExchangePayload):
     if not ticket_match:
         raise HTTPException(
             status_code=400,
-            detail="No se encontró un ticket válido (debe contener 'ST-...'). Verificá que copiaste la URL completa generada por Garmin tras el login."
+            detail="No se encontró un ticket válido (debe contener 'ST-...'). Verificá que copiaste la URL completa generada por Garmin tras el login.",
         )
     ticket = ticket_match.group(1)
     try:
         from garmin_training_toolkit_sdk.auth import get_tokens_from_ticket
+
         tok = get_tokens_from_ticket(ticket)
         get_vault().store_tokens("garmin", payload.user_id, tok)
         return {
@@ -1296,9 +1304,11 @@ async def exchange_garmin_ticket_endpoint(payload: GarminExchangePayload):
             detail = f"Error al canjear ticket con Garmin ({ticket[:10]}...): {err_str}."
         raise HTTPException(status_code=400, detail=detail)
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Health OAuth 2.0 PKCE Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @router.get("/auth/google/login")
 async def google_auth_login(
@@ -1312,7 +1322,7 @@ async def google_auth_login(
     base_url = str(request.base_url).rstrip("/")
     forwarded_proto = request.headers.get("x-forwarded-proto")
     if forwarded_proto and base_url.startswith("http://") and forwarded_proto == "https":
-        base_url = "https://" + base_url[len("http://"):]
+        base_url = "https://" + base_url[len("http://") :]
 
     # Google OAuth strictly rejects raw private IP addresses in redirect_uri for Web Apps.
     # Normalize private IPs to localhost so Google accepts the callback via the SSH tunnel.
@@ -1406,18 +1416,19 @@ async def google_auth_callback(
         # Encrypt into secure vault
         get_vault().store_tokens("google_health", user_id, token_data)
 
-
-
         # Update user profile in storage
         engine = get_storage_engine()
         existing = engine.get_user_profile(user_id)
-        engine.update_user_profile(user_id, {
-            **existing,
-            "user_id": user_id,
-            "watch_provider": "google_health",
-            "google_health_connected": True,
-            "google_health_connected_at": datetime.now().isoformat(),
-        })
+        engine.update_user_profile(
+            user_id,
+            {
+                **existing,
+                "user_id": user_id,
+                "watch_provider": "google_health",
+                "google_health_connected": True,
+                "google_health_connected_at": datetime.now().isoformat(),
+            },
+        )
 
         return RedirectResponse(url=f"/dashboard?user_id={user_id}&auth=google_success", status_code=303)
     except Exception as e:
@@ -1436,6 +1447,7 @@ async def google_auth_callback(
 # Fitbit Web API OAuth 2.0 PKCE Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @router.get("/auth/fitbit/login")
 async def fitbit_auth_login(
     request: Request,
@@ -1449,7 +1461,7 @@ async def fitbit_auth_login(
     base_url = str(request.base_url).rstrip("/")
     forwarded_proto = request.headers.get("x-forwarded-proto")
     if forwarded_proto and base_url.startswith("http://") and forwarded_proto == "https":
-        base_url = "https://" + base_url[len("http://"):]
+        base_url = "https://" + base_url[len("http://") :]
     redirect_uri = f"{base_url}/auth/fitbit/callback"
 
     verifier, challenge = generate_pkce_pair()
@@ -1520,18 +1532,19 @@ async def fitbit_auth_callback(
         # Encrypt into secure vault
         get_vault().store_tokens("fitbit", user_id, token_data)
 
-
-
         # Update user profile in storage
         engine = get_storage_engine()
         existing = engine.get_user_profile(user_id)
-        engine.update_user_profile(user_id, {
-            **existing,
-            "user_id": user_id,
-            "watch_provider": "fitbit",
-            "fitbit_connected": True,
-            "fitbit_connected_at": datetime.now().isoformat(),
-        })
+        engine.update_user_profile(
+            user_id,
+            {
+                **existing,
+                "user_id": user_id,
+                "watch_provider": "fitbit",
+                "fitbit_connected": True,
+                "fitbit_connected_at": datetime.now().isoformat(),
+            },
+        )
 
         return RedirectResponse(url=f"/dashboard?user_id={user_id}&auth=fitbit_success", status_code=303)
     except Exception as e:
