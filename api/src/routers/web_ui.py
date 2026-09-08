@@ -6,7 +6,6 @@ import math
 import os
 import secrets
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -1076,10 +1075,7 @@ async def save_setup(payload: SetupConfigPayload):
         try:
             tok = json.loads(payload.garmin_sso_tokens)
             vault.store_tokens("garmin", payload.user_id, tok)
-            # Also write plaintext to ~/.garminconnect for legacy compatibility if needed
-            legacy_dir = Path.home() / ".garminconnect"
-            legacy_dir.mkdir(parents=True, exist_ok=True)
-            (legacy_dir / f"garmin_tokens_{payload.user_id}.json").write_text(json.dumps(tok, indent=2))
+
             has_tokens = True
             log.info(f"🔒 Garmin SSO tokens encrypted into vault for '{payload.user_id}'.")
         except Exception as e:
@@ -1090,9 +1086,7 @@ async def save_setup(payload: SetupConfigPayload):
         try:
             tok = json.loads(payload.fitbit_token_json)
             vault.store_tokens("fitbit", payload.user_id, tok)
-            legacy_dir = Path.home() / ".fitbit"
-            legacy_dir.mkdir(parents=True, exist_ok=True)
-            (legacy_dir / f"fitbit_tokens_{payload.user_id}.json").write_text(json.dumps(tok, indent=2))
+
             has_tokens = True
             log.info(f"🔒 Fitbit tokens encrypted into vault for '{payload.user_id}'.")
         except Exception as e:
@@ -1103,9 +1097,7 @@ async def save_setup(payload: SetupConfigPayload):
         try:
             tok = json.loads(payload.google_token_json)
             vault.store_tokens("google_health", payload.user_id, tok)
-            legacy_dir = Path.home() / ".google_health"
-            legacy_dir.mkdir(parents=True, exist_ok=True)
-            (legacy_dir / f"google_tokens_{payload.user_id}.json").write_text(json.dumps(tok, indent=2))
+
             has_tokens = True
             log.info(f"🔒 Google Health tokens encrypted into vault for '{payload.user_id}'.")
         except Exception as e:
@@ -1213,10 +1205,7 @@ async def google_auth_callback(
         # Encrypt into secure vault
         get_vault().store_tokens("google_health", user_id, token_data)
 
-        # Legacy file write
-        token_dir = Path.home() / ".google_health"
-        token_dir.mkdir(parents=True, exist_ok=True)
-        (token_dir / f"google_tokens_{user_id}.json").write_text(json.dumps(token_data, indent=2))
+
 
         # Update user profile in storage
         engine = get_storage_engine()
@@ -1330,10 +1319,7 @@ async def fitbit_auth_callback(
         # Encrypt into secure vault
         get_vault().store_tokens("fitbit", user_id, token_data)
 
-        # Legacy file write
-        token_dir = Path.home() / ".fitbit"
-        token_dir.mkdir(parents=True, exist_ok=True)
-        (token_dir / f"fitbit_tokens_{user_id}.json").write_text(json.dumps(token_data, indent=2))
+
 
         # Update user profile in storage
         engine = get_storage_engine()

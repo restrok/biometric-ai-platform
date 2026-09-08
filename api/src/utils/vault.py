@@ -19,14 +19,24 @@ _global_vault: "LocalSecureVault | None" = None
 
 
 class LocalSecureVault:
-    """Manages encrypted storage of user credentials and API tokens."""
+    """Manages encrypted storage of user credentials and API tokens with zero plaintext on disk."""
 
     def __init__(self, vault_dir: Path | str | None = None, secret_key: str | None = None):
-        storage_base = vault_dir or os.getenv("LOCAL_STORAGE_DIR") or str(Path.home() / ".secure_vault")
-        self.vault_dir = Path(storage_base) / "vault"
+        raw_base = vault_dir or os.getenv("LOCAL_STORAGE_DIR") or os.getenv("BIOMETRIC_DATA_DIR")
+        if raw_base:
+            storage_base = Path(raw_base)
+        elif Path("/app/data").exists() and os.access("/app/data", os.W_OK):
+            storage_base = Path("/app/data")
+        else:
+            storage_base = Path(__file__).resolve().parent.parent.parent / "data"
+
+        storage_base.mkdir(parents=True, exist_ok=True)
+
+        self.vault_dir = storage_base / "vault"
         self.vault_dir.mkdir(parents=True, exist_ok=True)
 
-        self.key_file = self.vault_dir / ".vault_key"
+        # Primary master key file located directly at .vault_key
+        self.key_file = storage_base / ".vault_key"
         self._fernet = self._init_fernet(secret_key)
 
     def _init_fernet(self, secret_key: str | None) -> Fernet:
@@ -52,12 +62,15 @@ class LocalSecureVault:
             self.key_file.write_bytes(key)
             with contextlib.suppress(Exception):
                 os.chmod(self.key_file, 0o600)
-            log.info("🔐 Generated new local encryption master key for credential vault.")
+            log.info(f"🔐 Generated new local encryption master key at '{self.key_file}'.")
 
         return Fernet(key)
 
     def store_tokens(self, provider: str, user_id: str, tokens: dict[str, Any] | str) -> Path:
-        """Encrypts and securely stores tokens for a specific provider and user."""
+        """Encrypts and securely stores tokens for a specific provider and user.
+        
+        Strictly persists ONLY an encrypted .enc file on disk.
+        """
         prov = provider.lower().replace("-", "_")
         if isinstance(tokens, str):
             try:
@@ -73,16 +86,17 @@ class LocalSecureVault:
         with contextlib.suppress(Exception):
             os.chmod(target_file, 0o600)
 
-        log.info(f"🔒 Tokens for '{prov}' user '{user_id}' encrypted and stored in vault.")
+        log.info(f"🔒 Tokens for '{prov}' user '{user_id}' encrypted and stored in vault at '{target_file.name}'.")
         return target_file
 
     def retrieve_tokens(self, provider: str, user_id: str) -> dict[str, Any] | None:
         """Retrieves and decrypts tokens for a specific provider and user.
 
-        Falls back to legacy unencrypted paths for seamless backwards-compatibility.
+        If a legacy unencrypted JSON file exists on disk, it is migrated to .enc and unlinked.
         """
         prov = provider.lower().replace("-", "_")
         enc_file = self.vault_dir / f"{prov}_tokens_{user_id}.enc"
+
         if enc_file.exists():
             try:
                 raw_bytes = self._fernet.decrypt(enc_file.read_bytes())
@@ -91,7 +105,7 @@ class LocalSecureVault:
                 log.error(f"Failed to decrypt vault tokens for {prov}:{user_id}: {e}")
                 return None
 
-        # Backwards compatibility: check legacy plaintext paths
+        # Backwards compatibility & automatic migration from legacy plaintext paths
         legacy_dirs = {
             "garmin": [Path.home() / ".garminconnect", Path("/root/.garminconnect")],
             "fitbit": [Path.home() / ".fitbit", Path("/root/.fitbit")],
@@ -105,13 +119,35 @@ class LocalSecureVault:
             if legacy_file.exists():
                 try:
                     data = json.loads(legacy_file.read_text())
-                    # Auto-migrate legacy token into encrypted vault
+                    # Auto-migrate legacy token into encrypted vault and remove plaintext file
                     self.store_tokens(prov, user_id, data)
+                    with contextlib.suppress(Exception):
+                        legacy_file.unlink()
+                        log.info(f"🧹 Unlinked plaintext legacy token file '{legacy_file}'.")
                     return data
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(f"Failed to migrate legacy token file '{legacy_file}': {e}")
 
         return None
+
+    def list_users(self, provider: str) -> list[str]:
+        """Lists user IDs that have encrypted credentials stored for the given provider."""
+        prov = provider.lower().replace("-", "_")
+        prefix = f"{prov}_tokens_"
+        suffix = ".enc"
+        users = []
+        if self.vault_dir.exists():
+            for f in self.vault_dir.glob(f"{prefix}*{suffix}"):
+                uid = f.name[len(prefix): -len(suffix)]
+                if uid:
+                    users.append(uid)
+        return users
+
+    def has_tokens(self, provider: str, user_id: str) -> bool:
+        """Checks if encrypted credentials exist for the user without full decryption."""
+        prov = provider.lower().replace("-", "_")
+        enc_file = self.vault_dir / f"{prov}_tokens_{user_id}.enc"
+        return enc_file.exists()
 
 
 def get_vault() -> LocalSecureVault:
@@ -120,3 +156,9 @@ def get_vault() -> LocalSecureVault:
     if _global_vault is None:
         _global_vault = LocalSecureVault()
     return _global_vault
+
+
+def reset_vault() -> None:
+    """Resets the singleton vault instance (useful for tests)."""
+    global _global_vault
+    _global_vault = None
