@@ -245,19 +245,35 @@ def test_chat_endpoint_success_mocked(client: TestClient):
         assert "¡Hola! Soy tu entrenador" in data["response"]
         assert "¡Hola! Soy tu entrenador" in data["message"]
 
+
 def test_setup_system_save(client: TestClient):
     payload = {
         "storage_mode": "local",
-        "llm_provider": "ollama",
-        "llm_base_url": "http://localhost:11434/v1",
+        "llm_provider": "openai",
+        "llm_model": "gpt-4o-mini",
+        "llm_base_url": "https://api.openai.com/v1",
         "llm_api_key": "secret-test-key",
-        "embeddings_provider": "fastembed",
+        "embeddings_provider": "ollama",
+        "embedding_base_url": "http://192.168.89.32:11434/v1",
+        "embedding_model": "nomic-embed-text",
     }
     response = client.post("/setup/system/save", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success"
     assert data["storage_mode"] == "local"
+    assert data["llm_provider"] == "openai"
+    assert data["llm_model"] == "gpt-4o-mini"
+    assert data["embeddings_provider"] == "ollama"
+
+    # Verify GET /setup/system returns active config
+    res_get = client.get("/setup/system")
+    assert res_get.status_code == 200
+    get_data = res_get.json()
+    assert get_data["llm_provider"] == "openai"
+    assert get_data["llm_model"] == "gpt-4o-mini"
+    assert get_data["embeddings_provider"] == "ollama"
+    assert get_data["embedding_base_url"] == "http://192.168.89.32:11434/v1"
 
 
 def test_setup_api_key_generation(client: TestClient):

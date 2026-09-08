@@ -40,10 +40,13 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
             temperature=temperature,
             **kwargs,
         )
-    if provider == "openai":
+    if provider in ("openai", "openrouter"):
+        base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("LLM_BASE_URL")
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OLLAMA_API_KEY") or "none"
         return ChatOpenAI(
             model=model_name,
-            api_key=SecretStr(os.getenv("OPENAI_API_KEY") or "none"),
+            base_url=base_url,
+            api_key=SecretStr(api_key),
             temperature=temperature,
             **kwargs,
         )

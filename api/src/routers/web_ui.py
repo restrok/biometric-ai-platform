@@ -7,6 +7,7 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -54,10 +55,12 @@ class SetupConfigPayload(BaseModel):
 class SystemConfigPayload(BaseModel):
     storage_mode: str = "local"
     llm_provider: str = "ollama"
+    llm_model: str = "deepseek-v4-flash:0731"
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     embeddings_provider: str = "fastembed"
     embedding_base_url: str | None = None
+    embedding_model: str | None = None
 
 
 class DeleteAthletePayload(BaseModel):
@@ -394,42 +397,85 @@ SETUP_HTML = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- System LLM & Embeddings -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label class="block text-sm font-semibold text-slate-300">2. Motor de Inferencia LLM</label>
-            <select id="system_llm_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-              <option value="ollama">Ollama (Local / Cloud)</option>
-              <option value="openai">OpenAI Compatible</option>
-              <option value="google">Google Gemini</option>
-            </select>
+        <!-- 2. Motor de Inferencia LLM -->
+        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-slate-200">2. Motor de Inferencia LLM</label>
+            <span id="badge-llm-provider" class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/80 px-2 py-0.5 rounded">Ollama</span>
           </div>
-          <div class="space-y-2">
-            <label class="block text-sm font-semibold text-slate-300">3. Motor de Embeddings</label>
-            <select id="system_embeddings_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-              <option value="fastembed">FastEmbed (ONNX, CPU/ARM, 0 GPU)</option>
-              <option value="ollama">Ollama (nomic-embed-text)</option>
-            </select>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Proveedor</label>
+              <select id="system_llm_provider" onchange="onLlmProviderChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                <option value="ollama">Ollama (Local / Cloud)</option>
+                <option value="openai">OpenAI Compatible (OpenRouter, DeepSeek, vLLM, OpenAI)</option>
+                <option value="google">Google Gemini (Google AI Studio)</option>
+                <option value="lmstudio">LM Studio (Servidor Local)</option>
+              </select>
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Modelo LLM Principal (CORE_MODEL_NAME)</label>
+              <input type="text" id="system_llm_model" value="deepseek-v4-flash:0731" required
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+              <p id="system_llm_model_hint" class="text-[10px] text-slate-400">Ej: deepseek-v4-flash:0731, llama3.2, qwen2.5:7b</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+            <div id="box_llm_base_url" class="space-y-1.5">
+              <label id="lbl_llm_base_url" class="block text-xs font-semibold text-slate-300">Ollama Base URL</label>
+              <input type="text" id="system_llm_base_url" value="https://ollama.com/v1"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            </div>
+            <div id="box_llm_api_key" class="space-y-1.5">
+              <label id="lbl_llm_api_key" class="block text-xs font-semibold text-slate-300">Ollama API Key (Opcional)</label>
+              <input type="password" id="system_llm_api_key" placeholder="Bearer key..."
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            </div>
           </div>
         </div>
 
-        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Ollama Base URL</label>
-              <input type="text" id="system_llm_base_url" value="https://ollama.com/v1"
-                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+        <!-- 3. Motor de Embeddings -->
+        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-slate-200">3. Motor de Embeddings (Memoria Semántica & Vectores)</label>
+            <span id="badge-emb-provider" class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">FastEmbed</span>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-300">Proveedor</label>
+            <select id="system_embeddings_provider" onchange="onEmbeddingsProviderChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+              <option value="fastembed">FastEmbed (ONNX Local ARM/CPU, 0 GPU) [Recomendado]</option>
+              <option value="ollama">Ollama Embeddings (nomic-embed-text / bge-m3)</option>
+              <option value="openai">OpenAI Compatible Embeddings</option>
+              <option value="google">Google Gemini Embeddings</option>
+            </select>
+          </div>
+
+          <!-- FastEmbed Info Banner -->
+          <div id="box_fastembed_info" class="p-3 bg-emerald-950/30 border border-emerald-800/60 rounded-lg text-xs text-emerald-300 space-y-1">
+            <p class="font-semibold">⚡ 100% Local y Embebido:</p>
+            <p class="text-slate-300 text-[11px]">Ejecuta embeddings densos directamente en la CPU ARM mediante ONNX Runtime. Cero GPU, sin servidores adicionales ni latencia de red. Modelo: <code class="font-mono text-white">BAAI/bge-small-en-v1.5</code> (384-dim).</p>
+          </div>
+
+          <!-- Custom Embeddings Inputs -->
+          <div id="box_custom_embeddings" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div id="box_embedding_base_url" class="space-y-1.5">
+              <label id="lbl_embedding_base_url" class="block text-xs font-semibold text-slate-300">Embeddings Base URL</label>
+              <input type="text" id="system_embedding_base_url" placeholder="http://192.168.89.32:11434/v1"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
             </div>
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Ollama API Key (Opcional)</label>
-              <input type="password" id="system_llm_api_key" placeholder="Bearer key"
-                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            <div id="box_embedding_model" class="space-y-1.5">
+              <label id="lbl_embedding_model" class="block text-xs font-semibold text-slate-300">Modelo de Embeddings</label>
+              <input type="text" id="system_embedding_model" placeholder="nomic-embed-text"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
             </div>
           </div>
         </div>
 
         <div class="pt-4 border-t border-slate-800 flex justify-end">
-          <button type="submit" id="system-submit-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition">
+          <button type="submit" id="system-submit-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg transition">
             Guardar Configuración del Sistema
           </button>
         </div>
@@ -567,6 +613,124 @@ SETUP_HTML = """<!DOCTYPE html>
       }
     }
 
+    function onLlmProviderChange(provider) {
+      document.getElementById('badge-llm-provider').innerText = provider;
+      const boxUrl = document.getElementById('box_llm_base_url');
+      const boxKey = document.getElementById('box_llm_api_key');
+      const lblUrl = document.getElementById('lbl_llm_base_url');
+      const inputUrl = document.getElementById('system_llm_base_url');
+      const lblKey = document.getElementById('lbl_llm_api_key');
+      const inputModel = document.getElementById('system_llm_model');
+      const hintModel = document.getElementById('system_llm_model_hint');
+
+      boxUrl.classList.remove('hidden');
+      boxKey.classList.remove('hidden');
+
+      if (provider === 'ollama') {
+        lblUrl.innerText = 'Ollama Base URL';
+        inputUrl.placeholder = 'https://ollama.com/v1 o http://localhost:11434/v1';
+        lblKey.innerText = 'Ollama API Key (Opcional si es local)';
+        hintModel.innerText = 'Ej: deepseek-v4-flash:0731, llama3.2, qwen2.5:7b';
+        if (!inputModel.value || inputModel.value === 'gpt-4o-mini' || inputModel.value.startsWith('gemini')) {
+          inputModel.value = 'deepseek-v4-flash:0731';
+        }
+      } else if (provider === 'openai') {
+        lblUrl.innerText = 'OpenAI Base URL / Endpoint (v1)';
+        inputUrl.placeholder = 'https://api.openai.com/v1 o https://openrouter.ai/api/v1';
+        lblKey.innerText = 'API Key (Bearer Token)';
+        hintModel.innerText = 'Ej: gpt-4o-mini, deepseek/deepseek-chat, claude-3-5-haiku';
+        if (!inputModel.value || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value.startsWith('gemini')) {
+          inputModel.value = 'gpt-4o-mini';
+        }
+      } else if (provider === 'google') {
+        boxUrl.classList.add('hidden');
+        lblKey.innerText = 'Google AI Studio API Key (GOOGLE_API_KEY)';
+        hintModel.innerText = 'Ej: gemini-2.5-flash, gemini-1.5-flash, gemini-2.0-flash';
+        if (!inputModel.value || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value === 'gpt-4o-mini') {
+          inputModel.value = 'gemini-2.5-flash';
+        }
+      } else if (provider === 'lmstudio') {
+        lblUrl.innerText = 'LM Studio Base URL';
+        inputUrl.placeholder = 'http://localhost:1234/v1';
+        boxKey.classList.add('hidden');
+        hintModel.innerText = 'Ej: local-model, meta-llama-3.1-8b-instruct';
+      }
+    }
+
+    function onEmbeddingsProviderChange(provider) {
+      document.getElementById('badge-emb-provider').innerText = provider;
+      const boxFastembed = document.getElementById('box_fastembed_info');
+      const boxCustom = document.getElementById('box_custom_embeddings');
+      const boxUrl = document.getElementById('box_embedding_base_url');
+      const inputUrl = document.getElementById('system_embedding_base_url');
+      const inputModel = document.getElementById('system_embedding_model');
+
+      if (provider === 'fastembed') {
+        boxFastembed.classList.remove('hidden');
+        boxCustom.classList.add('hidden');
+      } else {
+        boxFastembed.classList.add('hidden');
+        boxCustom.classList.remove('hidden');
+
+        if (provider === 'ollama') {
+          boxUrl.classList.remove('hidden');
+          inputUrl.placeholder = 'http://192.168.89.32:11434/v1 (ThinkCentre) o local';
+          inputModel.placeholder = 'nomic-embed-text';
+        } else if (provider === 'openai') {
+          boxUrl.classList.remove('hidden');
+          inputUrl.placeholder = 'https://api.openai.com/v1';
+          inputModel.placeholder = 'text-embedding-3-small';
+        } else if (provider === 'google') {
+          boxUrl.classList.add('hidden');
+          inputModel.placeholder = 'models/gemini-embedding-001';
+        }
+      }
+    }
+
+    async function loadSystemConfig() {
+      try {
+        const res = await fetch('/setup/system');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Storage mode radio
+        const radios = document.querySelectorAll('input[name="system_storage_mode"]');
+        radios.forEach(r => {
+          if (r.value === data.storage_mode) r.checked = true;
+        });
+
+        // LLM
+        if (data.llm_provider) {
+          document.getElementById('system_llm_provider').value = data.llm_provider;
+        }
+        if (data.llm_model) {
+          document.getElementById('system_llm_model').value = data.llm_model;
+        }
+        if (data.llm_base_url) {
+          document.getElementById('system_llm_base_url').value = data.llm_base_url;
+        }
+        if (data.llm_has_api_key) {
+          document.getElementById('system_llm_api_key').placeholder = '•••••••• (Clave configurada en el servidor)';
+        }
+
+        // Embeddings
+        if (data.embeddings_provider) {
+          document.getElementById('system_embeddings_provider').value = data.embeddings_provider;
+        }
+        if (data.embedding_base_url) {
+          document.getElementById('system_embedding_base_url').value = data.embedding_base_url;
+        }
+        if (data.embedding_model) {
+          document.getElementById('system_embedding_model').value = data.embedding_model;
+        }
+
+        onLlmProviderChange(data.llm_provider || 'ollama');
+        onEmbeddingsProviderChange(data.embeddings_provider || 'fastembed');
+      } catch (err) {
+        console.error('Failed to load system config:', err);
+      }
+    }
+
     async function saveSystemSetup(e) {
       e.preventDefault();
       const btn = document.getElementById('system-submit-btn');
@@ -576,9 +740,12 @@ SETUP_HTML = """<!DOCTYPE html>
       const payload = {
         storage_mode: document.querySelector('input[name="system_storage_mode"]:checked').value,
         llm_provider: document.getElementById('system_llm_provider').value,
-        llm_base_url: document.getElementById('system_llm_base_url').value,
-        llm_api_key: document.getElementById('system_llm_api_key').value || null,
+        llm_model: document.getElementById('system_llm_model').value.trim() || 'deepseek-v4-flash:0731',
+        llm_base_url: document.getElementById('system_llm_base_url').value.trim() || null,
+        llm_api_key: document.getElementById('system_llm_api_key').value.trim() || null,
         embeddings_provider: document.getElementById('system_embeddings_provider').value,
+        embedding_base_url: document.getElementById('system_embedding_base_url')?.value.trim() || null,
+        embedding_model: document.getElementById('system_embedding_model')?.value.trim() || null,
       };
 
       try {
@@ -591,9 +758,10 @@ SETUP_HTML = """<!DOCTYPE html>
         if (res.ok) {
           const msg = document.getElementById('status-msg');
           msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300';
-          msg.innerText = '✅ Configuración del sistema guardada con éxito.';
+          msg.innerText = '✅ Configuración del sistema guardada con éxito (LLM: ' + data.llm_model + ' / ' + data.llm_provider + ').';
           msg.classList.remove('hidden');
           btn.innerText = '✅ Guardado';
+          setTimeout(() => { btn.disabled = false; btn.innerText = 'Guardar Configuración del Sistema'; }, 2000);
         } else {
           throw new Error(data.detail || 'Error al guardar sistema');
         }
@@ -714,6 +882,7 @@ SETUP_HTML = """<!DOCTYPE html>
 
     window.addEventListener('DOMContentLoaded', () => {
       loadAthletesList();
+      loadSystemConfig();
     });
   </script>
 </body>
@@ -1213,23 +1382,91 @@ async def save_setup(payload: SetupConfigPayload):
     }
 
 
+@router.get("/setup/system")
+async def get_system_setup():
+    """Returns current active system configuration."""
+    provider = os.getenv("LLM_PROVIDER", "ollama")
+    model = os.getenv("CORE_MODEL_NAME") or os.getenv("LLM_MODEL", "deepseek-v4-flash:0731")
+    base_url = (
+        os.getenv("OLLAMA_BASE_URL")
+        if provider == "ollama"
+        else (os.getenv("OPENAI_BASE_URL") or os.getenv("LLM_BASE_URL") or os.getenv("LM_STUDIO_BASE_URL"))
+    )
+    emb_provider = os.getenv("EMBEDDINGS_PROVIDER", "fastembed")
+    emb_base_url = os.getenv("EMBEDDING_BASE_URL")
+    emb_model = os.getenv("EMBEDDING_MODEL")
+    storage_mode = os.getenv("STORAGE_MODE", "local")
+    return {
+        "storage_mode": storage_mode,
+        "llm_provider": provider,
+        "llm_model": model,
+        "llm_base_url": base_url,
+        "llm_has_api_key": bool(
+            os.getenv("OLLAMA_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        ),
+        "embeddings_provider": emb_provider,
+        "embedding_base_url": emb_base_url,
+        "embedding_model": emb_model,
+    }
+
+
 @router.post("/setup/system/save")
 async def save_system_setup(payload: SystemConfigPayload):
-    """Saves system-level infrastructure configuration."""
+    """Saves system-level infrastructure configuration persistently."""
+    persistent_cfg: dict[str, Any] = {
+        "STORAGE_MODE": payload.storage_mode,
+        "LLM_PROVIDER": payload.llm_provider,
+        "CORE_MODEL_NAME": payload.llm_model,
+        "LLM_MODEL": payload.llm_model,
+        "EMBEDDINGS_PROVIDER": payload.embeddings_provider,
+    }
+
+    os.environ["STORAGE_MODE"] = payload.storage_mode
+    os.environ["LLM_PROVIDER"] = payload.llm_provider
+    os.environ["CORE_MODEL_NAME"] = payload.llm_model
+    os.environ["LLM_MODEL"] = payload.llm_model
+    os.environ["EMBEDDINGS_PROVIDER"] = payload.embeddings_provider
+
     if payload.llm_base_url:
         os.environ["OLLAMA_BASE_URL"] = payload.llm_base_url
+        os.environ["OPENAI_BASE_URL"] = payload.llm_base_url
+        os.environ["LLM_BASE_URL"] = payload.llm_base_url
+        os.environ["LM_STUDIO_BASE_URL"] = payload.llm_base_url
+        persistent_cfg["OLLAMA_BASE_URL"] = payload.llm_base_url
+        persistent_cfg["OPENAI_BASE_URL"] = payload.llm_base_url
+        persistent_cfg["LLM_BASE_URL"] = payload.llm_base_url
+
     if payload.llm_api_key:
         os.environ["OLLAMA_API_KEY"] = payload.llm_api_key
         os.environ["OPENAI_API_KEY"] = payload.llm_api_key
-    if payload.llm_provider:
-        os.environ["LLM_PROVIDER"] = payload.llm_provider
-    if payload.embeddings_provider:
-        os.environ["EMBEDDINGS_PROVIDER"] = payload.embeddings_provider
+        os.environ["GOOGLE_API_KEY"] = payload.llm_api_key
+        persistent_cfg["OLLAMA_API_KEY"] = payload.llm_api_key
+        persistent_cfg["OPENAI_API_KEY"] = payload.llm_api_key
+        persistent_cfg["GOOGLE_API_KEY"] = payload.llm_api_key
+
+    if payload.embedding_base_url:
+        os.environ["EMBEDDING_BASE_URL"] = payload.embedding_base_url
+        persistent_cfg["EMBEDDING_BASE_URL"] = payload.embedding_base_url
+
+    if payload.embedding_model:
+        os.environ["EMBEDDING_MODEL"] = payload.embedding_model
+        persistent_cfg["EMBEDDING_MODEL"] = payload.embedding_model
+
+    # Persist to system_config.json in data directory
+    storage_dir = Path(os.getenv("LOCAL_STORAGE_DIR", "/app/data"))
+    try:
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        with open(storage_dir / "system_config.json", "w") as f:
+            json.dump(persistent_cfg, f, indent=2)
+        log.info(f"💾 Persistent system configuration written to {storage_dir / 'system_config.json'}")
+    except Exception as e:
+        log.warning(f"Could not write system_config.json: {e}")
 
     return {
         "status": "success",
         "storage_mode": payload.storage_mode,
         "llm_provider": payload.llm_provider,
+        "llm_model": payload.llm_model,
         "embeddings_provider": payload.embeddings_provider,
     }
 
