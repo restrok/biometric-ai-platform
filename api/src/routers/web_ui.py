@@ -4,11 +4,11 @@ import json
 import logging
 import math
 import os
-import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
 
+import re
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
@@ -1192,10 +1192,16 @@ async def save_setup(payload: SetupConfigPayload):
                 log.info(f"🎫 Exchanged Garmin SSO ticket '{ticket[:10]}...' for user '{payload.user_id}'.")
             except Exception as e:
                 log.error(f"Failed to exchange Garmin ticket: {e}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Error al canjear el ticket de Garmin ({ticket[:10]}...): {str(e)}. Verificá que el ticket sea reciente ya que expira a los pocos segundos."
-                )
+                err_str = str(e)
+                if "401" in err_str or "Unauthorized" in err_str:
+                    detail = (
+                        f"Garmin rechazó el ticket ({ticket[:12]}...) con 401 Unauthorized. "
+                        "Los tickets web de Garmin expiran en pocos segundos (o Garmin bloqueó el canje web temporalmente). "
+                        "💡 Te sugerimos pegar directamente tu JSON de tokens de sesión ('di_token' y 'di_refresh_token') o activar el 'Modo Simulado'."
+                    )
+                else:
+                    detail = f"Error al canjear el ticket de Garmin ({ticket[:10]}...): {err_str}. Verificá que el ticket sea reciente."
+                raise HTTPException(status_code=400, detail=detail)
 
         if not tok:
             try:
@@ -1279,10 +1285,16 @@ async def exchange_garmin_ticket_endpoint(payload: GarminExchangePayload):
         }
     except Exception as e:
         log.error(f"Failed to exchange Garmin ticket: {e}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error al canjear ticket con Garmin ({ticket[:10]}...): {str(e)}. Los tickets de Garmin duran pocos segundos. Por favor abrí el enlace de login nuevamente y generá uno nuevo."
-        )
+        err_str = str(e)
+        if "401" in err_str or "Unauthorized" in err_str:
+            detail = (
+                f"Garmin rechazó el ticket ({ticket[:12]}...) con 401 Unauthorized. "
+                "Los tickets web de Garmin expiran en pocos segundos (o Garmin bloqueó el canje web temporalmente). "
+                "💡 Te sugerimos pegar directamente tu JSON de tokens de sesión ('di_token' y 'di_refresh_token') o activar el 'Modo Simulado'."
+            )
+        else:
+            detail = f"Error al canjear ticket con Garmin ({ticket[:10]}...): {err_str}."
+        raise HTTPException(status_code=400, detail=detail)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Google Health OAuth 2.0 PKCE Endpoints
