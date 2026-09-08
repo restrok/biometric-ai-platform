@@ -2358,13 +2358,19 @@ Esta acción es irreversible.`)) {
       }
       container.innerHTML = goals.map(function(g) {
         const title = g.title || g.description || g.goal_id || 'Meta deportiva';
-        const target = g.target_metric ? (g.target_metric + ': ' + (g.target_value || '')) : '';
+        let targetText = '';
+        if (g.target_metric && g.target_value) {
+          targetText = g.target_metric + ': ' + g.target_value;
+        } else if (g.target_value) {
+          targetText = (g.goal_type ? g.goal_type.toUpperCase() + ': ' : 'Meta: ') + g.target_value;
+        }
         const dateStr = g.target_date ? ('Fecha meta: ' + g.target_date) : 'Sin fecha límite';
+        const subtitle = targetText ? `${targetText} • ${dateStr}` : dateStr;
         return `
-          <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between">
+          <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between hover:border-slate-700 transition">
             <div>
               <div class="text-sm font-semibold text-white">${title}</div>
-              <div class="text-xs text-slate-400 mt-0.5">${target} ${target ? '•' : ''} ${dateStr}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${subtitle}</div>
             </div>
             <span class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">Activo</span>
           </div>

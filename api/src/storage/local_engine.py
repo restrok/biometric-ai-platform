@@ -201,7 +201,30 @@ class LocalStorageEngine(StorageEngine):
                 (user_id,),
             )
             rows = cursor.fetchall()
-            return [dict(r) for r in rows]
+            goals = [dict(r) for r in rows]
+            if goals:
+                return goals
+
+        # Fallback: Check active_goals or goals list inside user_profiles
+        profile = self.get_user_profile(user_id)
+        raw_goals = profile.get("active_goals") or profile.get("goals") or []
+        fallback_goals = []
+        for g in raw_goals:
+            if isinstance(g, dict):
+                st = str(g.get("status") or "active").lower()
+                if st == "active":
+                    goal_entry = {
+                        "goal_id": str(g.get("goal_id") or g.get("id") or uuid.uuid4()),
+                        "user_id": user_id,
+                        **g,
+                    }
+                    fallback_goals.append(goal_entry)
+                    try:
+                        self.save_user_goal(user_id, goal_entry)
+                    except Exception as err:
+                        log.debug(f"Could not mirror profile goal to SQLite user_goals: {err}")
+
+        return fallback_goals
 
     def save_user_goal(self, user_id: str, goal: dict[str, Any]) -> str:
         goal_id = str(goal.get("goal_id") or uuid.uuid4())
