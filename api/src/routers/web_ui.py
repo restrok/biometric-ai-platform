@@ -1309,16 +1309,32 @@ async def google_auth_login(
     """Initiates Google Health OAuth 2.0 PKCE authorization flow."""
     from fitbit_training_toolkit_sdk.auth.google_auth import GoogleHealthOAuthClient
 
-    effective_client_id = client_id or os.getenv("GOOGLE_HEALTH_CLIENT_ID", "local-client.apps.googleusercontent.com")
     base_url = str(request.base_url).rstrip("/")
     forwarded_proto = request.headers.get("x-forwarded-proto")
     if forwarded_proto and base_url.startswith("http://") and forwarded_proto == "https":
         base_url = "https://" + base_url[len("http://"):]
-    redirect_uri = f"{base_url}/auth/google/callback"
 
+    # Google OAuth strictly rejects raw private IP addresses in redirect_uri for Web Apps.
+    # Normalize private IPs to localhost so Google accepts the callback via the SSH tunnel.
+    parsed_host = request.url.hostname or ""
+    if parsed_host.startswith("192.168.") or parsed_host.startswith("10.") or parsed_host.startswith("172."):
+        port_part = f":{request.url.port}" if request.url.port else ""
+        redirect_uri = f"http://localhost{port_part}/auth/google/callback"
+    else:
+        redirect_uri = f"{base_url}/auth/google/callback"
+
+    effective_client_id = client_id or os.getenv("GOOGLE_HEALTH_CLIENT_ID", "local-client.apps.googleusercontent.com")
     oauth_client = GoogleHealthOAuthClient(
         client_id=effective_client_id,
         redirect_uri=redirect_uri,
+        scopes=[
+            "https://www.googleapis.com/auth/fitness.activity.read",
+            "https://www.googleapis.com/auth/fitness.sleep.read",
+            "https://www.googleapis.com/auth/fitness.heart_rate.read",
+            "https://www.googleapis.com/auth/fitness.body.read",
+            "openid",
+            "profile",
+        ],
     )
     state = f"{user_id}:{secrets.token_urlsafe(16)}"
     auth_url, verifier = oauth_client.get_authorization_url(state=state)
@@ -1375,6 +1391,15 @@ async def google_auth_callback(
         oauth_client = GoogleHealthOAuthClient(
             client_id=client_id,
             redirect_uri=redirect_uri,
+            client_secret=os.getenv("GOOGLE_HEALTH_CLIENT_SECRET"),
+            scopes=[
+                "https://www.googleapis.com/auth/fitness.activity.read",
+                "https://www.googleapis.com/auth/fitness.sleep.read",
+                "https://www.googleapis.com/auth/fitness.heart_rate.read",
+                "https://www.googleapis.com/auth/fitness.body.read",
+                "openid",
+                "profile",
+            ],
         )
         token_data = oauth_client.exchange_code_for_tokens(code, verifier)
 
