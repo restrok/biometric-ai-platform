@@ -1043,13 +1043,29 @@ SETUP_HTML = """<!DOCTYPE html>
 
 
 DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="es" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Biometric AI Coach - Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <style>
+    .sortable-ghost {
+      opacity: 0.35;
+      border: 2px dashed #0284c7 !important;
+      background: rgba(15, 23, 42, 0.6) !important;
+    }
+    .sortable-chosen {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+    }
+    .edit-mode-ring {
+      ring-width: 1px;
+      outline: 1px dashed rgba(56, 189, 248, 0.35);
+      outline-offset: 4px;
+    }
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="max-w-7xl mx-auto p-6 space-y-6">
@@ -1060,15 +1076,15 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-white">Biometric AI Coach</h1>
           <div class="flex items-center gap-2 mt-0.5">
-            <span class="text-xs text-slate-400">Current Athlete:</span>
+            <span class="text-xs text-slate-400">Atleta Activo:</span>
             <span id="athlete-badge" class="text-xs font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">{{ATHLETE_ID}}</span>
           </div>
         </div>
       </div>
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2.5 flex-wrap gap-y-2">
         <!-- Athlete Switcher Dropdown & Delete Shortcut -->
         <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
-          <label for="user-select" class="text-xs font-semibold text-slate-400">Athlete:</label>
+          <label for="user-select" class="text-xs font-semibold text-slate-400">Atleta:</label>
           <select id="user-select" onchange="switchAthlete(this.value)" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
             <option value="{{ATHLETE_ID}}" selected>{{ATHLETE_ID}}</option>
           </select>
@@ -1079,12 +1095,17 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
         <!-- Direct Sync Button -->
         <button id="btn-dash-sync" onclick="syncAthleteData()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
-          <span>⚡</span> Sync Biometrics
+          <span>⚡</span> Sincronizar
         </button>
 
         <!-- Refresh Button -->
         <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
-          <span>🔄</span> Refresh
+          <span>🔄</span> Actualizar
+        </button>
+
+        <!-- Customize Dashboard Button -->
+        <button id="btn-customize-toggle" onclick="toggleCustomizeMode()" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold px-3 py-2 rounded-xl border border-slate-700 hover:border-sky-500/50 transition flex items-center gap-1.5">
+          <span>🎨</span> <span id="customize-btn-label">Personalizar</span>
         </button>
 
         <!-- Blue Setup Button -->
@@ -1094,104 +1115,441 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </header>
 
-    <!-- Success notification banner (e.g. from OAuth redirect) -->
+    <!-- Customize Mode Toolbar (Visible in Edit Mode) -->
+    <div id="customize-toolbar" class="hidden bg-slate-900/95 backdrop-blur border border-sky-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl transition-all">
+      <div class="flex items-center space-x-2.5 text-xs">
+        <span class="flex h-2.5 w-2.5 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+        </span>
+        <div>
+          <span class="font-bold text-sky-400">Modo Personalización Activo</span>
+          <p class="text-slate-400 text-[11px]">Arrastrá las tarjetas desde el ícono <span class="font-mono text-white">⠿</span> para cambiar el orden, o usá <span class="font-mono text-rose-400 font-bold">✕</span> para ocultar widgets.</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 self-end sm:self-auto">
+        <button onclick="openWidgetCatalog()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-sky-600/20">
+          <span>➕</span> Catálogo de Widgets
+        </button>
+        <button onclick="resetDashboardLayout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 transition">
+          ↺ Restablecer
+        </button>
+        <button onclick="toggleCustomizeMode(false)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1 shadow-md shadow-emerald-600/20">
+          ✓ Guardar y Salir
+        </button>
+      </div>
+    </div>
+
+    <!-- Success notification banner -->
     <div id="oauth-success-banner" class="hidden bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-3.5 flex items-center justify-between">
       <div class="flex items-center space-x-2.5">
         <span class="text-lg">🎉</span>
-        <span id="oauth-banner-text" class="text-xs text-emerald-200 font-medium">Tracker account connected successfully! Biometric telemetry is live.</span>
+        <span id="oauth-banner-text" class="text-xs text-emerald-200 font-medium">Cuenta de rastreador conectada exitosamente.</span>
       </div>
       <button onclick="this.parentElement.remove()" class="text-emerald-400 hover:text-emerald-200 text-xs font-bold px-2 py-1">✕</button>
     </div>
 
-    <!-- KPIs -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Resting Heart Rate</div>
-        <div id="kpi-rhr" class="text-3xl font-bold text-white">-- bpm</div>
-        <div class="text-xs text-emerald-400">Baseline resting</div>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">HRV (RMSSD)</div>
-        <div id="kpi-hrv" class="text-3xl font-bold text-white">-- ms</div>
-        <div class="text-xs text-slate-400">Autonomic recovery</div>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Body Battery</div>
-        <div id="kpi-bb" class="text-3xl font-bold text-blue-400">-- / 100</div>
-        <div class="text-xs text-slate-400">Energy reserves</div>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Subjective Feeling</div>
-        <div id="kpi-feeling" class="text-2xl font-bold text-emerald-400 capitalize">--</div>
-        <div class="text-xs text-slate-400">Athlete check-in</div>
-      </div>
-    </div>
+    <!-- Configurable Widgets Container -->
+    <div id="dashboard-widgets-container" class="space-y-6">
 
-    <!-- Main Grid: Chart & Heart Rate Zones -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- 14-Day Physiology Chart -->
-      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="font-bold text-lg text-white">14-Day Physiological Recovery Trends</h2>
-          <span class="text-xs text-slate-400">RHR & HRV (RMSSD)</span>
+      <!-- WIDGET 1: KPI Cards -->
+      <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>📊</span> Indicadores Fisiológicos Clave
+            </span>
+          </div>
+          <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Resting Heart Rate</div>
+            <div id="kpi-rhr" class="text-2xl font-bold text-white">-- bpm</div>
+            <div class="text-[11px] text-sky-400">Frecuencia en reposo</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">HRV (RMSSD)</div>
+            <div id="kpi-hrv" class="text-2xl font-bold text-white">-- ms</div>
+            <div class="text-[11px] text-emerald-400">Recuperación autonómica</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Body Battery</div>
+            <div id="kpi-bb" class="text-2xl font-bold text-blue-400">-- / 100</div>
+            <div class="text-[11px] text-slate-400">Reservas energéticas</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1">
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Sensación Subjetiva</div>
+            <div id="kpi-feeling" class="text-2xl font-bold text-emerald-400 capitalize">--</div>
+            <div class="text-[11px] text-slate-400">Check-in del atleta</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WIDGET 2: 14-Day Physiology Chart -->
+      <div id="widget-chart" data-widget-id="widget-chart" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>📈</span> Tendencias Fisiológicas de Recuperación (14 Días)
+            </span>
+          </div>
+          <div class="flex items-center space-x-3">
+            <span class="text-xs text-slate-400 hidden sm:inline">RHR (bpm) vs HRV RMSSD (ms)</span>
+            <button onclick="toggleWidgetVisibility('widget-chart', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div id="chart-physio" class="h-64"></div>
       </div>
 
-      <!-- Zones & Training Intensity -->
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <h2 class="font-bold text-lg text-white">Heart Rate Training Zones</h2>
+      <!-- WIDGET 3: Heart Rate Zones -->
+      <div id="widget-zones" data-widget-id="widget-zones" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>💓</span> Zonas de Ritmo Cardíaco (HR Zones)
+            </span>
+          </div>
+          <button onclick="toggleWidgetVisibility('widget-zones', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+        </div>
         <div id="zones-container" class="space-y-3">
           <!-- Populated by JS -->
         </div>
       </div>
-    </div>
 
-    <!-- Recent Activities Table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <h2 class="font-bold text-lg text-white">Recent Training Sessions</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-400">
-          <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
-            <tr>
-              <th class="py-3 px-2">Date</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Distance</th>
-              <th>Duration</th>
-              <th>Avg HR</th>
-              <th>Power / TE</th>
-            </tr>
-          </thead>
-          <tbody id="activities-tbody" class="divide-y divide-slate-800/60">
-            <tr><td colspan="7" class="py-4 text-center text-slate-500">Loading activities...</td></tr>
-          </tbody>
-        </table>
+      <!-- WIDGET 4: Active Goals -->
+      <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🎯</span> Objetivos de Rendimiento Activos
+            </span>
+          </div>
+          <button onclick="toggleWidgetVisibility('widget-goals', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+        </div>
+        <div id="goals-container" class="space-y-2.5">
+          <div class="text-slate-500 text-xs py-2">Cargando objetivos...</div>
+        </div>
       </div>
-    </div>
 
-    <!-- Chat with AI Coach -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">🤖</span>
-        <h2 class="font-bold text-lg text-white">Ask Your Biometric AI Coach</h2>
+      <!-- WIDGET 5: Recent Activities Table -->
+      <div id="widget-activities" data-widget-id="widget-activities" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🏃</span> Sesiones de Entrenamiento Recientes
+            </span>
+          </div>
+          <button onclick="toggleWidgetVisibility('widget-activities', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-400">
+            <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-2">Fecha</th>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Distancia</th>
+                <th>Duración</th>
+                <th>FC Media</th>
+                <th>Potencia / TE</th>
+              </tr>
+            </thead>
+            <tbody id="activities-tbody" class="divide-y divide-slate-800/60">
+              <tr><td colspan="7" class="py-4 text-center text-slate-500">Cargando actividades...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300 font-sans">
-        <div class="text-slate-400 text-xs">Hola, soy tu entrenador biométrico. Puedes consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.</div>
+
+      <!-- WIDGET 6: Chat with AI Coach -->
+      <div id="widget-coach" data-widget-id="widget-coach" class="dashboard-widget bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🤖</span> Asistente Biométrico AI (Chat en Vivo)
+            </span>
+          </div>
+          <button onclick="toggleWidgetVisibility('widget-coach', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+        </div>
+        <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300 font-sans">
+          <div class="text-slate-400 text-xs">Hola, soy tu entrenador biométrico. Podés consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.</div>
+        </div>
+        <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
+          <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi recuperación hoy?)..."
+                 class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+          <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
+            Enviar
+          </button>
+        </form>
       </div>
-      <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
-        <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi recuperación hoy?)..."
-               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
-        <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
-          Send
-        </button>
-      </form>
+
+    </div>
+  </div>
+
+  <!-- Widget Catalog Modal -->
+  <div id="widget-catalog-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between p-5 border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">🎨</span>
+          <h3 class="font-bold text-lg text-white">Catálogo de Widgets</h3>
+        </div>
+        <button onclick="closeWidgetCatalog()" class="text-slate-400 hover:text-white text-sm p-1">✕</button>
+      </div>
+      <div class="p-5 space-y-3 max-h-[60vh] overflow-y-auto" id="catalog-list">
+        <!-- Generated by JS -->
+      </div>
+      <div class="p-4 bg-slate-950/60 border-t border-slate-800 flex justify-between items-center">
+        <button onclick="resetDashboardLayout()" class="text-xs text-slate-400 hover:text-white transition">↺ Restablecer todo</button>
+        <button onclick="closeWidgetCatalog()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl transition">Aceptar</button>
+      </div>
     </div>
   </div>
 
   <script>
     let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
+    let isCustomizeMode = false;
+    let sortableInstance = null;
+    let currentLayout = null;
+
+    const WIDGET_DEFINITIONS = [
+      { id: 'widget-kpis', icon: '📊', name: 'Métricas Principales (KPIs)', desc: 'RHR, HRV RMSSD, Body Battery y sensaciones' },
+      { id: 'widget-chart', icon: '📈', name: 'Tendencias Fisiológicas', desc: 'Gráfico interactivo de 14 días de recuperación' },
+      { id: 'widget-zones', icon: '💓', name: 'Zonas de Ritmo Cardíaco', desc: 'Distribución de frecuencias cardíacas (Z1 a Z5)' },
+      { id: 'widget-goals', icon: '🎯', name: 'Objetivos de Rendimiento', desc: 'Metas y objetivos activos del atleta' },
+      { id: 'widget-activities', icon: '🏃', name: 'Sesiones Recientes', desc: 'Tabla de actividades con distancia, ritmo y potencia' },
+      { id: 'widget-coach', icon: '🤖', name: 'Entrenador AI (Chat)', desc: 'Asistente conversacional biométrico' }
+    ];
+
+    const DEFAULT_LAYOUT = {
+      order: ['widget-kpis', 'widget-chart', 'widget-zones', 'widget-goals', 'widget-activities', 'widget-coach'],
+      visible: {
+        'widget-kpis': true,
+        'widget-chart': true,
+        'widget-zones': true,
+        'widget-goals': true,
+        'widget-activities': true,
+        'widget-coach': true
+      }
+    };
+
+    function getStorageKey(userId) {
+      return 'biometric_dashboard_layout_' + (userId || currentUserId || 'default');
+    }
+
+    async function loadAthleteLayout(userId) {
+      const targetUser = userId || currentUserId;
+      let layout = null;
+
+      // 1. Check client local cache for immediate rendering without UI flash
+      try {
+        const raw = localStorage.getItem(getStorageKey(targetUser));
+        if (raw) layout = JSON.parse(raw);
+      } catch (e) {}
+
+      // 2. Fetch athlete-specific layout from server
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(targetUser) + '/dashboard-layout');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.layout) {
+            layout = data.layout;
+            localStorage.setItem(getStorageKey(targetUser), JSON.stringify(layout));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch remote layout for', targetUser, err);
+      }
+
+      if (!layout) {
+        layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      }
+
+      // Ensure all widgets exist in visible map and order
+      layout.visible = Object.assign({}, DEFAULT_LAYOUT.visible, layout.visible || {});
+      const order = Array.isArray(layout.order) ? layout.order.slice() : DEFAULT_LAYOUT.order.slice();
+      DEFAULT_LAYOUT.order.forEach(id => {
+        if (!order.includes(id)) order.push(id);
+      });
+      layout.order = order;
+
+      currentLayout = layout;
+      applyLayout(currentLayout);
+      return currentLayout;
+    }
+
+    async function persistLayout(layout) {
+      if (!layout) layout = currentLayout;
+      if (!layout) return;
+
+      const container = document.getElementById('dashboard-widgets-container');
+      if (container) {
+        layout.order = Array.from(container.children).map(el => el.id).filter(Boolean);
+      }
+
+      currentLayout = layout;
+      localStorage.setItem(getStorageKey(currentUserId), JSON.stringify(layout));
+
+      // Persist to athlete profile on server
+      try {
+        await fetch('/athletes/' + encodeURIComponent(currentUserId) + '/dashboard-layout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(layout)
+        });
+      } catch (err) {
+        console.warn('Could not persist remote layout for', currentUserId, err);
+      }
+    }
+
+    function applyLayout(layout) {
+      if (!layout) layout = currentLayout || DEFAULT_LAYOUT;
+      const container = document.getElementById('dashboard-widgets-container');
+      if (!container) return;
+
+      // Reorder elements according to athlete layout
+      layout.order.forEach(widgetId => {
+        const el = document.getElementById(widgetId);
+        if (el) container.appendChild(el);
+      });
+
+      // Set visibility according to athlete preference
+      Object.keys(layout.visible).forEach(widgetId => {
+        const el = document.getElementById(widgetId);
+        if (el) {
+          if (layout.visible[widgetId]) {
+            el.classList.remove('hidden');
+          } else {
+            el.classList.add('hidden');
+          }
+        }
+      });
+
+      if (physioChart && layout.visible['widget-chart']) {
+        setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
+      }
+    }
+
+    function toggleCustomizeMode(forceState) {
+      if (typeof forceState === 'boolean') {
+        isCustomizeMode = forceState;
+      } else {
+        isCustomizeMode = !isCustomizeMode;
+      }
+
+      const toolbar = document.getElementById('customize-toolbar');
+      const btnText = document.getElementById('customize-btn-label');
+      const btn = document.getElementById('btn-customize-toggle');
+      const handles = document.querySelectorAll('.drag-handle');
+      const removeBtns = document.querySelectorAll('.widget-remove-btn');
+      const widgets = document.querySelectorAll('.dashboard-widget');
+
+      if (isCustomizeMode) {
+        toolbar.classList.remove('hidden');
+        btnText.innerText = 'Cerrar Edición';
+        btn.classList.add('border-sky-500', 'bg-sky-950/30');
+        handles.forEach(h => h.classList.remove('hidden'));
+        removeBtns.forEach(b => b.classList.remove('hidden'));
+        widgets.forEach(w => w.classList.add('edit-mode-ring'));
+
+        // Init Sortable
+        const container = document.getElementById('dashboard-widgets-container');
+        if (container && window.Sortable && !sortableInstance) {
+          sortableInstance = new Sortable(container, {
+            handle: '.drag-handle',
+            animation: 200,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: function() {
+              persistLayout();
+              if (physioChart) {
+                setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
+              }
+            }
+          });
+        }
+      } else {
+        toolbar.classList.add('hidden');
+        btnText.innerText = 'Personalizar';
+        btn.classList.remove('border-sky-500', 'bg-sky-950/30');
+        handles.forEach(h => h.classList.add('hidden'));
+        removeBtns.forEach(b => b.classList.add('hidden'));
+        widgets.forEach(w => w.classList.remove('edit-mode-ring'));
+
+        if (sortableInstance) {
+          sortableInstance.destroy();
+          sortableInstance = null;
+        }
+      }
+    }
+
+    function toggleWidgetVisibility(widgetId, explicitState) {
+      const el = document.getElementById(widgetId);
+      if (!el || !currentLayout) return;
+      const newState = (explicitState !== undefined) ? explicitState : el.classList.contains('hidden');
+      currentLayout.visible[widgetId] = newState;
+
+      if (newState) {
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+
+      persistLayout(currentLayout);
+      populateCatalogList();
+
+      if (widgetId === 'widget-chart' && newState && physioChart) {
+        setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
+      }
+    }
+
+    function openWidgetCatalog() {
+      populateCatalogList();
+      document.getElementById('widget-catalog-modal').classList.remove('hidden');
+    }
+
+    function closeWidgetCatalog() {
+      document.getElementById('widget-catalog-modal').classList.add('hidden');
+    }
+
+    function populateCatalogList() {
+      const listEl = document.getElementById('catalog-list');
+      if (!listEl) return;
+      const layout = currentLayout || DEFAULT_LAYOUT;
+      listEl.innerHTML = WIDGET_DEFINITIONS.map(w => {
+        const isChecked = layout.visible[w.id] !== false;
+        return `
+          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 transition">
+            <div class="flex items-center space-x-3">
+              <span class="text-xl">${w.icon}</span>
+              <div>
+                <div class="text-sm font-semibold text-white">${w.name}</div>
+                <div class="text-xs text-slate-400">${w.desc}</div>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWidgetVisibility('${w.id}', this.checked)" class="sr-only peer">
+              <div class="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+            </label>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function resetDashboardLayout() {
+      const layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      await persistLayout(layout);
+      applyLayout(layout);
+      populateCatalogList();
+    }
 
     // Check for auth callback status
     const authStatus = new URLSearchParams(window.location.search).get('auth');
@@ -1200,9 +1558,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       const text = document.getElementById('oauth-banner-text');
       if (banner && text) {
         banner.classList.remove('hidden');
-        if (authStatus === 'google_success') text.innerText = 'Google Health API (Fitbit Air 2026) connected successfully! Biometric telemetry is live.';
-        else if (authStatus === 'fitbit_success') text.innerText = 'Fitbit Web API connected successfully! Biometric telemetry is live.';
-        else if (authStatus === 'garmin_success') text.innerText = 'Garmin Connect SSO session initialized! Biometric telemetry is live.';
+        if (authStatus === 'google_success') text.innerText = 'Google Health API (Fitbit Air 2026) conectado exitosamente.';
+        else if (authStatus === 'fitbit_success') text.innerText = 'Fitbit Web API conectado exitosamente.';
+        else if (authStatus === 'garmin_success') text.innerText = 'Sesión de Garmin Connect SSO inicializada.';
       }
     }
 
@@ -1226,20 +1584,48 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    function switchAthlete(newUserId) {
+    async function switchAthlete(newUserId) {
       if (!newUserId || newUserId === currentUserId) return;
       currentUserId = newUserId;
       document.getElementById('athlete-badge').innerText = newUserId;
       window.history.replaceState(null, '', '/dashboard?user_id=' + encodeURIComponent(newUserId));
-      loadDashboard();
+      
+      // Load and apply this athlete's specific dashboard layout!
+      await loadAthleteLayout(newUserId);
+      await loadDashboard();
     }
 
     function refreshData() {
       loadDashboard(true);
     }
 
+    async function syncAthleteData() {
+      const btn = document.getElementById('btn-dash-sync');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Sincronizando...';
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(currentUserId) + '/sync?days_back=7', {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('Sincronización iniciada en segundo plano para ' + currentUserId);
+          setTimeout(() => { refreshData(); }, 3000);
+        } else {
+          alert('Error al sincronizar: ' + (data.detail || 'Error desconocido'));
+        }
+      } catch (err) {
+        alert('Error de conexión: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Sincronizar';
+      }
+    }
+
     async function deleteCurrentAthlete() {
-      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${currentUserId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?\n\nEsta acción es irreversible.`)) {
+      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${currentUserId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?
+
+Esta acción es irreversible.`)) {
         return;
       }
       try {
@@ -1262,7 +1648,8 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function loadDashboard(force = false) {
       try {
-        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId) + (force ? '&force=true' : ''));
+        const url = '/dashboard/data?user_id=' + encodeURIComponent(currentUserId) + (force ? '&force=true' : '');
+        const res = await fetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
@@ -1292,6 +1679,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         // Zones
         renderZones(data.profile?.custom_zones || { z1_max: 135, z2_max: 152, z3_max: 165, z4_max: 178 });
 
+        // Goals
+        renderGoals(data.goals || []);
+
         // Activities
         renderActivities(data.activities || []);
       } catch (err) {
@@ -1308,26 +1698,49 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
       c.innerHTML = `
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 1: Active Recovery</span><span>< ${z1} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 1: Recuperación Activa</span><span>< ${z1} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-sky-400 h-2 rounded-full" style="width: 20%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 2: Aerobic Base (AeT)</span><span>${z1} - ${z2} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 2: Base Aeróbica (AeT)</span><span>${z1} - ${z2} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width: 40%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 3: Tempo</span><span>${z2} - ${z3} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 3: Tempo</span><span>${z2} - ${z3} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width: 60%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 4: Sub-Threshold (AnT)</span><span>${z3} - ${z4} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 4: Sub-Umbral (AnT)</span><span>${z3} - ${z4} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-orange-500 h-2 rounded-full" style="width: 80%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 5: VO2 Max / Anaerobic</span><span>> ${z4} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 5: VO2 Max / Anaeróbico</span><span>> ${z4} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width: 100%"></div></div>
         </div>
       `;
+    }
+
+    function renderGoals(goals) {
+      const container = document.getElementById('goals-container');
+      if (!container) return;
+      if (!goals || goals.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-xs py-2">No hay objetivos activos configurados aún. Podés pedirle a tu coach AI que fije metas (ej: Sub-40m en 10K, acumular 45km semanales).</div>';
+        return;
+      }
+      container.innerHTML = goals.map(function(g) {
+        const title = g.title || g.description || g.goal_id || 'Meta deportiva';
+        const target = g.target_metric ? (g.target_metric + ': ' + (g.target_value || '')) : '';
+        const dateStr = g.target_date ? ('Fecha meta: ' + g.target_date) : 'Sin fecha límite';
+        return `
+          <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between">
+            <div>
+              <div class="text-sm font-semibold text-white">${title}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${target} ${target ? '•' : ''} ${dateStr}</div>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">Activo</span>
+          </div>
+        `;
+      }).join('');
     }
 
     function renderPhysioChart(seriesData) {
@@ -1367,7 +1780,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     function renderActivities(activities) {
       const tbody = document.getElementById('activities-tbody');
       if (!activities || activities.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No activities recorded yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No hay actividades registradas aún.</td></tr>';
         return;
       }
       tbody.innerHTML = activities.map(function(a) {
@@ -1383,7 +1796,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         const durMin = Math.round((a.duration_seconds || a.duration_sec || 0) / 60);
         const hr = (a.avg_heart_rate || a.avg_hr) ? Math.round(a.avg_heart_rate || a.avg_hr) + ' bpm' : '--';
         const pwr = (a.avg_power && !isNaN(a.avg_power)) ? Math.round(a.avg_power) + ' W' : (a.aerobic_training_effect != null ? a.aerobic_training_effect : '--');
-        const actName = a.activity_name || a.name || 'Training Session';
+        const actName = a.activity_name || a.name || 'Sesión de entrenamiento';
         const actType = a.activity_type || a.type || 'running';
 
         return '<tr class="hover:bg-slate-800/40 transition">' +
@@ -1405,13 +1818,13 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       if (!msg) return;
 
       const chatBox = document.getElementById('chat-box');
-      chatBox.innerHTML += '<div class="text-blue-400 font-semibold">You: <span class="text-slate-200 font-normal">' + msg + '</span></div>';
+      chatBox.innerHTML += '<div class="text-blue-400 font-semibold">Tú: <span class="text-slate-200 font-normal">' + msg + '</span></div>';
       input.value = '';
       chatBox.scrollTop = chatBox.scrollHeight;
 
       const btn = document.getElementById('chat-send-btn');
       btn.disabled = true;
-      btn.innerText = 'Thinking...';
+      btn.innerText = 'Pensando...';
 
       try {
         const res = await fetch('/chat', {
@@ -1423,19 +1836,20 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           body: JSON.stringify({ message: msg, user_id: currentUserId })
         });
         const data = await res.json();
-        const reply = data.response || data.message || 'Analysis complete.';
+        const reply = data.response || data.message || 'Análisis completado.';
         chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal whitespace-pre-wrap">' + reply + '</span></div>';
       } catch (err) {
-        chatBox.innerHTML += '<div class="text-rose-400 text-xs">Error communicating with coach: ' + err.message + '</div>';
+        chatBox.innerHTML += '<div class="text-rose-400 text-xs">Error al consultar al coach: ' + err.message + '</div>';
       } finally {
         btn.disabled = false;
-        btn.innerText = 'Send';
+        btn.innerText = 'Enviar';
         chatBox.scrollTop = chatBox.scrollHeight;
       }
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
       await initAthleteSelector();
+      await loadAthleteLayout(currentUserId);
       await loadDashboard();
     });
   </script>
@@ -2096,3 +2510,45 @@ async def trigger_athlete_sync(user_id: str, days_back: int = 7):
         "days_back": days_back,
         "message": f"Sincronización iniciada en segundo plano para {user_id}.",
     }
+
+
+DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
+    "order": ["widget-kpis", "widget-chart", "widget-zones", "widget-goals", "widget-activities", "widget-coach"],
+    "visible": {
+        "widget-kpis": True,
+        "widget-chart": True,
+        "widget-zones": True,
+        "widget-goals": True,
+        "widget-activities": True,
+        "widget-coach": True,
+    },
+}
+
+
+@router.get("/athletes/{user_id}/dashboard-layout")
+async def get_athlete_dashboard_layout(user_id: str):
+    """Returns the customized dashboard layout for a specific athlete."""
+    engine = get_storage_engine()
+    profile = engine.get_user_profile(user_id) or {}
+    saved_layout = profile.get("dashboard_layout")
+    if saved_layout and isinstance(saved_layout, dict):
+        merged_visible = {**DEFAULT_DASHBOARD_LAYOUT["visible"], **saved_layout.get("visible", {})}
+        order = list(saved_layout.get("order", DEFAULT_DASHBOARD_LAYOUT["order"]))
+        for wid in DEFAULT_DASHBOARD_LAYOUT["order"]:
+            if wid not in order:
+                order.append(wid)
+        return {"user_id": user_id, "layout": {"order": order, "visible": merged_visible}}
+    return {"user_id": user_id, "layout": DEFAULT_DASHBOARD_LAYOUT}
+
+
+@router.post("/athletes/{user_id}/dashboard-layout")
+async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
+    """Persists a personalized dashboard widget layout for a specific athlete."""
+    engine = get_storage_engine()
+    order = payload.get("order", DEFAULT_DASHBOARD_LAYOUT["order"])
+    visible = payload.get("visible", DEFAULT_DASHBOARD_LAYOUT["visible"])
+    clean_layout = {"order": order, "visible": visible}
+
+    engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
+    log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")
+    return {"status": "ok", "user_id": user_id, "layout": clean_layout}

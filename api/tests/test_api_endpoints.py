@@ -348,3 +348,41 @@ def test_athlete_status_endpoint(client: TestClient):
     assert "google_health_connected" in data
     assert "google_client_id" in data
     assert "fitbit_client_id" in data
+
+
+def test_athlete_dashboard_layout_persistence(client: TestClient):
+    """Tests retrieving and persisting per-athlete custom dashboard layouts."""
+    user_id = "test_custom_layout_user"
+    # 1. Default layout
+    res_get = client.get(f"/athletes/{user_id}/dashboard-layout")
+    assert res_get.status_code == 200
+    data = res_get.json()
+    assert data["user_id"] == user_id
+    assert "widget-kpis" in data["layout"]["order"]
+
+    # 2. Save custom layout
+    custom_order = ["widget-chart", "widget-kpis", "widget-zones", "widget-goals", "widget-activities", "widget-coach"]
+    custom_visible = {
+        "widget-kpis": True,
+        "widget-chart": True,
+        "widget-zones": True,
+        "widget-goals": True,
+        "widget-activities": True,
+        "widget-coach": False,
+    }
+    res_post = client.post(
+        f"/athletes/{user_id}/dashboard-layout",
+        json={"order": custom_order, "visible": custom_visible},
+    )
+    assert res_post.status_code == 200
+    post_data = res_post.json()
+    assert post_data["status"] == "ok"
+    assert post_data["layout"]["order"] == custom_order
+    assert post_data["layout"]["visible"]["widget-coach"] is False
+
+    # 3. Retrieve and verify persisted custom layout
+    res_get_updated = client.get(f"/athletes/{user_id}/dashboard-layout")
+    assert res_get_updated.status_code == 200
+    updated_data = res_get_updated.json()
+    assert updated_data["layout"]["order"][0] == "widget-chart"
+    assert updated_data["layout"]["visible"]["widget-coach"] is False
