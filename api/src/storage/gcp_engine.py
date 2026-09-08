@@ -48,8 +48,8 @@ class GCPStorageEngine(StorageEngine):
     def get_user_profile(self, user_id: str) -> dict[str, Any]:
         doc_ref = self.db.collection("user_profiles").document(user_id)
         doc = doc_ref.get()  # type: ignore[union-attr]
-        if getattr(doc, 'exists', False):
-            return dict(getattr(doc, 'to_dict', lambda: {})() or {})
+        if getattr(doc, "exists", False):
+            return dict(getattr(doc, "to_dict", lambda: {})() or {})
         return {}
 
     def update_user_profile(self, user_id: str, data: dict[str, Any]) -> None:
@@ -59,12 +59,7 @@ class GCPStorageEngine(StorageEngine):
 
     # --- Goals ---
     def get_user_goals(self, user_id: str) -> list[dict[str, Any]]:
-        docs = (
-            self.db.collection("user_goals")
-            .where("user_id", "==", user_id)
-            .where("status", "==", "active")
-            .stream()
-        )
+        docs = self.db.collection("user_goals").where("user_id", "==", user_id).where("status", "==", "active").stream()
         return [{"goal_id": d.id, **dict(d.to_dict() or {})} for d in docs]
 
     def save_user_goal(self, user_id: str, goal: dict[str, Any]) -> str:
@@ -84,10 +79,7 @@ class GCPStorageEngine(StorageEngine):
     # --- Semantic Memories ---
     def get_semantic_memories(self, user_id: str) -> list[dict[str, Any]]:
         docs = (
-            self.db.collection("user_memories")
-            .where("user_id", "==", user_id)
-            .where("is_active", "==", True)
-            .stream()
+            self.db.collection("user_memories").where("user_id", "==", user_id).where("is_active", "==", True).stream()
         )
         return [{"memory_id": d.id, **dict(d.to_dict() or {})} for d in docs]
 
@@ -117,7 +109,7 @@ class GCPStorageEngine(StorageEngine):
     def update_semantic_memory(self, memory_id: str, new_text: str) -> str:
         doc_ref = self.db.collection("user_memories").document(memory_id)
         doc = doc_ref.get()  # type: ignore[union-attr]
-        if not getattr(doc, 'exists', False):
+        if not getattr(doc, "exists", False):
             return f"Error: Memory {memory_id} not found."
         now = datetime.now(UTC)
         doc_ref.update({"memory_text": new_text, "updated_at": now, "is_active": True})
@@ -126,7 +118,7 @@ class GCPStorageEngine(StorageEngine):
     def retire_semantic_memory(self, memory_id: str) -> str:
         doc_ref = self.db.collection("user_memories").document(memory_id)
         doc = doc_ref.get()  # type: ignore[union-attr]
-        if not getattr(doc, 'exists', False):
+        if not getattr(doc, "exists", False):
             return f"Error: Memory {memory_id} not found."
         now = datetime.now(UTC)
         doc_ref.update({"is_active": False, "updated_at": now})
@@ -134,11 +126,7 @@ class GCPStorageEngine(StorageEngine):
 
     # --- Calibration Profile Markers ---
     def get_calibration_markers(self, user_id: str) -> list[dict[str, Any]]:
-        docs = (
-            self.db.collection("calibration_markers")
-            .where("user_id", "==", user_id)
-            .stream()
-        )
+        docs = self.db.collection("calibration_markers").where("user_id", "==", user_id).stream()
         return [{"marker_id": d.id, **dict(d.to_dict() or {})} for d in docs]
 
     def save_calibration_marker(
@@ -172,7 +160,9 @@ class GCPStorageEngine(StorageEngine):
         table_id = f"{self.project_id}.{self.dataset_id}.user_health_status"
         safe_feeling = str(health_data.get("feeling", "")).replace("'", "''")
         safe_notes = str(health_data.get("notes", "")).replace("'", "''") if health_data.get("notes") else None
-        safe_injury = str(health_data.get("injury_notes", "")).replace("'", "''") if health_data.get("injury_notes") else None
+        safe_injury = (
+            str(health_data.get("injury_notes", "")).replace("'", "''") if health_data.get("injury_notes") else None
+        )
         fatigue = health_data.get("fatigue_level")
 
         query = f"""
@@ -202,21 +192,23 @@ class GCPStorageEngine(StorageEngine):
         table_id = f"{self.project_id}.{self.dataset_id}.activities"
         rows = []
         for act in activities:
-            rows.append({
-                "activity_id": str(act.get("activity_id") or uuid.uuid4()),
-                "user_id": user_id,
-                "activity_name": act.get("activity_name"),
-                "activity_type": act.get("activity_type", "running"),
-                "start_time": act.get("start_time"),
-                "duration_seconds": act.get("duration_seconds"),
-                "distance_meters": act.get("distance_meters"),
-                "avg_heart_rate": act.get("avg_heart_rate"),
-                "max_heart_rate": act.get("max_heart_rate"),
-                "aerobic_training_effect": act.get("aerobic_training_effect"),
-                "anaerobic_training_effect": act.get("anaerobic_training_effect"),
-                "trimp": act.get("trimp"),
-                "summary": json.dumps(act.get("summary", {})),
-            })
+            rows.append(
+                {
+                    "activity_id": str(act.get("activity_id") or uuid.uuid4()),
+                    "user_id": user_id,
+                    "activity_name": act.get("activity_name"),
+                    "activity_type": act.get("activity_type", "running"),
+                    "start_time": act.get("start_time"),
+                    "duration_seconds": act.get("duration_seconds"),
+                    "distance_meters": act.get("distance_meters"),
+                    "avg_heart_rate": act.get("avg_heart_rate"),
+                    "max_heart_rate": act.get("max_heart_rate"),
+                    "aerobic_training_effect": act.get("aerobic_training_effect"),
+                    "anaerobic_training_effect": act.get("anaerobic_training_effect"),
+                    "trimp": act.get("trimp"),
+                    "summary": json.dumps(act.get("summary", {})),
+                }
+            )
         errors = self.bq.insert_rows_json(table_id, rows)
         if errors:
             log.error(f"❌ BigQuery insert_rows errors: {errors}")
@@ -269,7 +261,7 @@ class GCPStorageEngine(StorageEngine):
                 vo2max,
                 avg_power
             FROM `{table_id}`
-            WHERE {' AND '.join(where_clauses)}
+            WHERE {" AND ".join(where_clauses)}
             ORDER BY date DESC
             LIMIT {limit} OFFSET {offset}
         """
@@ -332,7 +324,11 @@ class GCPStorageEngine(StorageEngine):
         self, user_id: str, group_by: str = "weekly", limit_months: int = 6
     ) -> list[dict[str, Any]]:
         table_id = f"{self.project_id}.{self.dataset_id}.recent_activities"
-        time_trunc = "DATE_TRUNC(DATE(TIMESTAMP_SECONDS(date)), WEEK)" if group_by == "weekly" else "DATE_TRUNC(DATE(TIMESTAMP_SECONDS(date)), MONTH)"
+        time_trunc = (
+            "DATE_TRUNC(DATE(TIMESTAMP_SECONDS(date)), WEEK)"
+            if group_by == "weekly"
+            else "DATE_TRUNC(DATE(TIMESTAMP_SECONDS(date)), MONTH)"
+        )
         query = f"""
             SELECT
                 {time_trunc} AS period,
@@ -381,14 +377,16 @@ class GCPStorageEngine(StorageEngine):
         key_id = str(uuid.uuid4())
         now = datetime.now(UTC)
 
-        self.db.collection("api_keys").document(key_id).set({
-            "key_id": key_id,
-            "user_id": user_id,
-            "key_hash": key_hash,
-            "name": name,
-            "is_active": True,
-            "created_at": now,
-        })
+        self.db.collection("api_keys").document(key_id).set(
+            {
+                "key_id": key_id,
+                "user_id": user_id,
+                "key_hash": key_hash,
+                "name": name,
+                "is_active": True,
+                "created_at": now,
+            }
+        )
         return raw_key
 
     def validate_api_key(self, api_key: str, user_id: str) -> bool:
@@ -402,7 +400,6 @@ class GCPStorageEngine(StorageEngine):
             .stream()
         )
         return len(list(docs)) > 0
-
 
     def list_users(self) -> list[str]:
         """Retrieves list of active athlete/user IDs from Firestore and BigQuery."""
@@ -435,3 +432,8 @@ class GCPStorageEngine(StorageEngine):
         if not users:
             users.add(os.getenv("DEFAULT_USER_ID", "default_user"))
         return sorted(users)
+
+    def delete_user_data(self, user_id: str) -> dict[str, Any]:
+        """Stubs delete_user_data for GCPStorageEngine."""
+        log.warning(f"delete_user_data called on GCP engine for {user_id}")
+        return {"status": "gcp_deletion_not_implemented", "user_id": user_id}

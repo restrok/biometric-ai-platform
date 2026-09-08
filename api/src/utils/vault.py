@@ -68,7 +68,7 @@ class LocalSecureVault:
 
     def store_tokens(self, provider: str, user_id: str, tokens: dict[str, Any] | str) -> Path:
         """Encrypts and securely stores tokens for a specific provider and user.
-        
+
         Strictly persists ONLY an encrypted .enc file on disk.
         """
         prov = provider.lower().replace("-", "_")
@@ -138,10 +138,24 @@ class LocalSecureVault:
         users = []
         if self.vault_dir.exists():
             for f in self.vault_dir.glob(f"{prefix}*{suffix}"):
-                uid = f.name[len(prefix): -len(suffix)]
+                uid = f.name[len(prefix) : -len(suffix)]
                 if uid:
                     users.append(uid)
         return users
+
+    def delete_user_tokens(self, user_id: str) -> list[str]:
+        """Deletes all encrypted credentials stored for the specified user across all providers."""
+        deleted = []
+        suffix = f"_tokens_{user_id}.enc"
+        if self.vault_dir.exists():
+            for f in list(self.vault_dir.glob(f"*{suffix}")):
+                try:
+                    f.unlink()
+                    deleted.append(f.name)
+                    log.info(f"🗑️ Deleted vault token: {f.name}")
+                except Exception as e:
+                    log.error(f"Failed deleting {f.name}: {e}")
+        return deleted
 
     def has_tokens(self, provider: str, user_id: str) -> bool:
         """Checks if encrypted credentials exist for the user without full decryption."""

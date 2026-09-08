@@ -170,9 +170,7 @@ class LocalStorageEngine(StorageEngine):
     # --- Profile & User Management ---
     def get_user_profile(self, user_id: str) -> dict[str, Any]:
         with self._get_sqlite_conn() as conn:
-            cursor = conn.execute(
-                "SELECT profile_data FROM user_profiles WHERE user_id = ?", (user_id,)
-            )
+            cursor = conn.execute("SELECT profile_data FROM user_profiles WHERE user_id = ?", (user_id,))
             row = cursor.fetchone()
             if row:
                 return json.loads(row["profile_data"])
@@ -534,7 +532,6 @@ class LocalStorageEngine(StorageEngine):
         finally:
             conn.close()
 
-
     def list_users(self) -> list[str]:
         """Retrieves list of active athlete/user IDs."""
         users = set()
@@ -596,3 +593,46 @@ class LocalStorageEngine(StorageEngine):
             )
             row = cursor.fetchone()
             return row is not None
+
+    def delete_user_data(self, user_id: str) -> dict[str, Any]:
+        """Deletes an athlete and all associated data from SQLite, DuckDB, and Vault."""
+        from src.utils.vault import get_vault
+
+        counts: dict[str, Any] = {}
+
+        # 1. SQLite Deletions
+        with self._get_sqlite_conn() as conn:
+            for table in [
+                "user_profiles",
+                "user_goals",
+                "semantic_memories",
+                "calibration_markers",
+                "health_status",
+                "api_keys",
+            ]:
+                cursor = conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+                counts[table] = cursor.rowcount
+            conn.commit()
+
+        # 2. DuckDB Deletions
+        conn_d = self._get_duckdb_conn()
+        try:
+            conn_d.execute(
+                """
+                DELETE FROM activity_telemetry 
+                WHERE activity_id IN (SELECT activity_id FROM activities WHERE user_id = ?)
+                """,
+                [user_id],
+            )
+            conn_d.execute("DELETE FROM activities WHERE user_id = ?", [user_id])
+            conn_d.execute("DELETE FROM daily_physiology WHERE user_id = ?", [user_id])
+            counts["duckdb_cleaned"] = True
+        finally:
+            conn_d.close()
+
+        # 3. Vault Deletions
+        deleted_tokens = get_vault().delete_user_tokens(user_id)
+        counts["vault_tokens"] = deleted_tokens
+
+        log.info(f"🗑️ Completely deleted athlete '{user_id}': {counts}")
+        return counts

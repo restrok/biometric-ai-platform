@@ -244,3 +244,56 @@ def test_chat_endpoint_success_mocked(client: TestClient):
         assert data["user_id"] == "test_athlete_chat"
         assert "¡Hola! Soy tu entrenador" in data["response"]
         assert "¡Hola! Soy tu entrenador" in data["message"]
+
+def test_setup_system_save(client: TestClient):
+    payload = {
+        "storage_mode": "local",
+        "llm_provider": "ollama",
+        "llm_base_url": "http://localhost:11434/v1",
+        "llm_api_key": "secret-test-key",
+        "embeddings_provider": "fastembed",
+    }
+    response = client.post("/setup/system/save", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["storage_mode"] == "local"
+
+
+def test_setup_api_key_generation(client: TestClient):
+    payload = {"user_id": "athlete_mcp_test", "name": "antigravity_agent"}
+    response = client.post("/setup/api-key", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == "athlete_mcp_test"
+    assert data["api_key"].startswith("bio_")
+    assert "X-API-Key" in data["mcp_config"]["mcpServers"]["biometric-ai"]["headers"]
+
+
+def test_delete_athlete_cascade(client: TestClient):
+    user_id = "athlete_to_delete_test"
+    # 1. Seed data
+    setup_payload = {
+        "storage_mode": "local",
+        "user_id": user_id,
+        "watch_provider": "garmin",
+        "use_mock_data": True,
+        "generate_key": True,
+    }
+    res_setup = client.post("/setup/save", json=setup_payload)
+    assert res_setup.status_code == 200
+
+    # Verify user exists
+    res_users = client.get("/dashboard/users")
+    assert user_id in res_users.json()["users"]
+
+    # 2. Delete athlete via POST /athletes/delete
+    res_del = client.post("/athletes/delete", json={"user_id": user_id})
+    assert res_del.status_code == 200
+    del_data = res_del.json()
+    assert del_data["status"] == "success"
+    assert del_data["user_id"] == user_id
+
+    # Verify user is gone from list
+    res_users_after = client.get("/dashboard/users")
+    assert user_id not in res_users_after.json()["users"]

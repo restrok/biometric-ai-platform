@@ -143,3 +143,9 @@ class StorageEngine(ABC):
     def list_users(self) -> list[str]:
         """Retrieves list of active athlete/user IDs."""
         pass
+
+    # --- Athlete Lifecycle & Data Cleanup ---
+    @abstractmethod
+    def delete_user_data(self, user_id: str) -> dict[str, Any]:
+        """Deletes all records, profiles, activities, and credentials for a given user."""
+        pass

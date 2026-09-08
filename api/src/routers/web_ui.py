@@ -17,35 +17,31 @@ from src.storage.base import StorageEngine
 from src.storage.factory import get_storage_engine
 from src.utils.vault import get_vault
 
-GARMIN_SSO_LOGIN_URL = (
-    "https://sso.garmin.com/sso/embed"
-    "?id=gauth-widget"
-    "&embedWidget=true"
-    "&gauthHost=https://sso.garmin.com/sso"
-    "&clientId=GarminConnect"
-    "&locale=en_US"
-    "&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed"
-    "&service=https://sso.garmin.com/sso/embed"
-)
-
 log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Web UI"])
 
-# In-memory store for pending PKCE authorization flows: state -> session_dict
+# In-memory store for pending PKCE authorization flows: state -> {user_id, code_verifier, client_id, redirect_uri}
 _oauth_sessions: dict[str, dict[str, Any]] = {}
+
+GARMIN_SSO_LOGIN_URL = (
+    "https://sso.garmin.com/sso/embed?"
+    "id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso&"
+    "clientId=GarminConnect&locale=en_US&"
+    "redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&"
+    "service=https://sso.garmin.com/sso/embed"
+)
 
 
 class SetupConfigPayload(BaseModel):
-    storage_mode: str = "local"  # "local" or "gcp"
-    user_id: str = "athlete_1"
-    llm_provider: str = "ollama"  # "ollama", "openrouter", "google", "openai"
-    llm_model: str = "deepseek-v4-flash:0731"
-    llm_base_url: str | None = "https://ollama.com/v1"
+    storage_mode: str = "local"
+    user_id: str = "fsirio"
+    watch_provider: str = "garmin"
+    embeddings_provider: str = "fastembed"
+    embedding_base_url: str | None = None
+    llm_provider: str = "ollama"
+    llm_base_url: str = "https://ollama.com/v1"
     llm_api_key: str | None = None
-    embeddings_provider: str = "fastembed"  # "fastembed", "ollama", "google"
-    embedding_base_url: str | None = "http://192.168.89.32:11434/v1"
-    watch_provider: str = "garmin"  # "garmin", "fitbit", "google_health"
     garmin_sso_tokens: str | None = None
     fitbit_client_id: str | None = None
     fitbit_token_json: str | None = None
@@ -55,12 +51,30 @@ class SetupConfigPayload(BaseModel):
     generate_key: bool = True
 
 
+class SystemConfigPayload(BaseModel):
+    storage_mode: str = "local"
+    llm_provider: str = "ollama"
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    embeddings_provider: str = "fastembed"
+    embedding_base_url: str | None = None
+
+
+class DeleteAthletePayload(BaseModel):
+    user_id: str
+
+
+class ApiKeyRequest(BaseModel):
+    user_id: str
+    name: str = "mcp_client"
+
+
 def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str = "garmin") -> None:
     """Seeds realistic sample biometric data tailored to the tracker provider."""
     now = datetime.now()
     log.info(f"🌱 Seeding simulated biometric data for athlete '{user_id}' with provider '{provider}'...")
 
-    # 1. 14 Days of Daily Physiology (HRV RMSSD, RHR, Sleep, Body Battery)
+    # 1. 14 Days of Daily Physiology
     physio_records = []
     base_hrv = 58.0
     base_rhr = 57
@@ -76,13 +90,13 @@ def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str 
                 "body_battery_max": min(100, 88 + (noise * 3)),
                 "body_battery_min": max(15, 26 + noise),
                 "stress_avg": 24 - noise,
-                "sleep_duration_seconds": 27600 + (noise * 600),  # ~7.6 hours
+                "sleep_duration_seconds": 27600 + (noise * 600),
                 "sleep_score": min(98, max(65, 86 + (noise * 3))),
             }
         )
     engine.insert_daily_physiology(user_id, physio_records)
 
-    # 2. Realistic Running Sessions tailored to tracker
+    # 2. Activities
     if provider == "garmin":
         activities = [
             {
@@ -109,226 +123,55 @@ def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str 
                 "avg_heart_rate": 159,
                 "max_heart_rate": 174,
                 "aerobic_training_effect": 4.1,
-                "anaerobic_training_effect": 1.8,
+                "anaerobic_training_effect": 1.2,
                 "trimp": 128.0,
-                "summary": "Garmin Running Dynamics: Cadence 182 spm, Vert Osc 8.1 cm, GCT Balance 50.0% L / 50.0% R.",
-            },
-            {
-                "activity_id": f"sim_garmin_{user_id}_3",
-                "activity_name": "Garmin Forerunner - 5x1000m VO2 Max Intervals",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=6)).strftime("%Y-%m-%dT18:30:00Z"),
-                "duration_seconds": 3120,
-                "distance_meters": 10500.0,
-                "avg_heart_rate": 166,
-                "max_heart_rate": 185,
-                "aerobic_training_effect": 4.5,
-                "anaerobic_training_effect": 2.9,
-                "trimp": 142.0,
-                "summary": "High intensity interval workout. Rapid recovery in active recovery intervals.",
-            },
-            {
-                "activity_id": f"sim_garmin_{user_id}_4",
-                "activity_name": "Garmin Forerunner - Sunday Long Aerobic Run",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=8)).strftime("%Y-%m-%dT08:00:00Z"),
-                "duration_seconds": 5700,
-                "distance_meters": 17200.0,
-                "avg_heart_rate": 145,
-                "max_heart_rate": 160,
-                "aerobic_training_effect": 3.9,
-                "anaerobic_training_effect": 0.3,
-                "trimp": 168.0,
-                "summary": "Garmin Running Dynamics: Cadence 174 spm, Ground contact time 238 ms.",
-            },
-            {
-                "activity_id": f"sim_garmin_{user_id}_5",
-                "activity_name": "Garmin Forerunner - Easy Recovery Shakeout",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=11)).strftime("%Y-%m-%dT08:15:00Z"),
-                "duration_seconds": 1800,
-                "distance_meters": 4800.0,
-                "avg_heart_rate": 131,
-                "max_heart_rate": 142,
-                "aerobic_training_effect": 2.0,
-                "anaerobic_training_effect": 0.0,
-                "trimp": 38.0,
-                "summary": "Low aerobic load Zone 1 recovery session.",
+                "summary": "Garmin Running Dynamics: Cadence 182 spm, Stride Length 1.18m, Avg Power 268W.",
             },
         ]
-    elif provider == "fitbit":
+    elif provider == "google_health":
+        activities = [
+            {
+                "activity_id": f"sim_google_{user_id}_1",
+                "activity_name": "Fitbit Air 2026 - Continuous Cadence Aerobic Run",
+                "activity_type": "running",
+                "start_time": (now - timedelta(days=1)).strftime("%Y-%m-%dT08:00:00Z"),
+                "duration_seconds": 2400,
+                "distance_meters": 7500.0,
+                "avg_heart_rate": 138,
+                "max_heart_rate": 151,
+                "aerobic_training_effect": 3.0,
+                "anaerobic_training_effect": 0.1,
+                "trimp": 72.0,
+                "summary": "Google Health API (Fitbit Air 2026): Stride rate 178 spm, Active Zone Minutes: 38 min.",
+            }
+        ]
+    else:
         activities = [
             {
                 "activity_id": f"sim_fitbit_{user_id}_1",
-                "activity_name": "Fitbit - Morning Tempo Run",
+                "activity_name": "Fitbit Web API - Morning Tempo Run",
                 "activity_type": "running",
-                "start_time": (now - timedelta(days=1)).strftime("%Y-%m-%dT07:30:00Z"),
-                "duration_seconds": 2580,
-                "distance_meters": 8200.0,
-                "avg_heart_rate": 153,
-                "max_heart_rate": 171,
-                "aerobic_training_effect": 3.5,
-                "anaerobic_training_effect": 1.1,
-                "trimp": 94.0,
-                "summary": "Fitbit cardio fitness telemetry capture. High tempo interval in cardio zone.",
-            },
-            {
-                "activity_id": f"sim_fitbit_{user_id}_2",
-                "activity_name": "Fitbit - Easy Aerobic Recovery",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=3)).strftime("%Y-%m-%dT08:00:00Z"),
-                "duration_seconds": 2100,
-                "distance_meters": 5500.0,
-                "avg_heart_rate": 133,
-                "max_heart_rate": 144,
-                "aerobic_training_effect": 2.1,
-                "anaerobic_training_effect": 0.0,
-                "trimp": 44.0,
-                "summary": "Fat burn zone aerobic recovery session.",
-            },
-            {
-                "activity_id": f"sim_fitbit_{user_id}_3",
-                "activity_name": "Fitbit - Peak Zone Interval Session",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=6)).strftime("%Y-%m-%dT18:15:00Z"),
-                "duration_seconds": 3000,
-                "distance_meters": 9800.0,
-                "avg_heart_rate": 164,
-                "max_heart_rate": 182,
-                "aerobic_training_effect": 4.2,
-                "anaerobic_training_effect": 2.5,
-                "trimp": 130.0,
-                "summary": "Fitbit peak zone interval workout with rapid HR descent.",
-            },
-            {
-                "activity_id": f"sim_fitbit_{user_id}_4",
-                "activity_name": "Fitbit - Weekend Endurance Long Run",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=8)).strftime("%Y-%m-%dT08:30:00Z"),
-                "duration_seconds": 5400,
-                "distance_meters": 15800.0,
-                "avg_heart_rate": 147,
-                "max_heart_rate": 161,
-                "aerobic_training_effect": 3.8,
-                "anaerobic_training_effect": 0.4,
-                "trimp": 158.0,
-                "summary": "Extended cardio zone endurance run.",
-            },
-            {
-                "activity_id": f"sim_fitbit_{user_id}_5",
-                "activity_name": "Fitbit - Progression Run",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=11)).strftime("%Y-%m-%dT07:15:00Z"),
-                "duration_seconds": 2820,
-                "distance_meters": 9100.0,
-                "avg_heart_rate": 157,
-                "max_heart_rate": 175,
-                "aerobic_training_effect": 3.7,
-                "anaerobic_training_effect": 1.4,
-                "trimp": 108.0,
-                "summary": "Progressive build from fat burn to peak zone.",
-            },
+                "start_time": (now - timedelta(days=1)).strftime("%Y-%m-%dT08:00:00Z"),
+                "duration_seconds": 2400,
+                "distance_meters": 7200.0,
+                "avg_heart_rate": 145,
+                "max_heart_rate": 160,
+                "aerobic_training_effect": 3.2,
+                "anaerobic_training_effect": 0.3,
+                "trimp": 78.0,
+                "summary": "Fitbit Web API: Cardio Minutes 28 min, Fat Burn Minutes 12 min.",
+            }
         ]
-    else:  # google_health / default
-        activities = [
-            {
-                "activity_id": f"sim_fitbit_air_{user_id}_1",
-                "activity_name": "Fitbit Air - Morning Tempo Run",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=1)).strftime("%Y-%m-%dT07:30:00Z"),
-                "duration_seconds": 2640,
-                "distance_meters": 8500.0,
-                "avg_heart_rate": 154,
-                "max_heart_rate": 172,
-                "aerobic_training_effect": 3.6,
-                "anaerobic_training_effect": 1.2,
-                "trimp": 98.5,
-                "summary": "Fitbit Air 2026 PPG sensor capture. High tempo interval in Zone 3/4.",
-            },
-            {
-                "activity_id": f"sim_fitbit_air_{user_id}_2",
-                "activity_name": "Fitbit Air - Easy Aerobic Recovery",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=3)).strftime("%Y-%m-%dT08:00:00Z"),
-                "duration_seconds": 2100,
-                "distance_meters": 5600.0,
-                "avg_heart_rate": 134,
-                "max_heart_rate": 145,
-                "aerobic_training_effect": 2.2,
-                "anaerobic_training_effect": 0.0,
-                "trimp": 45.0,
-                "summary": "Low intensity Zone 2 recovery jog with smooth cardiac drift.",
-            },
-            {
-                "activity_id": f"sim_fitbit_air_{user_id}_3",
-                "activity_name": "Fitbit Air - 6x800m VO2 Max Intervals",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=6)).strftime("%Y-%m-%dT18:15:00Z"),
-                "duration_seconds": 3120,
-                "distance_meters": 10200.0,
-                "avg_heart_rate": 165,
-                "max_heart_rate": 184,
-                "aerobic_training_effect": 4.3,
-                "anaerobic_training_effect": 2.8,
-                "trimp": 135.0,
-                "summary": "High intensity interval workout. Rapid post-interval HR recovery.",
-            },
-            {
-                "activity_id": f"sim_fitbit_air_{user_id}_4",
-                "activity_name": "Fitbit Air - Sunday Long Aerobic Run",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=8)).strftime("%Y-%m-%dT08:30:00Z"),
-                "duration_seconds": 5580,
-                "distance_meters": 16400.0,
-                "avg_heart_rate": 146,
-                "max_heart_rate": 162,
-                "aerobic_training_effect": 3.9,
-                "anaerobic_training_effect": 0.4,
-                "trimp": 162.0,
-                "summary": "Endurance base building in Zone 2 with minimal cardiac decoupling.",
-            },
-            {
-                "activity_id": f"sim_fitbit_air_{user_id}_5",
-                "activity_name": "Fitbit Air - Progression Tempo Session",
-                "activity_type": "running",
-                "start_time": (now - timedelta(days=11)).strftime("%Y-%m-%dT07:15:00Z"),
-                "duration_seconds": 2880,
-                "distance_meters": 9500.0,
-                "avg_heart_rate": 158,
-                "max_heart_rate": 176,
-                "aerobic_training_effect": 3.8,
-                "anaerobic_training_effect": 1.5,
-                "trimp": 112.0,
-                "summary": "Progressive build from Z2 to threshold Z4 pace.",
-            },
-        ]
-    engine.insert_activities(user_id, activities)
 
-    # 3. Subjective Health Status & Training Goal
+    engine.insert_activities(user_id, activities)
     engine.log_health_status(
-        user_id,
-        {
-            "feeling": "Ready & Rested",
-            "soreness_level": 2,
-            "fatigue_level": 2,
-            "sleep_quality": 4,
-            "readiness_score": 88,
-            "notes": f"Simulated {provider.capitalize()} biometric telemetry active. HRV baseline stable.",
-        },
+        user_id, {"feeling": "Ready & Rested", "fatigue_level": 2, "notes": "Simulated initial baseline."}
     )
     engine.save_user_goal(
         user_id,
-        {
-            "goal_id": f"goal_{user_id}_1",
-            "goal_type": "event",
-            "description": "Sub-40min 10K Target",
-            "target_metric": "pace_10k",
-            "target_value": 240,
-            "target_date": "2026-12-01",
-            "status": "active",
-        },
+        {"goal_type": "race", "description": "Sub-40min 10K Target", "target_date": "2026-11-15", "status": "active"},
     )
-    log.info(f"✅ Simulated biometric data successfully seeded for '{user_id}'.")
+    log.info(f"✅ Demo biometric baseline seeded for '{user_id}' ({provider}).")
 
 
 SETUP_HTML = """<!DOCTYPE html>
@@ -341,410 +184,356 @@ SETUP_HTML = """<!DOCTYPE html>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
   <div class="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 space-y-6">
-    <div class="flex items-center space-x-3 border-b border-slate-800 pb-4">
-      <span class="text-3xl">🏃‍♂️</span>
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-white">Biometric AI Platform</h1>
-        <p class="text-sm text-slate-400">Local-First & Multi-Cloud Autonomous Coaching Assistant</p>
+    <!-- Header with Back to Dashboard button -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div class="flex items-center space-x-3">
+        <span class="text-3xl">🏃‍♂️</span>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-white">Biometric AI Platform</h1>
+          <p class="text-xs text-slate-400">Local-First (Offline) & Multi-Cloud Autonomous Coaching Assistant</p>
+        </div>
+      </div>
+      <a href="/dashboard" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3.5 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+        <span>←</span> Volver al Dashboard
+      </a>
+    </div>
+
+    <!-- Tab Navigation: Athlete Config vs System Config -->
+    <div class="flex border-b border-slate-800 gap-2">
+      <button type="button" id="tab-btn-athlete" onclick="switchTab('athlete')" class="pb-2.5 px-4 text-sm font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2">
+        <span>🏃‍♂️</span> Configuración del Atleta
+      </button>
+      <button type="button" id="tab-btn-system" onclick="switchTab('system')" class="pb-2.5 px-4 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+        <span>⚙️</span> Sistema e Infraestructura (LLM / Storage)
+      </button>
+    </div>
+
+    <!-- TAB 1: Configuración del Atleta (Per-Athlete) -->
+    <div id="tab-athlete" class="space-y-6">
+      <form id="athlete-form" class="space-y-6" onsubmit="saveAthleteSetup(event)">
+        <!-- Athlete Selector & Creator -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">1. Seleccionar Atleta</label>
+            <select id="user_id_select" onchange="onAthleteSelectChange(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+              <option value="new">+ Nuevo Atleta...</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">Tenant / Athlete ID</label>
+            <input type="text" id="user_id" value="athlete_1" required
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono">
+          </div>
+        </div>
+
+        <!-- Biometric Tracker Selection -->
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-slate-300">2. Dispositivo / Tracker Biométrico</label>
+          <select id="watch_provider" onchange="toggleTrackerOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+            <option value="garmin">Garmin Connect Integration (FIT / Telemetry)</option>
+            <option value="fitbit">Fitbit Web API (OAuth2 PKCE)</option>
+            <option value="google_health">Google Health & Fitbit Air (OAuth 2.0 PKCE)</option>
+          </select>
+        </div>
+
+        <!-- Garmin Connect Configuration Section -->
+        <div id="garmin-config-section" class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Garmin Connect Integration</span>
+              <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-mono">SSO / FIT</span>
+            </div>
+            <span class="text-xs text-slate-400">connect.garmin.com</span>
+          </div>
+
+          <!-- Mode 1: Simulated Garmin Device -->
+          <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+            <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="use_mock_garmin" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
+              <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Garmin (Demo Offline)</span>
+            </label>
+            <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera 14 días de fisiología (HRV, sueño, Body Battery) y actividades con Running Dynamics.</p>
+          </div>
+
+          <!-- Mode 2: Real Garmin Connection via SSO Ticket -->
+          <div class="space-y-3 pt-2 border-t border-slate-700/50">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-sky-400">🔗 Conexión Real con tu Reloj Garmin</span>
+              <a href="https://sso.garmin.com/sso/embed?id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso&clientId=GarminConnect&locale=en_US&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed"
+                 target="_blank" rel="noopener noreferrer"
+                 class="inline-flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">
+                <span>1. Abrir Garmin SSO Login ↗</span>
+              </a>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">2. Pegar URL con Ticket de Garmin o JSON de Sesión</label>
+              <textarea id="garmin_sso_tokens" rows="2"
+                        placeholder="https://sso.garmin.com/sso/embed?ticket=ST-XXXXX... o JSON con di_token"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
+            </div>
+            <button type="button" onclick="exchangeGarminTicket()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg font-semibold transition">
+              🔄 Canjear Ticket de Garmin
+            </button>
+            <div id="garmin-exchange-msg" class="hidden text-xs p-2 rounded"></div>
+          </div>
+        </div>
+
+        <!-- Fitbit Configuration Section -->
+        <div id="fitbit-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Fitbit Web API</span>
+            <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+            <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="use_mock_fitbit" class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700">
+              <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Fitbit</span>
+            </label>
+          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-700/50">
+            <button type="button" onclick="connectFitbitOAuth()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+              Conectar con Fitbit OAuth ↗
+            </button>
+          </div>
+        </div>
+
+        <!-- Google Health Configuration Section -->
+        <div id="google-health-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Google Health & Fitbit Air (Fitbit Air 2026)</span>
+            <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+          </div>
+          <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+            <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="use_mock_google" class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700">
+              <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Fitbit Air</span>
+            </label>
+          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-slate-700/50">
+            <span class="text-xs text-slate-400">OAuth 2.0 PKCE Directo</span>
+            <button type="button" onclick="connectGoogleOAuth()" class="bg-white hover:bg-slate-100 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+              Conectar con Google ↗
+            </button>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800 flex justify-between items-center">
+          <span class="text-xs text-slate-500">Los tokens se guardan cifrados en LocalSecureVault.</span>
+          <button type="submit" id="athlete-submit-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition">
+            Guardar Atleta
+          </button>
+        </div>
+      </form>
+
+      <!-- MCP API Key Section for this Athlete -->
+      <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">🔑 Servidor MCP & API Key (Model Context Protocol)</span>
+          </div>
+          <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">SSE Endpoint: /mcp</span>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Cada atleta tiene su clave API para interactuar con agentes IA (Antigravity, Claude Desktop, Cursor) a través del protocolo MCP.
+        </p>
+
+        <div class="flex items-center gap-3">
+          <button type="button" onclick="generateMcpApiKey()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+            <span>🔑</span> Generar / Ver API Key
+          </button>
+        </div>
+
+        <div id="mcp-key-box" class="hidden space-y-3 bg-slate-900/80 border border-slate-700 rounded-lg p-3.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-emerald-400">API Key Generada:</span>
+            <button onclick="copyApiKey()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded transition">
+              📋 Copiar Clave
+            </button>
+          </div>
+          <code id="mcp-key-val" class="block font-mono text-xs text-white bg-slate-950 p-2 rounded border border-slate-800 select-all overflow-x-auto"></code>
+
+          <div class="text-xs text-slate-400 space-y-1">
+            <span class="font-semibold text-slate-300">Configuración para Claude Desktop / Antigravity:</span>
+            <pre id="mcp-snippet" class="bg-slate-950 p-2.5 rounded border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto select-all"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Athlete (Danger Zone) -->
+      <div class="bg-rose-950/20 border border-rose-900/40 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-rose-400 uppercase tracking-wider">🗑️ Zona de Peligro: Eliminar Atleta</span>
+        </div>
+        <p class="text-xs text-slate-400">
+          Elimina de forma permanente este atleta, sus actividades en DuckDB, perfiles en SQLite y tokens de credenciales cifrados en Vault.
+        </p>
+        <button type="button" onclick="deleteAthleteFromSetup()" class="bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700 text-xs font-semibold px-4 py-2 rounded-lg transition">
+          🗑️ Eliminar Atleta y todos sus datos
+        </button>
       </div>
     </div>
 
-    <form id="setup-form" class="space-y-6" onsubmit="saveSetup(event)">
-      <!-- Storage Architecture -->
-      <div class="space-y-2">
-        <label class="block text-sm font-semibold text-slate-300">1. Storage Architecture</label>
-        <div class="grid grid-cols-2 gap-4">
-          <label class="cursor-pointer border border-slate-700 rounded-xl p-4 flex flex-col items-start bg-slate-800/50 hover:border-blue-500 transition">
-            <input type="radio" name="storage_mode" value="local" checked class="text-blue-600 mb-2">
-            <span class="font-bold text-white">Local-First (Offline)</span>
-            <span class="text-xs text-slate-400 mt-1">100% private. Uses DuckDB + SQLite + Encrypted Vault. Zero GCP costs.</span>
-          </label>
-          <label class="cursor-pointer border border-slate-700 rounded-xl p-4 flex flex-col items-start bg-slate-800/50 hover:border-blue-500 transition">
-            <input type="radio" name="storage_mode" value="gcp" class="text-blue-600 mb-2">
-            <span class="font-bold text-white">Google Cloud (GCP)</span>
-            <span class="text-xs text-slate-400 mt-1">Cloud-native enterprise lake. Uses BigQuery + Secret Manager.</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- User & Tenancy -->
-      <div class="grid grid-cols-2 gap-4">
+    <!-- TAB 2: Infraestructura del Sistema (Global) -->
+    <div id="tab-system" class="hidden space-y-6">
+      <form id="system-form" class="space-y-6" onsubmit="saveSystemSetup(event)">
+        <!-- Storage Architecture -->
         <div class="space-y-2">
-          <label class="block text-sm font-semibold text-slate-300">2. Tenant / Athlete ID</label>
-          <input type="text" id="user_id" value="athlete_1" required
-                 class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-        </div>
-        <div class="space-y-2">
-          <label class="block text-sm font-semibold text-slate-300">3. Biometric Tracker</label>
-          <select id="watch_provider" onchange="toggleTrackerOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <option value="garmin">Garmin Connect (FIT / Telemetry)</option>
-            <option value="fitbit">Fitbit (OAuth2 PKCE / Web API)</option>
-            <option value="google_health">Google Health API (Fitbit Air 2026)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Garmin Connect Configuration Section -->
-      <div id="garmin-config-section" class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Garmin Connect Integration</span>
-            <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-mono">SSO / FIT</span>
+          <label class="block text-sm font-semibold text-slate-300">1. Arquitectura de Almacenamiento</label>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="cursor-pointer border border-slate-700 rounded-xl p-4 flex flex-col items-start bg-slate-800/50 hover:border-blue-500 transition">
+              <input type="radio" name="system_storage_mode" value="local" checked class="text-blue-600 mb-2">
+              <span class="font-bold text-white">Local-First (Offline)</span>
+              <span class="text-xs text-slate-400 mt-1">100% privado. DuckDB + SQLite + Vault. Cero costo GCP.</span>
+            </label>
+            <label class="cursor-pointer border border-slate-700 rounded-xl p-4 flex flex-col items-start bg-slate-800/50 hover:border-blue-500 transition">
+              <input type="radio" name="system_storage_mode" value="gcp" class="text-blue-600 mb-2">
+              <span class="font-bold text-white">Google Cloud (GCP)</span>
+              <span class="text-xs text-slate-400 mt-1">Data lake empresarial con BigQuery y Secret Manager.</span>
+            </label>
           </div>
-          <span class="text-xs text-slate-400">connect.garmin.com</span>
         </div>
 
-        <!-- Mode 1: Simulated Garmin Device -->
-        <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
-          <label class="flex items-center space-x-2.5 cursor-pointer select-none">
-            <input type="checkbox" id="use_mock_garmin" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
-            <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Garmin (Demo Offline)</span>
-          </label>
-          <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera automáticamente 14 días de fisiología (HRV, sueño, Body Battery) y actividades con Running Dynamics (cadencia 176–182 spm, oscilación vertical, balance de contacto con el suelo).</p>
+        <!-- System LLM & Embeddings -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">2. Motor de Inferencia LLM</label>
+            <select id="system_llm_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+              <option value="ollama">Ollama (Local / Cloud)</option>
+              <option value="openai">OpenAI Compatible</option>
+              <option value="google">Google Gemini</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">3. Motor de Embeddings</label>
+            <select id="system_embeddings_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+              <option value="fastembed">FastEmbed (ONNX, CPU/ARM, 0 GPU)</option>
+              <option value="ollama">Ollama (nomic-embed-text)</option>
+            </select>
+          </div>
         </div>
 
-        <!-- Mode 2: Real Garmin Connection via SSO Ticket -->
-        <div class="space-y-3 pt-2 border-t border-slate-700/50">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-sky-400">🔗 Conexión Real con tu Reloj Garmin</span>
-            <a href="https://sso.garmin.com/sso/embed?id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso&clientId=GarminConnect&locale=en_US&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed"
-               target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-              <span>1. Abrir Garmin SSO Login ↗</span>
-            </a>
-          </div>
-
-          <div class="bg-slate-900/80 border border-slate-700/70 rounded-lg p-3 text-xs space-y-1.5 text-slate-300 leading-relaxed">
-            <p class="font-semibold text-sky-300">¿Cómo obtener el token en 3 pasos?</p>
-            <ol class="list-decimal list-inside space-y-1 text-slate-400 text-[11px]">
-              <li>Hacé clic en el botón azul <strong class="text-slate-200">"1. Abrir Garmin SSO Login ↗"</strong> (abrirá Garmin en una nueva pestaña).</li>
-              <li>Ingresá tu correo y contraseña habituales de Garmin y presioná <strong class="text-slate-200">Iniciar sesión</strong>.</li>
-              <li>Al finalizar con éxito, el navegador mostrará una pantalla en blanco con una dirección como:<br>
-                <code class="text-sky-300 select-all font-mono">https://sso.garmin.com/sso/embed?ticket=ST-XXXXX-XXXXXX</code><br>
-                Copiá esa dirección completa de la barra de tu navegador (o solo el ticket <code>ST-...</code>) y pegala abajo.
-              </li>
-            </ol>
-          </div>
-
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <label class="block text-xs font-medium text-slate-300">2. Pegar URL de Garmin con Ticket (ST-...) o Token JSON:</label>
-              <span id="garmin-ticket-status" class="text-[11px] text-slate-400"></span>
+        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Ollama Base URL</label>
+              <input type="text" id="system_llm_base_url" value="https://ollama.com/v1"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
             </div>
-            <div class="flex space-x-2">
-              <textarea id="garmin_sso_tokens" rows="2"
-                        placeholder="https://sso.garmin.com/sso/embed?ticket=ST-... (o ST-... o JSON {&quot;di_token&quot;: ...})"
-                        class="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-emerald-400 placeholder-slate-600 focus:outline-none focus:border-sky-500"></textarea>
-              <button type="button" onclick="exchangeGarminTicket()"
-                      class="self-start px-3 py-2 bg-sky-600/30 hover:bg-sky-600/50 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold whitespace-nowrap transition">
-                ⚡ Canjear Ticket
-              </button>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Ollama API Key (Opcional)</label>
+              <input type="password" id="system_llm_api_key" placeholder="Bearer key"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
             </div>
           </div>
-
-          <p class="text-[10px] text-slate-500">🔒 <strong>Seguridad Local:</strong> El ticket se canjea automáticamente por tokens OAuth oficiales de Garmin en el servidor y se cifra inmediatamente en tu bóveda local (<code>/app/data/vault/</code>). Cero contraseñas almacenadas.</p>
-        </div>
-      </div>
-
-      <!-- Fitbit Configuration Section -->
-      <div id="fitbit-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Fitbit Web API</span>
-            <span class="bg-teal-500/20 text-teal-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
-          </div>
-          <span class="text-xs text-slate-400">api.fitbit.com</span>
         </div>
 
-        <!-- Mode 1: Simulated Fitbit Device -->
-        <div class="bg-slate-900/60 border border-teal-800/40 rounded-lg p-3 space-y-1.5">
-          <label class="flex items-center space-x-2.5 cursor-pointer select-none">
-            <input type="checkbox" id="use_mock_fitbit" checked class="w-4 h-4 text-teal-500 rounded bg-slate-800 border-slate-700 focus:ring-teal-500">
-            <span class="text-xs font-semibold text-teal-300">🧪 Habilitar Dispositivo Simulado Fitbit (Recomendado para pruebas locales)</span>
-          </label>
-          <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera 14 días de métricas de cardio fitness, zonas de frecuencia cardíaca y entrenamientos vía MockFitbitProvider sin necesidad de crear una App de desarrollador.</p>
+        <div class="pt-4 border-t border-slate-800 flex justify-end">
+          <button type="submit" id="system-submit-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition">
+            Guardar Configuración del Sistema
+          </button>
         </div>
-
-        <!-- Mode 2: Live Device Connection -->
-        <div class="space-y-2 pt-2 border-t border-slate-700/50">
-          <div class="flex items-center justify-between">
-            <label class="block text-xs font-medium text-slate-300">Conexión en Vivo: Fitbit OAuth Client ID</label>
-            <a href="https://dev.fitbit.com/apps/new" target="_blank" rel="noopener noreferrer" class="text-[11px] text-teal-400 hover:underline">Registrar App en dev.fitbit.com ↗</a>
-          </div>
-          <div class="p-2.5 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px] text-slate-400 space-y-1">
-            <p>💡 <em>Para conectar un dispositivo real de Fitbit en vivo, necesitás crear una App gratuita en dev.fitbit.com con Callback URL: <code class="text-teal-300 select-all" id="fitbit-callback-display">.../auth/fitbit/callback</code>.</em></p>
-          </div>
-          <div class="flex space-x-2">
-            <input type="text" id="fitbit_client_id" placeholder="Ingresá tu Client ID (ej: 23ABCD)"
-                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-teal-500">
-            <button type="button" onclick="connectFitbitOAuth()"
-                    class="bg-teal-500 hover:bg-teal-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
-              <span>Conectar con Fitbit</span>
-            </button>
-          </div>
-          <div id="fitbit-oauth-warning" class="hidden text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/60 p-2.5 rounded-lg"></div>
-        </div>
-
-        <!-- Mode 3: Manual Token JSON Paste -->
-        <details class="text-[11px] text-slate-400">
-          <summary class="cursor-pointer hover:text-slate-300 select-none">O pegar JSON de tokens de Fitbit manualmente</summary>
-          <div class="mt-2 space-y-1">
-            <textarea id="fitbit_token_json" rows="2" placeholder='{"access_token": "...", "refresh_token": "...", "user_id": "..."}'
-                       class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-teal-500"></textarea>
-          </div>
-        </details>
-      </div>
-
-      <!-- Google Health / Fitbit Air Configuration Section -->
-      <div id="google-health-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-2">
-            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Google Health & Fitbit Air</span>
-            <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
-          </div>
-          <span class="text-xs text-slate-400">health.googleapis.com</span>
-        </div>
-
-        <!-- Mode 1: Simulated / Mock Device -->
-        <div class="bg-slate-900/60 border border-blue-800/40 rounded-lg p-3 space-y-1.5">
-          <label class="flex items-center space-x-2.5 cursor-pointer select-none">
-            <input type="checkbox" id="use_mock_google" checked class="w-4 h-4 text-blue-500 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
-            <span class="text-xs font-semibold text-blue-300">🧪 Habilitar Dispositivo Simulado Fitbit Air (Recomendado para pruebas locales)</span>
-          </label>
-          <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera 14 días de HRV RMSSD, RHR, sueño y sesiones en DuckDB sin necesidad de configurar Google Cloud Console.</p>
-        </div>
-
-        <!-- Mode 2: Live Device Connection -->
-        <div class="space-y-2 pt-2 border-t border-slate-700/50">
-          <div class="flex items-center justify-between">
-            <label class="block text-xs font-medium text-slate-300">Conexión en Vivo: Google Cloud OAuth Client ID</label>
-            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" class="text-[11px] text-blue-400 hover:underline">Google Cloud Console ↗</a>
-          </div>
-          <div class="p-2.5 bg-slate-900/80 rounded-lg border border-slate-700 text-[11px] text-slate-400 space-y-1">
-            <p>💡 <em>Requiere un Client ID de Google Cloud con Health API habilitada y Redirect URI: <code class="text-blue-300 select-all" id="google-callback-display">.../auth/google/callback</code>.</em></p>
-          </div>
-          <div class="flex space-x-2">
-            <input type="text" id="google_client_id" placeholder="123456-xxx.apps.googleusercontent.com"
-                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-            <button type="button" onclick="connectGoogleOAuth()"
-                    class="bg-white hover:bg-slate-100 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
-              <span>Conectar con Google</span>
-            </button>
-          </div>
-          <div id="google-oauth-warning" class="hidden text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/60 p-2.5 rounded-lg"></div>
-        </div>
-
-        <!-- Mode 3: Manual Token JSON Paste -->
-        <details class="text-[11px] text-slate-400">
-          <summary class="cursor-pointer hover:text-slate-300 select-none">O pegar JSON de tokens de Google manualmente</summary>
-          <div class="mt-2 space-y-1">
-            <textarea id="google_token_json" rows="2" placeholder='{"access_token": "ya29...", "refresh_token": "1//..."}'
-                       class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
-          </div>
-        </details>
-      </div>
-
-      <!-- Embeddings & LLM -->
-      <div class="grid grid-cols-2 gap-4">
-        <div class="space-y-2">
-          <label class="block text-sm font-semibold text-slate-300">4. Local Embeddings</label>
-          <select id="embeddings_provider" onchange="toggleEmbeddingOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <option value="fastembed">FastEmbed (ONNX, CPU/ARM, 0 GPU)</option>
-            <option value="ollama">Ollama (nomic-embed-text)</option>
-            <option value="google">Google Gemini Embeddings</option>
-          </select>
-        </div>
-        <div class="space-y-2">
-          <label class="block text-sm font-semibold text-slate-300">5. Reasoning LLM Engine</label>
-          <select id="llm_provider" onchange="toggleLlmOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-            <option value="ollama">Ollama (Local or Cloud Hosted)</option>
-            <option value="openrouter">OpenRouter (Cloud API)</option>
-            <option value="google">Google Gemini</option>
-            <option value="openai">OpenAI Compatible</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Ollama Embedding Settings -->
-      <div id="embedding-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-2">
-        <div class="flex items-center justify-between">
-          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ollama Embeddings Service</label>
-          <span class="text-xs text-slate-400">nomic-embed-text (768 dims)</span>
-        </div>
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Ollama Host URL / IP</label>
-          <input type="text" id="embedding_base_url" value="http://192.168.89.32:11434/v1" placeholder="http://192.168.89.32:11434/v1"
-                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-          <p class="text-[10px] text-slate-500 mt-1">E.g., your ThinkCentre IP: <code>http://192.168.89.32:11434/v1</code> or <code>http://localhost:11434/v1</code></p>
-        </div>
-      </div>
-
-      <!-- Ollama / LLM Configuration Section -->
-      <div id="ollama-config-section" class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ollama LLM Settings</label>
-          <span class="text-xs text-slate-400">Ollama Cloud: <code>https://ollama.com/v1</code></span>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Base URL (must end in /v1)</label>
-            <input type="text" id="llm_base_url" value="https://ollama.com/v1" placeholder="https://ollama.com/v1"
-                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">API Key (Cloud/Remote)</label>
-            <input type="password" id="llm_api_key" placeholder="Bearer API Key from ollama.com"
-                   class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-          </div>
-        </div>
-      </div>
-
-      <div class="pt-4 border-t border-slate-800 flex justify-end">
-        <button type="submit" id="submit-btn"
-                class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg hover:shadow-blue-500/25 transition">
-          Save Configuration & Launch
-        </button>
-      </div>
-    </form>
+      </form>
+    </div>
 
     <div id="status-msg" class="hidden p-4 rounded-xl text-sm"></div>
   </div>
 
   <script>
+    let activeAthletes = [];
+
+    function switchTab(tab) {
+      if (tab === 'athlete') {
+        document.getElementById('tab-athlete').classList.remove('hidden');
+        document.getElementById('tab-system').classList.add('hidden');
+        document.getElementById('tab-btn-athlete').className = 'pb-2.5 px-4 text-sm font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2';
+        document.getElementById('tab-btn-system').className = 'pb-2.5 px-4 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
+      } else {
+        document.getElementById('tab-athlete').classList.add('hidden');
+        document.getElementById('tab-system').classList.remove('hidden');
+        document.getElementById('tab-btn-athlete').className = 'pb-2.5 px-4 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
+        document.getElementById('tab-btn-system').className = 'pb-2.5 px-4 text-sm font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2';
+      }
+    }
+
+    async function loadAthletesList() {
+      try {
+        const res = await fetch('/dashboard/users');
+        const data = await res.json();
+        activeAthletes = data.users || [];
+        const sel = document.getElementById('user_id_select');
+        sel.innerHTML = '';
+        activeAthletes.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u;
+          opt.innerText = u;
+          sel.appendChild(opt);
+        });
+        const newOpt = document.createElement('option');
+        newOpt.value = 'new';
+        newOpt.innerText = '➕ Nuevo Atleta...';
+        sel.appendChild(newOpt);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentParam = urlParams.get('user_id');
+        if (currentParam && activeAthletes.includes(currentParam)) {
+          sel.value = currentParam;
+          document.getElementById('user_id').value = currentParam;
+        } else if (activeAthletes.length > 0) {
+          sel.value = activeAthletes[0];
+          document.getElementById('user_id').value = activeAthletes[0];
+        }
+      } catch (err) {
+        console.error('Error loading athletes:', err);
+      }
+    }
+
+    function onAthleteSelectChange(val) {
+      const input = document.getElementById('user_id');
+      if (val === 'new') {
+        input.value = '';
+        input.focus();
+      } else {
+        input.value = val;
+      }
+      document.getElementById('mcp-key-box').classList.add('hidden');
+    }
+
     function toggleTrackerOptions(provider) {
       document.getElementById('garmin-config-section').classList.add('hidden');
       document.getElementById('fitbit-config-section').classList.add('hidden');
       document.getElementById('google-health-config-section').classList.add('hidden');
 
-      if (provider === 'garmin') {
-        document.getElementById('garmin-config-section').classList.remove('hidden');
-      } else if (provider === 'fitbit') {
-        document.getElementById('fitbit-config-section').classList.remove('hidden');
-      } else if (provider === 'google_health') {
-        document.getElementById('google-health-config-section').classList.remove('hidden');
-      }
+      if (provider === 'garmin') document.getElementById('garmin-config-section').classList.remove('hidden');
+      if (provider === 'fitbit') document.getElementById('fitbit-config-section').classList.remove('hidden');
+      if (provider === 'google_health') document.getElementById('google-health-config-section').classList.remove('hidden');
     }
 
-    function toggleEmbeddingOptions(provider) {
-      const sec = document.getElementById('embedding-config-section');
-      if (provider === 'ollama') {
-        sec.classList.remove('hidden');
-      } else {
-        sec.classList.add('hidden');
-      }
-    }
-
-    function toggleLlmOptions(provider) {
-      const sec = document.getElementById('ollama-config-section');
-      if (provider === 'ollama' || provider === 'openai') {
-        sec.classList.remove('hidden');
-      } else {
-        sec.classList.add('hidden');
-      }
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      const base = window.location.origin;
-      const fcb = document.getElementById('fitbit-callback-display');
-      if (fcb) fcb.innerText = base + '/auth/fitbit/callback';
-      const gcb = document.getElementById('google-callback-display');
-      if (gcb) gcb.innerText = base + '/auth/google/callback';
-    });
-
-    async function exchangeGarminTicket() {
-      const val = document.getElementById('garmin_sso_tokens').value.trim();
-      const statusEl = document.getElementById('garmin-ticket-status');
-      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
-      if (!val) {
-        statusEl.className = 'text-[11px] text-amber-400 font-semibold';
-        statusEl.innerText = '⚠️ Pegá primero la URL con ticket (ST-...) de Garmin.';
-        return;
-      }
-      statusEl.className = 'text-[11px] text-sky-400';
-      statusEl.innerText = '🔄 Canjeando ticket con Garmin...';
-      try {
-        const res = await fetch('/auth/garmin/exchange', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticket_or_url: val, user_id: userId })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          statusEl.className = 'text-[11px] text-emerald-400 font-semibold';
-          statusEl.innerText = '✅ ' + data.message;
-          const mockGarmin = document.getElementById('use_mock_garmin');
-          if (mockGarmin) mockGarmin.checked = false;
-        } else {
-          throw new Error(data.detail || 'Fallo al canjear ticket');
-        }
-      } catch (err) {
-        statusEl.className = 'text-[11px] text-rose-400 font-semibold';
-        statusEl.innerText = '❌ ' + err.message;
-      }
-    }
-
-    function connectGoogleOAuth() {
-      const userId = document.getElementById('user_id').value || 'athlete_1';
-      const clientId = document.getElementById('google_client_id').value.trim();
-      const warn = document.getElementById('google-oauth-warning');
-      if (!clientId) {
-        if (warn) {
-          warn.innerHTML = '⚠️ <strong>Client ID requerido:</strong> Para conectar con Google Health en vivo ingresá tu Client ID registrado en <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="underline text-blue-300">Google Cloud Console</a>, o activá el <strong>Modo Simulado</strong> para probar sin credenciales.';
-          warn.classList.remove('hidden');
-        }
-        return;
-      }
-      let url = '/auth/google/login?user_id=' + encodeURIComponent(userId) + '&client_id=' + encodeURIComponent(clientId);
-      window.location.href = url;
-    }
-
-    function connectFitbitOAuth() {
-      const userId = document.getElementById('user_id').value || 'athlete_1';
-      const clientId = document.getElementById('fitbit_client_id').value.trim();
-      const warn = document.getElementById('fitbit-oauth-warning');
-      if (!clientId) {
-        if (warn) {
-          warn.innerHTML = '⚠️ <strong>Client ID requerido:</strong> Para conectar con Fitbit en vivo ingresá tu Client ID de <a href="https://dev.fitbit.com/apps/new" target="_blank" class="underline text-teal-300">dev.fitbit.com</a>, o activá el <strong>Modo Simulado</strong> para probar sin credenciales.';
-          warn.classList.remove('hidden');
-        }
-        return;
-      }
-      let url = '/auth/fitbit/login?user_id=' + encodeURIComponent(userId) + '&client_id=' + encodeURIComponent(clientId);
-      window.location.href = url;
-    }
-
-    async function saveSetup(e) {
+    async function saveAthleteSetup(e) {
       e.preventDefault();
-      const btn = document.getElementById('submit-btn');
+      const btn = document.getElementById('athlete-submit-btn');
       btn.disabled = true;
-      btn.innerText = 'Initializing Storage & Keys...';
+      btn.innerText = 'Guardando...';
 
       const provider = document.getElementById('watch_provider').value;
       let useMock = false;
-      if (provider === 'garmin') {
-        useMock = document.getElementById('use_mock_garmin')?.checked ?? false;
-      } else if (provider === 'fitbit') {
-        useMock = document.getElementById('use_mock_fitbit')?.checked ?? false;
-      } else if (provider === 'google_health') {
-        useMock = document.getElementById('use_mock_google')?.checked ?? false;
+      if (provider === 'garmin') useMock = document.getElementById('use_mock_garmin')?.checked ?? false;
+      else if (provider === 'fitbit') useMock = document.getElementById('use_mock_fitbit')?.checked ?? false;
+      else if (provider === 'google_health') useMock = document.getElementById('use_mock_google')?.checked ?? false;
+
+      const userId = document.getElementById('user_id').value.trim();
+      if (!userId) {
+        alert('Ingresa un Tenant / Athlete ID válido.');
+        btn.disabled = false;
+        btn.innerText = 'Guardar Atleta';
+        return;
       }
 
       const payload = {
-        storage_mode: document.querySelector('input[name="storage_mode"]:checked').value,
-        user_id: document.getElementById('user_id').value,
+        storage_mode: 'local',
+        user_id: userId,
         watch_provider: provider,
-        embeddings_provider: document.getElementById('embeddings_provider').value,
-        embedding_base_url: document.getElementById('embedding_base_url') ? document.getElementById('embedding_base_url').value : null,
-        llm_provider: document.getElementById('llm_provider').value,
-        llm_base_url: document.getElementById('llm_base_url').value,
-        llm_api_key: document.getElementById('llm_api_key').value || null,
-        garmin_sso_tokens: document.getElementById('garmin_sso_tokens') ? document.getElementById('garmin_sso_tokens').value : null,
-        fitbit_client_id: document.getElementById('fitbit_client_id') ? document.getElementById('fitbit_client_id').value : null,
-        fitbit_token_json: document.getElementById('fitbit_token_json') ? document.getElementById('fitbit_token_json').value : null,
-        google_client_id: document.getElementById('google_client_id') ? document.getElementById('google_client_id').value : null,
-        google_token_json: document.getElementById('google_token_json') ? document.getElementById('google_token_json').value : null,
+        garmin_sso_tokens: document.getElementById('garmin_sso_tokens')?.value || null,
         use_mock_data: useMock,
         generate_key: true
       };
@@ -759,14 +548,14 @@ SETUP_HTML = """<!DOCTYPE html>
         if (res.ok) {
           const msg = document.getElementById('status-msg');
           msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300 space-y-2';
-          msg.innerHTML = '<p class="font-bold">✅ System Initialized Successfully!</p>' +
-            '<p class="text-xs text-slate-300">Generated API Key: <code class="font-mono bg-slate-900 px-2 py-0.5 rounded text-white">' + data.api_key + '</code></p>' +
-            '<p class="text-xs text-slate-300">Storage Engine: <span class="capitalize text-white font-semibold">' + data.storage_mode + '</span></p>' +
-            '<a href="/dashboard?user_id=' + encodeURIComponent(payload.user_id) + '" class="inline-block mt-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded transition">Go to Dashboard →</a>';
+          msg.innerHTML = '<p class="font-bold">✅ Atleta Guardado Correctamente!</p>' +
+            '<p class="text-xs text-slate-300">Atleta: <span class="text-white font-bold">' + data.user_id + '</span></p>' +
+            '<a href="/dashboard?user_id=' + encodeURIComponent(data.user_id) + '" class="inline-block mt-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded transition">Ir al Dashboard →</a>';
           msg.classList.remove('hidden');
-          btn.innerText = '✅ Saved';
+          btn.innerText = '✅ Guardado';
+          await loadAthletesList();
         } else {
-          throw new Error(data.detail || 'Failed to save setup');
+          throw new Error(data.detail || 'Error al guardar');
         }
       } catch (err) {
         const msg = document.getElementById('status-msg');
@@ -774,16 +563,163 @@ SETUP_HTML = """<!DOCTYPE html>
         msg.innerText = '❌ Error: ' + err.message;
         msg.classList.remove('hidden');
         btn.disabled = false;
-        btn.innerText = 'Retry Setup';
+        btn.innerText = 'Reintentar';
       }
     }
 
-    // Initialize toggle state
-    toggleTrackerOptions(document.getElementById('watch_provider').value);
+    async function saveSystemSetup(e) {
+      e.preventDefault();
+      const btn = document.getElementById('system-submit-btn');
+      btn.disabled = true;
+      btn.innerText = 'Guardando...';
+
+      const payload = {
+        storage_mode: document.querySelector('input[name="system_storage_mode"]:checked').value,
+        llm_provider: document.getElementById('system_llm_provider').value,
+        llm_base_url: document.getElementById('system_llm_base_url').value,
+        llm_api_key: document.getElementById('system_llm_api_key').value || null,
+        embeddings_provider: document.getElementById('system_embeddings_provider').value,
+      };
+
+      try {
+        const res = await fetch('/setup/system/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const msg = document.getElementById('status-msg');
+          msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300';
+          msg.innerText = '✅ Configuración del sistema guardada con éxito.';
+          msg.classList.remove('hidden');
+          btn.innerText = '✅ Guardado';
+        } else {
+          throw new Error(data.detail || 'Error al guardar sistema');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.innerText = 'Reintentar';
+      }
+    }
+
+    async function generateMcpApiKey() {
+      const userId = document.getElementById('user_id').value.trim();
+      if (!userId) {
+        alert('Selecciona o ingresa un Athlete ID primero.');
+        return;
+      }
+      try {
+        const res = await fetch('/setup/api-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, name: 'mcp_agent' })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('mcp-key-val').innerText = data.api_key;
+          const host = window.location.host;
+          const configSnippet = {
+            "mcpServers": {
+              "biometric-ai": {
+                "url": `http://${host}/mcp`,
+                "headers": {
+                  "X-API-Key": data.api_key
+                }
+              }
+            }
+          };
+          document.getElementById('mcp-snippet').innerText = JSON.stringify(configSnippet, null, 2);
+          document.getElementById('mcp-key-box').classList.remove('hidden');
+        } else {
+          alert('Error generando API Key: ' + (data.detail || 'Desconocido'));
+        }
+      } catch (err) {
+        alert('Error de red al generar API Key: ' + err.message);
+      }
+    }
+
+    function copyApiKey() {
+      const key = document.getElementById('mcp-key-val').innerText;
+      navigator.clipboard.writeText(key).then(() => {
+        alert('API Key copiada al portapapeles!');
+      });
+    }
+
+    async function deleteAthleteFromSetup() {
+      const userId = document.getElementById('user_id').value.trim();
+      if (!userId) return;
+      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${userId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?\n\nEsta acción es irreversible.`)) {
+        return;
+      }
+      try {
+        const res = await fetch('/athletes/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`Atleta ${userId} eliminado correctamente.`);
+          await loadAthletesList();
+          document.getElementById('mcp-key-box').classList.add('hidden');
+        } else {
+          alert('Error al eliminar: ' + (data.detail || 'Desconocido'));
+        }
+      } catch (err) {
+        alert('Error de red al eliminar: ' + err.message);
+      }
+    }
+
+    async function exchangeGarminTicket() {
+      const raw = document.getElementById('garmin_sso_tokens').value.trim();
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      const msg = document.getElementById('garmin-exchange-msg');
+      if (!raw) {
+        alert('Pegá la URL del ticket de Garmin primero.');
+        return;
+      }
+      msg.className = 'text-xs p-2 rounded bg-blue-950/60 text-blue-300 border border-blue-800';
+      msg.innerText = '⏳ Canjeando ticket con Garmin...';
+      msg.classList.remove('hidden');
+      try {
+        const res = await fetch('/auth/garmin/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket_or_url: raw, user_id: userId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = 'text-xs p-2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800';
+          msg.innerText = data.message;
+        } else {
+          throw new Error(data.detail || 'Error al canjear ticket');
+        }
+      } catch (err) {
+        msg.className = 'text-xs p-2 rounded bg-rose-950/80 text-rose-300 border border-rose-800';
+        msg.innerText = '❌ ' + err.message;
+      }
+    }
+
+    function connectGoogleOAuth() {
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      window.location.href = `/auth/google/login?user_id=${encodeURIComponent(userId)}`;
+    }
+
+    function connectFitbitOAuth() {
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      window.location.href = `/auth/fitbit/login?user_id=${encodeURIComponent(userId)}`;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadAthletesList();
+    });
   </script>
 </body>
 </html>
 """
+
 
 DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -809,19 +745,25 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
       <div class="flex items-center space-x-3">
-        <!-- Athlete Switcher Dropdown -->
+        <!-- Athlete Switcher Dropdown & Delete Shortcut -->
         <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
           <label for="user-select" class="text-xs font-semibold text-slate-400">Athlete:</label>
           <select id="user-select" onchange="switchAthlete(this.value)" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
             <option value="{{ATHLETE_ID}}" selected>{{ATHLETE_ID}}</option>
           </select>
+          <button onclick="deleteCurrentAthlete()" title="Eliminar atleta actual y todos sus datos" class="text-slate-400 hover:text-rose-400 text-xs px-1.5 py-0.5 rounded transition">
+            🗑️
+          </button>
         </div>
 
-        <a href="/setup" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-xl transition border border-slate-700">
-          ⚙️ Setup
-        </a>
-        <a href="/docs" target="_blank" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-xl transition border border-slate-700">
-          API Docs
+        <!-- Restored Original Refresh Button -->
+        <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+          <span>🔄</span> Refresh
+        </button>
+
+        <!-- Restored Original Blue Setup Button -->
+        <a href="/setup" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20">
+          <span>⚙️</span> Setup
         </a>
       </div>
     </header>
@@ -908,13 +850,18 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <span class="text-xl">🤖</span>
         <h2 class="font-bold text-lg text-white">Ask Your Biometric AI Coach</h2>
       </div>
-      <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300">
-        <div class="text-slate-500 text-xs">Coach: "Hello! I have loaded your biometric trends and recent running sessions. Ask me about your recovery, cardiac drift, or workout prescription."</div>
+
+      <div id="chat-box" class="h-64 overflow-y-auto bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 space-y-3 text-sm font-sans">
+        <div class="text-slate-400">
+          Hola, soy tu entrenador biométrico. Puedes consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.
+        </div>
       </div>
-      <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
-        <input type="text" id="chat-input" placeholder="e.g. Can I perform a VO2max interval workout today based on my HRV?"
-               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
-        <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
+
+      <form id="chat-form" onsubmit="sendChatMessage(event)" class="flex gap-2">
+        <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi fatiga hoy?)..."
+               class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+        <button type="submit" id="chat-send-btn"
+                class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2 rounded-xl transition">
           Send
         </button>
       </form>
@@ -922,180 +869,167 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <script>
-    let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
-
-    // Check for auth callback status
-    const authStatus = new URLSearchParams(window.location.search).get('auth');
-    if (authStatus) {
-      const banner = document.getElementById('oauth-success-banner');
-      const text = document.getElementById('oauth-banner-text');
-      if (banner && text) {
-        banner.classList.remove('hidden');
-        if (authStatus === 'google_success') text.innerText = 'Google Health API (Fitbit Air 2026) connected successfully! Biometric telemetry is live.';
-        else if (authStatus === 'fitbit_success') text.innerText = 'Fitbit Web API connected successfully! Biometric telemetry is live.';
-        else if (authStatus === 'garmin_success') text.innerText = 'Garmin Connect SSO session initialized! Biometric telemetry is live.';
-      }
-    }
+    let currentUserId = '{{ATHLETE_ID}}';
 
     async function initAthleteSelector() {
       try {
         const res = await fetch('/dashboard/users');
-        if (!res.ok) return;
         const data = await res.json();
-        const select = document.getElementById('user-select');
-        select.innerHTML = '';
-        const users = (data.users && data.users.length > 0) ? data.users : [currentUserId];
-        users.forEach(function(u) {
+        const users = data.users || [];
+        const sel = document.getElementById('user-select');
+        sel.innerHTML = '';
+        users.forEach(u => {
           const opt = document.createElement('option');
           opt.value = u;
           opt.innerText = u;
           if (u === currentUserId) opt.selected = true;
-          select.appendChild(opt);
+          sel.appendChild(opt);
         });
       } catch (err) {
-        console.error('Failed to load users list:', err);
+        console.error('Failed to load users:', err);
       }
     }
 
-    function switchAthlete(newUserId) {
-      if (!newUserId || newUserId === currentUserId) return;
-      currentUserId = newUserId;
-      document.getElementById('athlete-badge').innerText = newUserId;
-      window.history.replaceState(null, '', '/dashboard?user_id=' + encodeURIComponent(newUserId));
+    function switchAthlete(userId) {
+      currentUserId = userId;
+      document.getElementById('athlete-badge').innerText = userId;
       loadDashboard();
+    }
+
+    async function deleteCurrentAthlete() {
+      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${currentUserId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?\n\nEsta acción es irreversible.`)) {
+        return;
+      }
+      try {
+        const res = await fetch('/athletes/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: currentUserId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`Atleta ${currentUserId} eliminado correctamente.`);
+          window.location.href = '/dashboard';
+        } else {
+          alert('Error al eliminar atleta: ' + (data.detail || 'Error desconocido'));
+        }
+      } catch (err) {
+        alert('Error de red al eliminar atleta: ' + err.message);
+      }
     }
 
     async function loadDashboard() {
       try {
-        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-
-        // Update KPIs
-        if (data.health_status) {
-          document.getElementById('kpi-feeling').innerText = data.health_status.feeling || 'Normal';
-        } else {
-          document.getElementById('kpi-feeling').innerText = 'Optimal';
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auth') === 'google_success') {
+          const banner = document.getElementById('oauth-success-banner');
+          document.getElementById('oauth-banner-text').innerText = '🎉 Google Health / Fitbit Air vinculado exitosamente. Tus datos biométricos ya están conectados.';
+          banner.classList.remove('hidden');
+        } else if (urlParams.get('auth') === 'fitbit_success') {
+          const banner = document.getElementById('oauth-success-banner');
+          document.getElementById('oauth-banner-text').innerText = '🎉 Fitbit conectado exitosamente con OAuth 2.0 PKCE.';
+          banner.classList.remove('hidden');
         }
 
+        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId));
+        const data = await res.json();
+
+        // Populate KPIs
         if (data.daily_physiology && data.daily_physiology.length > 0) {
           const latest = data.daily_physiology[0];
-          document.getElementById('kpi-rhr').innerText = (latest.resting_heart_rate != null) ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
-          document.getElementById('kpi-hrv').innerText = (latest.hrv_rmssd != null && !isNaN(latest.hrv_rmssd)) ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
-          const bbVal = (latest.body_battery_max != null) ? latest.body_battery_max : (latest.body_battery_end_of_day != null ? latest.body_battery_end_of_day : null);
-          document.getElementById('kpi-bb').innerText = (bbVal != null) ? (bbVal + ' / 100') : '-- / 100';
-
+          document.getElementById('kpi-rhr').innerText = latest.resting_heart_rate ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
+          document.getElementById('kpi-hrv').innerText = latest.hrv_rmssd ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
+          document.getElementById('kpi-bb').innerText = latest.body_battery_max ? (latest.body_battery_max + ' / 100') : '-- / 100';
           renderPhysioChart(data.daily_physiology.slice().reverse());
         } else {
           document.getElementById('kpi-rhr').innerText = '-- bpm';
           document.getElementById('kpi-hrv').innerText = '-- ms';
           document.getElementById('kpi-bb').innerText = '-- / 100';
           if (physioChart) { physioChart.destroy(); physioChart = null; }
+          document.getElementById('chart-physio').innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiológicos registrados aún.</div>';
         }
 
-        // Zones
+        if (data.health_status) {
+          document.getElementById('kpi-feeling').innerText = data.health_status.feeling || '--';
+        } else {
+          document.getElementById('kpi-feeling').innerText = '--';
+        }
+
+        // Render Zones
         renderZones(data.profile?.custom_zones || { z1_max: 135, z2_max: 152, z3_max: 165, z4_max: 178 });
 
-        // Activities
+        // Render Activities
         renderActivities(data.activities || []);
+
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       }
     }
 
     function renderZones(zones) {
-      const c = document.getElementById('zones-container');
-      c.innerHTML = `
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 1: Active Recovery</span><span>< ${zones.z1_max} bpm</span></div>
-          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-sky-400 h-2 rounded-full" style="width: 20%"></div></div>
+      const zContainer = document.getElementById('zones-container');
+      const zoneDefs = [
+        { name: 'Zone 1 - Recovery', max: zones.z1_max || 135, color: 'bg-blue-500' },
+        { name: 'Zone 2 - Aerobic Base', max: zones.z2_max || 152, color: 'bg-emerald-500' },
+        { name: 'Zone 3 - Tempo', max: zones.z3_max || 165, color: 'bg-amber-500' },
+        { name: 'Zone 4 - Threshold', max: zones.z4_max || 178, color: 'bg-orange-500' },
+        { name: 'Zone 5 - Anaerobic', max: 'Max', color: 'bg-rose-500' }
+      ];
+      zContainer.innerHTML = zoneDefs.map(z => `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-300 font-medium">${z.name}</span>
+            <span class="font-mono text-slate-400">&lt; ${z.max} bpm</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2">
+            <div class="${z.color} h-2 rounded-full" style="width: 100%"></div>
+          </div>
         </div>
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 2: Aerobic Base (AeT)</span><span>${zones.z1_max} - ${zones.z2_max} bpm</span></div>
-          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width: 40%"></div></div>
-        </div>
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 3: Tempo</span><span>${zones.z2_max} - ${zones.z3_max} bpm</span></div>
-          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width: 60%"></div></div>
-        </div>
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 4: Sub-Threshold (AnT)</span><span>${zones.z3_max} - ${zones.z4_max} bpm</span></div>
-          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-orange-500 h-2 rounded-full" style="width: 80%"></div></div>
-        </div>
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 5: VO2 Max / Anaerobic</span><span>> ${zones.z4_max} bpm</span></div>
-          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width: 100%"></div></div>
-        </div>
-      `;
+      `).join('');
     }
 
-    function renderPhysioChart(seriesData) {
-      const dates = seriesData.map(d => (d.date ? String(d.date).substring(5) : ''));
-      const rhr = seriesData.map(d => d.resting_heart_rate);
-      const hrv = seriesData.map(d => (d.hrv_rmssd != null ? Math.round(d.hrv_rmssd) : null));
+    function renderPhysioChart(series) {
+      const dates = series.map(s => s.date);
+      const rhr = series.map(s => s.resting_heart_rate);
+      const hrv = series.map(s => s.hrv_rmssd);
 
       const options = {
+        chart: { type: 'line', height: 240, toolbar: { show: false }, background: 'transparent' },
+        theme: { mode: 'dark' },
+        stroke: { curve: 'smooth', width: 2 },
         series: [
-          { name: 'RHR (bpm)', data: rhr },
+          { name: 'Resting HR (bpm)', data: rhr },
           { name: 'HRV RMSSD (ms)', data: hrv }
         ],
-        chart: {
-          type: 'line',
-          height: 250,
-          background: 'transparent',
-          toolbar: { show: false }
-        },
-        colors: ['#38bdf8', '#34d399'],
-        stroke: { curve: 'smooth', width: 3 },
-        theme: { mode: 'dark' },
         xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
-        yaxis: [
-          { title: { text: 'RHR (bpm)', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } },
-          { opposite: true, title: { text: 'HRV (ms)', style: { color: '#34d399' } }, labels: { style: { colors: '#94a3b8' } } }
-        ],
-        grid: { borderColor: '#334155' }
+        yaxis: { labels: { style: { colors: '#94a3b8' } } },
+        colors: ['#ef4444', '#3b82f6'],
+        grid: { borderColor: '#1e293b' }
       };
 
-      if (physioChart) {
-        physioChart.destroy();
-      }
+      if (physioChart) physioChart.destroy();
       physioChart = new ApexCharts(document.getElementById('chart-physio'), options);
       physioChart.render();
     }
 
     function renderActivities(activities) {
       const tbody = document.getElementById('activities-tbody');
-      if (!activities || activities.length === 0) {
+      if (activities.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No activities recorded yet.</td></tr>';
         return;
       }
-      tbody.innerHTML = activities.map(function(a) {
-        let dateStr = '--';
-        if (a.start_time) {
-          try {
-            dateStr = new Date(a.start_time).toLocaleDateString();
-          } catch (e) {
-            dateStr = String(a.start_time).substring(0, 10);
-          }
-        }
-        const distKm = ((a.distance_meters || a.distance_m || 0) / 1000).toFixed(2);
-        const durMin = Math.round((a.duration_seconds || a.duration_sec || 0) / 60);
-        const hr = (a.avg_heart_rate || a.avg_hr) ? Math.round(a.avg_heart_rate || a.avg_hr) + ' bpm' : '--';
-        const pwr = (a.avg_power && !isNaN(a.avg_power)) ? Math.round(a.avg_power) + ' W' : (a.aerobic_training_effect != null ? a.aerobic_training_effect : '--');
-        const actName = a.activity_name || a.name || 'Training Session';
-        const actType = a.activity_type || a.type || 'running';
-
-        return '<tr class="hover:bg-slate-800/40 transition">' +
-          '<td class="py-3 font-medium text-slate-300">' + dateStr + '</td>' +
-          '<td class="font-medium text-white">' + actName + '</td>' +
-          '<td class="capitalize text-slate-400">' + actType + '</td>' +
-          '<td>' + distKm + ' km</td>' +
-          '<td>' + durMin + ' min</td>' +
-          '<td>' + hr + '</td>' +
-          '<td>' + pwr + '</td>' +
-        '</tr>';
-      }).join('');
+      tbody.innerHTML = activities.map(a => `
+        <tr class="hover:bg-slate-800/40 transition">
+          <td class="py-3 px-2 font-medium">${a.start_time ? new Date(a.start_time).toLocaleDateString() : '--'}</td>
+          <td class="font-semibold text-slate-200">${a.activity_name || 'Run'}</td>
+          <td class="capitalize">${a.activity_type || 'running'}</td>
+          <td>${((a.distance_meters || 0) / 1000).toFixed(2)} km</td>
+          <td>${Math.round((a.duration_seconds || 0) / 60)} min</td>
+          <td>${Math.round(a.avg_heart_rate || 0)} bpm</td>
+          <td>${a.aerobic_training_effect || a.summary?.slice(0, 30) || '--'}</td>
+        </tr>
+      `).join('');
     }
 
     async function sendChatMessage(e) {
@@ -1134,6 +1068,10 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
+    function refreshData() {
+      loadDashboard();
+    }
+
     window.addEventListener('DOMContentLoaded', async () => {
       await initAthleteSelector();
       await loadDashboard();
@@ -1145,7 +1083,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
 
 def _sanitize_for_json(data: Any) -> Any:
-    """Recursively replaces float NaN/Inf with None to allow safe JSON serialization."""
+    """Recursively replaces NaN and Infinity floats with None for valid JSON serialization."""
     if isinstance(data, float):
         if math.isnan(data) or math.isinf(data):
             return None
@@ -1165,7 +1103,7 @@ async def setup_page():
 
 @router.post("/setup/save")
 async def save_setup(payload: SetupConfigPayload):
-    """Initializes the chosen storage engine, creates user profile, securely encrypts tokens, and seeds demo data."""
+    """Initializes athlete profile, encrypts tokens, and optionally seeds demo data."""
     engine = get_storage_engine(mode="local" if payload.storage_mode == "local" else "gcp")
     vault = get_vault()
 
@@ -1176,10 +1114,6 @@ async def save_setup(payload: SetupConfigPayload):
         "user_id": payload.user_id,
         "watch_provider": payload.watch_provider,
         "storage_mode": payload.storage_mode,
-        "llm_provider": payload.llm_provider,
-        "llm_base_url": payload.llm_base_url,
-        "embeddings_provider": payload.embeddings_provider,
-        "embedding_base_url": payload.embedding_base_url,
         "setup_completed_at": datetime.now().isoformat(),
     }
     engine.update_user_profile(payload.user_id, updated_profile)
@@ -1187,11 +1121,11 @@ async def save_setup(payload: SetupConfigPayload):
     # 2. Encrypted Vault token persistence
     has_tokens = False
 
-    # A. Garmin SSO Token or Ticket Paste
+    # Garmin SSO Token or Ticket Paste
     if payload.garmin_sso_tokens:
-        tok = None
         raw_val = payload.garmin_sso_tokens.strip()
         ticket_match = re.search(r"(ST-[A-Za-z0-9\-]+)", raw_val)
+        tok = None
         if ticket_match:
             ticket = ticket_match.group(1)
             try:
@@ -1205,11 +1139,11 @@ async def save_setup(payload: SetupConfigPayload):
                 if "401" in err_str or "Unauthorized" in err_str:
                     detail = (
                         f"Garmin rechazó el ticket ({ticket[:12]}...) con 401 Unauthorized. "
-                        "Los tickets web de Garmin expiran en pocos segundos (o Garmin bloqueó el canje web temporalmente). "
-                        "💡 Te sugerimos pegar directamente tu JSON de tokens de sesión ('di_token' y 'di_refresh_token') o activar el 'Modo Simulado'."
+                        "Los tickets web de Garmin expiran en pocos segundos. "
+                        "💡 Te sugerimos pegar directamente tu JSON de sesión o activar el 'Modo Simulado'."
                     )
                 else:
-                    detail = f"Error al canjear el ticket de Garmin ({ticket[:10]}...): {err_str}. Verificá que el ticket sea reciente."
+                    detail = f"Error al canjear ticket de Garmin: {err_str}."
                 raise HTTPException(status_code=400, detail=detail)
 
         if not tok:
@@ -1219,7 +1153,7 @@ async def save_setup(payload: SetupConfigPayload):
                 if not ticket_match:
                     raise HTTPException(
                         status_code=400,
-                        detail="Formato de token de Garmin no reconocido. Pegá la URL con 'ticket=ST-...' generada tras iniciar sesión o el JSON de sesión.",
+                        detail="Formato de token de Garmin no reconocido. Pegá la URL con 'ticket=ST-...' o el JSON de sesión.",
                     )
 
         if tok:
@@ -1227,36 +1161,13 @@ async def save_setup(payload: SetupConfigPayload):
             has_tokens = True
             log.info(f"🔒 Garmin tokens encrypted into vault for '{payload.user_id}'.")
 
-    # B. Fitbit Token JSON Paste
-    if payload.fitbit_token_json:
-        try:
-            tok = json.loads(payload.fitbit_token_json)
-            vault.store_tokens("fitbit", payload.user_id, tok)
-
-            has_tokens = True
-            log.info(f"🔒 Fitbit tokens encrypted into vault for '{payload.user_id}'.")
-        except Exception as e:
-            log.warning(f"Failed to parse fitbit_token_json: {e}")
-
-    # C. Google Health Token JSON Paste
-    if payload.google_token_json:
-        try:
-            tok = json.loads(payload.google_token_json)
-            vault.store_tokens("google_health", payload.user_id, tok)
-
-            has_tokens = True
-            log.info(f"🔒 Google Health tokens encrypted into vault for '{payload.user_id}'.")
-        except Exception as e:
-            log.warning(f"Failed to parse google_token_json: {e}")
-
-    # 3. Seed mock biometric data if requested or in local-first mock mode without live tokens
+    # Seed mock biometric data if requested
     if payload.use_mock_data or (payload.storage_mode == "local" and not has_tokens):
         seed_mock_biometric_data(engine, payload.user_id, provider=payload.watch_provider)
 
-    # 4. Generate initial API key for external agents / CLI
+    # Generate initial API key
     api_key = engine.create_api_key(payload.user_id, name="initial_setup_key")
 
-    log.info(f"✅ Setup completed successfully for user '{payload.user_id}' with mode '{payload.storage_mode}'")
     return {
         "status": "success",
         "user_id": payload.user_id,
@@ -1264,6 +1175,65 @@ async def save_setup(payload: SetupConfigPayload):
         "api_key": api_key,
         "watch_provider": payload.watch_provider,
     }
+
+
+@router.post("/setup/system/save")
+async def save_system_setup(payload: SystemConfigPayload):
+    """Saves system-level infrastructure configuration."""
+    if payload.llm_base_url:
+        os.environ["OLLAMA_BASE_URL"] = payload.llm_base_url
+    if payload.llm_api_key:
+        os.environ["OLLAMA_API_KEY"] = payload.llm_api_key
+        os.environ["OPENAI_API_KEY"] = payload.llm_api_key
+    if payload.llm_provider:
+        os.environ["LLM_PROVIDER"] = payload.llm_provider
+    if payload.embeddings_provider:
+        os.environ["EMBEDDINGS_PROVIDER"] = payload.embeddings_provider
+
+    return {
+        "status": "success",
+        "storage_mode": payload.storage_mode,
+        "llm_provider": payload.llm_provider,
+        "embeddings_provider": payload.embeddings_provider,
+    }
+
+
+@router.post("/setup/api-key")
+async def generate_api_key_endpoint(payload: ApiKeyRequest):
+    """Generates an API key for the athlete to use with MCP or external tools."""
+    engine = get_storage_engine()
+    raw_key = engine.create_api_key(payload.user_id, name=payload.name)
+    return {
+        "status": "success",
+        "user_id": payload.user_id,
+        "api_key": raw_key,
+        "mcp_url": "/mcp",
+        "mcp_config": {
+            "mcpServers": {
+                "biometric-ai": {
+                    "url": "http://localhost:8002/mcp",
+                    "headers": {
+                        "X-API-Key": raw_key,
+                    },
+                }
+            }
+        },
+    }
+
+
+@router.post("/athletes/delete")
+@router.delete("/athletes/{user_id}")
+async def delete_athlete_endpoint(
+    user_id: str | None = None,
+    payload: DeleteAthletePayload | None = None,
+):
+    """Deletes an athlete and all associated data from DuckDB, SQLite, and Vault."""
+    target_user = user_id or (payload.user_id if payload else None)
+    if not target_user:
+        raise HTTPException(status_code=400, detail="Missing user_id parameter.")
+    engine = get_storage_engine()
+    result = engine.delete_user_data(target_user)
+    return {"status": "success", "user_id": target_user, "deleted_data": result}
 
 
 class GarminExchangePayload(BaseModel):
@@ -1278,7 +1248,7 @@ async def exchange_garmin_ticket_endpoint(payload: GarminExchangePayload):
     if not ticket_match:
         raise HTTPException(
             status_code=400,
-            detail="No se encontró un ticket válido (debe contener 'ST-...'). Verificá que copiaste la URL completa generada por Garmin tras el login.",
+            detail="No se encontró un ticket válido (debe contener 'ST-...'). Verificá que copiaste la URL completa tras el login.",
         )
     ticket = ticket_match.group(1)
     try:
@@ -1297,8 +1267,8 @@ async def exchange_garmin_ticket_endpoint(payload: GarminExchangePayload):
         if "401" in err_str or "Unauthorized" in err_str:
             detail = (
                 f"Garmin rechazó el ticket ({ticket[:12]}...) con 401 Unauthorized. "
-                "Los tickets web de Garmin expiran en pocos segundos (o Garmin bloqueó el canje web temporalmente). "
-                "💡 Te sugerimos pegar directamente tu JSON de tokens de sesión ('di_token' y 'di_refresh_token') o activar el 'Modo Simulado'."
+                "Los tickets web de Garmin expiran en pocos segundos. "
+                "💡 Te sugerimos pegar directamente tu JSON de sesión o activar el 'Modo Simulado'."
             )
         else:
             detail = f"Error al canjear ticket con Garmin ({ticket[:10]}...): {err_str}."
@@ -1319,24 +1289,24 @@ async def google_auth_login(
     """Initiates Google Health OAuth 2.0 PKCE authorization flow."""
     from fitbit_training_toolkit_sdk.auth.google_auth import GoogleHealthOAuthClient
 
+    effective_client_id = client_id or os.getenv(
+        "GOOGLE_HEALTH_CLIENT_ID",
+        "188311881874-03v3k6i5svn4n1804alg6nv75pq1otc7.apps.googleusercontent.com",
+    )
     base_url = str(request.base_url).rstrip("/")
     forwarded_proto = request.headers.get("x-forwarded-proto")
     if forwarded_proto and base_url.startswith("http://") and forwarded_proto == "https":
         base_url = "https://" + base_url[len("http://") :]
 
-    # Google OAuth strictly rejects raw private IP addresses in redirect_uri for Web Apps.
-    # Normalize private IPs to localhost so Google accepts the callback via the SSH tunnel.
-    parsed_host = request.url.hostname or ""
-    if parsed_host.startswith("192.168.") or parsed_host.startswith("10.") or parsed_host.startswith("172."):
-        port_part = f":{request.url.port}" if request.url.port else ""
-        redirect_uri = f"http://localhost{port_part}/auth/google/callback"
-    else:
+    if "localhost" in base_url or "127.0.0.1" in base_url:
         redirect_uri = f"{base_url}/auth/google/callback"
+    else:
+        redirect_uri = "http://localhost:8002/auth/google/callback"
 
-    effective_client_id = client_id or os.getenv("GOOGLE_HEALTH_CLIENT_ID", "local-client.apps.googleusercontent.com")
     oauth_client = GoogleHealthOAuthClient(
         client_id=effective_client_id,
         redirect_uri=redirect_uri,
+        client_secret=os.getenv("GOOGLE_HEALTH_CLIENT_SECRET"),
         scopes=[
             "https://www.googleapis.com/auth/fitness.activity.read",
             "https://www.googleapis.com/auth/fitness.sleep.read",
