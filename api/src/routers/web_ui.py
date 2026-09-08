@@ -234,7 +234,12 @@ SETUP_HTML = """<!DOCTYPE html>
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <label class="block text-sm font-semibold text-slate-300">2. Dispositivo / Tracker Biométrico</label>
-            <span id="tracker-status-pill" class="text-[11px] font-mono text-slate-400">Consultando estado...</span>
+            <div class="flex items-center gap-2">
+              <span id="tracker-status-pill" class="text-[11px] font-mono text-slate-400">Consultando estado...</span>
+              <button type="button" id="btn-sync-now" onclick="triggerSyncNow()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2.5 py-1 rounded-lg border border-emerald-500/50 shadow transition flex items-center gap-1.5">
+                <span>⚡</span> Sincronizar Ahora
+              </button>
+            </div>
           </div>
           <select id="watch_provider" onchange="toggleTrackerOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
             <option value="garmin">Garmin Connect Integration (FIT / Telemetry)</option>
@@ -584,6 +589,33 @@ SETUP_HTML = """<!DOCTYPE html>
         }
       } catch (err) {
         console.error('Error loading athletes:', err);
+      }
+    }
+
+
+    async function triggerSyncNow() {
+      const athleteSelect = document.getElementById('user_id_select');
+      const inputId = document.getElementById('user_id');
+      const userId = (athleteSelect && athleteSelect.value !== 'new' ? athleteSelect.value : (inputId ? inputId.value : '')).trim();
+      if (!userId) {
+        alert('Por favor selecciona o ingresa un User ID de atleta primero.');
+        return;
+      }
+      const btn = document.getElementById('btn-sync-now');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Sincronizando...';
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(userId) + '/sync?days_back=7', { method: 'POST' });
+        const data = await res.json();
+        alert('✅ ' + data.message + ' En ~30 segundos tus actividades y biometría estarán disponibles en el Dashboard.');
+      } catch (e) {
+        alert('⚠️ Error al iniciar sincronización: ' + e);
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }, 3000);
       }
     }
 
@@ -1042,6 +1074,11 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             🗑️
           </button>
         </div>
+
+        <!-- Direct Sync Button -->
+        <button id="btn-dash-sync" onclick="syncAthleteData()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+          <span>⚡</span> Sync Biometrics
+        </button>
 
         <!-- Refresh Button -->
         <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
@@ -2010,3 +2047,24 @@ async def dashboard_data(user_id: str | None = None):
         "activities": recent_acts,
     }
     return _sanitize_for_json(raw_payload)
+
+@router.post("/athletes/{user_id}/sync")
+async def trigger_athlete_sync(user_id: str, days_back: int = 7):
+    """Triggers an incremental background biometric sync for the athlete."""
+    import threading
+    from src.tools.etl_job import run_etl
+
+    def _sync():
+        try:
+            log.info(f"🔄 Direct UI sync started for athlete {user_id} (days_back={days_back})...")
+            run_etl(user_id=user_id, days_back=days_back)
+        except Exception as e:
+            log.error(f"Manual sync failed for {user_id}: {e}")
+
+    threading.Thread(target=_sync, daemon=True).start()
+    return {
+        "status": "started",
+        "user_id": user_id,
+        "days_back": days_back,
+        "message": f"Sincronización iniciada en segundo plano para {user_id}.",
+    }

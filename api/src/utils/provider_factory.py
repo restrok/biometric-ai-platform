@@ -89,7 +89,35 @@ def get_provider(
         except Exception as e:
             log.warning(f"Proactive refresh failed in factory for {user_id}: {e}")
 
-    # 1. Try to load from Secret Manager
+    # 1. Try to load from LocalSecureVault first (Local-first encrypted storage)
+    try:
+        from src.utils.vault import get_vault
+
+        vault_tokens = get_vault().retrieve_tokens("garmin", target_user)
+        if vault_tokens:
+            token_dir = Path.home() / ".garminconnect"
+            token_dir.mkdir(parents=True, exist_ok=True)
+            token_file = token_dir / f"garmin_tokens_{target_user}.json"
+            with open(token_file, "w") as f:
+                json.dump(vault_tokens, f, indent=4)
+            try:
+                os.chmod(token_file, 0o600)
+            except Exception:
+                pass
+            log.info(f"Using Garmin tokens from LocalSecureVault for user: {target_user}")
+            provider = GarminProvider(token_path=token_file)
+            if hasattr(provider, "client") and not getattr(provider.client, "display_name", None):
+                try:
+                    settings = provider.client.get_userprofile_settings()
+                    provider.client.display_name = settings.get("displayName")
+                except Exception as e:
+                    log.debug(f"Could not populate display_name for GarminProvider: {e}")
+            _providers[cache_key] = provider
+            return provider
+    except Exception as e:
+        log.warning(f"Failed to load Garmin tokens from LocalSecureVault for {target_user}: {e}")
+
+    # 2. Try to load from Secret Manager
     secret_base_name = os.getenv("GARMIN_TOKENS_SECRET_NAME", "garmin-tokens")
     secret_name = f"{secret_base_name}-{user_id}" if user_id else secret_base_name
 
@@ -129,5 +157,11 @@ def get_provider(
         raise Exception("Authentication token not found in Secret Manager or local file.")
 
     provider = GarminProvider(token_path=found_token_file)
+    if hasattr(provider, "client") and not getattr(provider.client, "display_name", None):
+        try:
+            settings = provider.client.get_userprofile_settings()
+            provider.client.display_name = settings.get("displayName")
+        except Exception:
+            pass
     _providers[cache_key] = provider
     return provider

@@ -35,15 +35,33 @@ if not PROJECT_ID or not BUCKET_NAME:
 
 
 def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timestamp | None:
-    """Queries BigQuery to find the latest date stored in a table.
+    """Queries BigQuery or local DuckDB to find the latest date stored in a table."""
+    if os.getenv("STORAGE_MODE") == "local":
+        try:
+            from src.storage.factory import get_storage_engine
+            engine = get_storage_engine(mode="local")
+            duckdb_path = getattr(engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb"))
+            import duckdb
+            conn = duckdb.connect(duckdb_path)
+            try:
+                exists = conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]).fetchone()[0] > 0
+                if exists:
+                    cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
+                    date_col = "date" if "date" in cols else ("start_time" if "start_time" in cols else None)
+                    if date_col:
+                        where = f"WHERE user_id = '{user_id}'" if user_id and "user_id" in cols else ""
+                        res = conn.execute(f"SELECT MAX({date_col}) FROM {table_name} {where}").fetchone()
+                        if res and res[0]:
+                            return pd.to_datetime(res[0])
+            finally:
+                conn.close()
+        except Exception as e:
+            log.debug(f"Could not query local DuckDB last sync date for {table_name}: {e}")
+        return None
 
-    Args:
-        table_name: Name of the BigQuery table.
-        user_id: Optional user ID to filter by.
+    if not PROJECT_ID:
+        return None
 
-    Returns:
-        The latest date as a pandas Timestamp, or None if not found.
-    """
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
     try:
@@ -64,12 +82,130 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
     return None
 
 
+def _upsert_to_local_storage(
+    df: pd.DataFrame,
+    table_name: str,
+    unique_key: str | list[str] = "date",
+    user_id: str | None = None,
+) -> None:
+    """Stores DataFrame into local DuckDB and canonical LocalStorageEngine entities."""
+    if df.empty:
+        return
+
+    import uuid
+    import duckdb
+    from src.storage.factory import get_storage_engine
+
+    if user_id and "user_id" not in df.columns:
+        df = df.copy()
+        df["user_id"] = user_id
+
+    engine = get_storage_engine(mode="local")
+    duckdb_path = getattr(engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb"))
+
+    conn = duckdb.connect(duckdb_path)
+    try:
+        conn.register("_temp_incoming", df)
+        exists = conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]).fetchone()[0] > 0
+        if not exists:
+            conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _temp_incoming")
+            log.info(f"Created local DuckDB table '{table_name}' with {len(df)} rows.")
+        else:
+            existing_cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
+            keys = [unique_key] if isinstance(unique_key, str) else list(unique_key)
+            key_cols = [k for k in keys if k.lower() in existing_cols and k in df.columns]
+
+            if key_cols:
+                where_clauses = []
+                for _, row in df.iterrows():
+                    parts = []
+                    for k in key_cols:
+                        val = row[k]
+                        if pd.isna(val):
+                            continue
+                        if isinstance(val, (int, float)):
+                            parts.append(f"{k} = {val}")
+                        else:
+                            parts.append(f"{k} = '{val}'")
+                    if user_id and "user_id" in existing_cols:
+                        parts.append(f"user_id = '{user_id}'")
+                    if parts:
+                        where_clauses.append(f"({' AND '.join(parts)})")
+                if where_clauses:
+                    del_sql = f"DELETE FROM {table_name} WHERE {' OR '.join(where_clauses[:500])}"
+                    try:
+                        conn.execute(del_sql)
+                    except Exception as e:
+                        log.debug(f"DuckDB delete before upsert failed: {e}")
+
+            matching_cols = [c for c in df.columns if c.lower() in existing_cols]
+            if matching_cols:
+                cols_str = ", ".join(matching_cols)
+                conn.execute(f"INSERT INTO {table_name} ({cols_str}) SELECT {cols_str} FROM _temp_incoming")
+    except Exception as e:
+        log.warning(f"DuckDB local sync warning for {table_name}: {e}")
+    finally:
+        conn.close()
+
+    # Update canonical tables for Dashboard
+    try:
+        if table_name == "recent_activities":
+            activities_to_insert = []
+            for _, row in df.iterrows():
+                act_dict = {
+                    "activity_id": str(row.get("id") or row.get("activity_id") or uuid.uuid4()),
+                    "activity_name": str(row.get("name") or row.get("activity_name") or "Activity"),
+                    "activity_type": str(row.get("type") or row.get("activity_type") or "running"),
+                    "start_time": str(row.get("date") or row.get("start_time") or datetime.now(UTC).isoformat()),
+                    "duration_seconds": float(row.get("moving_duration_sec") or row.get("duration_sec") or row.get("duration_seconds") or 0.0),
+                    "distance_meters": float(row.get("distance_m") or row.get("distance_meters") or 0.0),
+                    "avg_heart_rate": float(row.get("avg_hr") or row.get("avg_heart_rate") or 0.0) if pd.notna(row.get("avg_hr") or row.get("avg_heart_rate")) else None,
+                    "max_heart_rate": float(row.get("max_hr") or row.get("max_heart_rate") or 0.0) if pd.notna(row.get("max_hr") or row.get("max_heart_rate")) else None,
+                    "aerobic_training_effect": float(row.get("aerobic_training_effect") or 0.0) if pd.notna(row.get("aerobic_training_effect")) else None,
+                    "anaerobic_training_effect": float(row.get("anaerobic_training_effect") or 0.0) if pd.notna(row.get("anaerobic_training_effect")) else None,
+                    "trimp": float(row.get("trimp") or 0.0) if pd.notna(row.get("trimp")) else None,
+                    "summary": row.get("summary") or {},
+                }
+                activities_to_insert.append(act_dict)
+            if activities_to_insert:
+                engine.insert_activities(user_id or "default_user", activities_to_insert)
+                log.info(f"✅ Synced {len(activities_to_insert)} activities into LocalStorageEngine.")
+
+        elif table_name in ("daily_physiology", "hrv_history", "sleep_history"):
+            phys_records = []
+            for _, row in df.iterrows():
+                d_str = str(row.get("date"))[:10]
+                rec = {
+                    "date": d_str,
+                    "resting_heart_rate": int(row["resting_heart_rate"]) if "resting_heart_rate" in row and pd.notna(row["resting_heart_rate"]) else None,
+                    "hrv_sdnn": float(row["hrv_sdnn"]) if "hrv_sdnn" in row and pd.notna(row["hrv_sdnn"]) else None,
+                    "hrv_rmssd": float(row["hrv_rmssd"]) if "hrv_rmssd" in row and pd.notna(row["hrv_rmssd"]) else (float(row["avg_hrv"]) if "avg_hrv" in row and pd.notna(row["avg_hrv"]) else None),
+                    "body_battery_max": int(row["body_battery_max"]) if "body_battery_max" in row and pd.notna(row["body_battery_max"]) else None,
+                    "body_battery_min": int(row["body_battery_min"]) if "body_battery_min" in row and pd.notna(row["body_battery_min"]) else None,
+                    "stress_avg": int(row["stress_avg"]) if "stress_avg" in row and pd.notna(row["stress_avg"]) else None,
+                    "sleep_duration_seconds": float(row["duration_sec"]) if "duration_sec" in row and pd.notna(row["duration_sec"]) else None,
+                    "sleep_score": int(row["quality"]) if "quality" in row and pd.notna(row["quality"]) else None,
+                }
+                phys_records.append(rec)
+            if phys_records:
+                engine.insert_daily_physiology(user_id or "default_user", phys_records)
+                log.info(f"✅ Synced {len(phys_records)} {table_name} records into LocalStorageEngine.")
+    except Exception as e:
+        log.warning(f"Could not map {table_name} to LocalStorageEngine canonical tables: {e}")
+
 def upsert_to_bq(
     df: pd.DataFrame,
     table_name: str,
     unique_key: str | list[str] = "date",
     user_id: str | None = None,
 ) -> None:
+    if df.empty:
+        return
+    if user_id:
+        df["user_id"] = user_id
+    if os.getenv("STORAGE_MODE") == "local":
+        _upsert_to_local_storage(df, table_name, unique_key=unique_key, user_id=user_id)
+        return
     """Performs an atomic UPSERT in BigQuery.
 
     Automatically aligns DataFrame types with target table schema.
@@ -226,6 +362,10 @@ def upload_to_bq(
     if user_id:
         df["user_id"] = user_id
 
+    if os.getenv("STORAGE_MODE") == "local":
+        _upsert_to_local_storage(df, table_name, user_id=user_id)
+        return
+
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.{table_name}"
 
@@ -257,14 +397,15 @@ def upload_to_bq(
 
 
 def get_current_user_metrics(user_id: str | None = None) -> tuple[int | None, int | None]:
-    """Queries BigQuery to find the current max_hr and resting_hr.
+    """Queries BigQuery or local storage to find the current max_hr and resting_hr."""
+    if os.getenv("STORAGE_MODE") == "local" or not PROJECT_ID:
+        try:
+            from src.storage.factory import get_storage_engine
+            p = get_storage_engine(mode="local").get_user_profile(user_id or "default_user")
+            return p.get("max_hr"), p.get("resting_hr")
+        except Exception:
+            return None, None
 
-    Args:
-        user_id: Optional user ID to filter by.
-
-    Returns:
-        A tuple of (max_hr, resting_hr), or (None, None) if not found.
-    """
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f"{PROJECT_ID}.{DATASET_NAME}.user_profile"
     try:
@@ -634,7 +775,7 @@ def run_etl(
     # --- 4. Training Status ---
     status = get_training_status(client, final_end.strftime("%Y-%m-%d"))
     if status:
-        if status.vo2max is None:
+        if status.vo2max is None and os.getenv("STORAGE_MODE") != "local" and PROJECT_ID:
             try:
                 query = (
                     f"SELECT vo2max FROM `{PROJECT_ID}.{DATASET_NAME}.recent_activities` "
@@ -743,26 +884,25 @@ def run_etl(
 
         # 2. Only proceed if we got a valid response (list)
         if all_calendar_items is not None:
-            bq_client = bigquery.Client(project=PROJECT_ID)
-
-            # SURGICAL WIPE: Only clear the window we just fetched
-            delete_query = f"""
-                DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
-                WHERE user_id = @user_id
-                AND date >= @start_date
-                AND date <= @end_date
-            """
-            job_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-                    bigquery.ScalarQueryParameter("start_date", "DATE", now.date().isoformat()),
-                    bigquery.ScalarQueryParameter("end_date", "DATE", end_window.date().isoformat()),
-                ]
-            )
-            log.info(
-                f"Performing surgical calendar wipe for {user_id} in BigQuery ({now.date()} to {end_window.date()})..."
-            )
-            bq_client.query(delete_query, job_config=job_config).result()
+            if os.getenv("STORAGE_MODE") != "local" and PROJECT_ID:
+                try:
+                    bq_client = bigquery.Client(project=PROJECT_ID)
+                    delete_query = f"""
+                        DELETE FROM `{PROJECT_ID}.{DATASET_NAME}.scheduled_workouts`
+                        WHERE user_id = @user_id
+                        AND date >= @start_date
+                        AND date <= @end_date
+                    """
+                    job_config = bigquery.QueryJobConfig(
+                        query_parameters=[
+                            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+                            bigquery.ScalarQueryParameter("start_date", "DATE", now.date().isoformat()),
+                            bigquery.ScalarQueryParameter("end_date", "DATE", end_window.date().isoformat()),
+                        ]
+                    )
+                    bq_client.query(delete_query, job_config=job_config).result()
+                except Exception as e:
+                    log.warning(f"Could not wipe BigQuery scheduled workouts: {e}")
 
             df_cal = pd.DataFrame(all_calendar_items)
             if not df_cal.empty:

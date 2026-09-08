@@ -113,20 +113,24 @@ class LocalSecureVault:
             "google": [Path.home() / ".google_health", Path("/root/.google_health")],
         }
         for d in legacy_dirs.get(prov, []):
-            legacy_file = d / f"{prov}_tokens_{user_id}.json"
-            if not legacy_file.exists() and prov == "garmin":
-                legacy_file = d / f"garmin_tokens_{user_id}.json"
-            if legacy_file.exists():
-                try:
-                    data = json.loads(legacy_file.read_text())
-                    # Auto-migrate legacy token into encrypted vault and remove plaintext file
-                    self.store_tokens(prov, user_id, data)
-                    with contextlib.suppress(Exception):
-                        legacy_file.unlink()
-                        log.info(f"🧹 Unlinked plaintext legacy token file '{legacy_file}'.")
-                    return data
-                except Exception as e:
-                    log.warning(f"Failed to migrate legacy token file '{legacy_file}': {e}")
+            try:
+                if not d.exists():
+                    continue
+                legacy_file = d / f"{prov}_tokens_{user_id}.json"
+                if not legacy_file.exists() and prov == "garmin":
+                    legacy_file = d / f"garmin_tokens_{user_id}.json"
+                if legacy_file.exists():
+                    try:
+                        data = json.loads(legacy_file.read_text())
+                        self.store_tokens(prov, user_id, data)
+                        with contextlib.suppress(Exception):
+                            legacy_file.unlink()
+                            log.info(f"🧹 Unlinked plaintext legacy token file '{legacy_file}'.")
+                        return data
+                    except Exception as e:
+                        log.warning(f"Failed to migrate legacy token file '{legacy_file}': {e}")
+            except (PermissionError, Exception) as e:
+                log.debug(f"Skipping legacy check for {d}: {e}")
 
         return None
 
