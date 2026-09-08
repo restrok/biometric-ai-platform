@@ -221,6 +221,18 @@ class GCPStorageEngine(StorageEngine):
         if errors:
             log.error(f"❌ BigQuery insert_rows errors: {errors}")
 
+    def insert_daily_physiology(self, user_id: str, records: list[dict[str, Any]]) -> None:
+        if not records:
+            return
+        table_id = f"{self.project_id}.{self.dataset_id}.daily_physiology"
+        rows = [{**r, "user_id": user_id} for r in records]
+        try:
+            errors = self.bq.insert_rows_json(table_id, rows)
+            if errors:
+                log.error(f"❌ Error inserting daily physiology to BigQuery: {errors}")
+        except Exception as e:
+            log.warning(f"⚠️ BigQuery daily physiology insert failed: {e}")
+
     def get_recent_activities(
         self,
         user_id: str,

@@ -1,33 +1,165 @@
 """Web UI router providing zero-configuration Setup wizard and dark-mode Dashboard."""
 
+import json
 import logging
 import math
 import os
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
+from src.storage.base import StorageEngine
 from src.storage.factory import get_storage_engine
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Web UI"])
 
+# In-memory store for pending PKCE authorization flows: state -> {user_id, code_verifier, client_id, redirect_uri}
+_oauth_sessions: dict[str, dict[str, Any]] = {}
+
 
 class SetupConfigPayload(BaseModel):
     storage_mode: str = "local"  # "local" or "gcp"
     user_id: str = "athlete_1"
     llm_provider: str = "ollama"  # "ollama", "openrouter", "google", "openai"
-    llm_model: str = "gemma-4-31b-it"
-    llm_base_url: str | None = "http://localhost:11434/v1"
+    llm_model: str = "deepseek-v4-flash:0731"
+    llm_base_url: str | None = "https://ollama.com/v1"
     llm_api_key: str | None = None
     embeddings_provider: str = "fastembed"  # "fastembed", "ollama", "google"
+    embedding_base_url: str | None = "http://192.168.89.32:11434/v1"
     watch_provider: str = "garmin"  # "garmin", "fitbit", "google_health"
     fitbit_client_id: str | None = None
+    google_client_id: str | None = None
+    google_token_json: str | None = None
+    use_mock_data: bool = False
     generate_key: bool = True
+
+
+def seed_mock_biometric_data(engine: StorageEngine, user_id: str) -> None:
+    """Seeds realistic sample biometric data for instant offline testing and demo."""
+    now = datetime.now()
+    log.info(f"🌱 Seeding simulated biometric data for athlete '{user_id}'...")
+
+    # 1. 14 Days of Daily Physiology (HRV RMSSD, RHR, Sleep, Body Battery)
+    physio_records = []
+    base_hrv = 56.0
+    base_rhr = 59
+    for i in range(14):
+        d = (now - timedelta(days=13 - i)).strftime("%Y-%m-%d")
+        noise = (i % 5) - 2
+        physio_records.append({
+            "date": d,
+            "resting_heart_rate": base_rhr + noise,
+            "hrv_rmssd": round(base_hrv + (noise * 3.5), 1),
+            "hrv_sdnn": round(base_hrv * 1.4, 1),
+            "body_battery_max": min(100, 86 + (noise * 3)),
+            "body_battery_min": max(15, 24 + noise),
+            "stress_avg": 26 - noise,
+            "sleep_duration_seconds": 27000 + (noise * 600),  # ~7.5 hours
+            "sleep_score": min(98, max(65, 84 + (noise * 3))),
+        })
+    engine.insert_daily_physiology(user_id, physio_records)
+
+    # 2. 5 Realistic Running Sessions (Fitbit Air 2026 telemetry simulations)
+    activities = [
+        {
+            "activity_id": f"sim_fitbit_air_{user_id}_1",
+            "activity_name": "Fitbit Air - Morning Tempo Run",
+            "activity_type": "running",
+            "start_time": (now - timedelta(days=1)).strftime("%Y-%m-%dT07:30:00Z"),
+            "duration_seconds": 2640,  # 44m
+            "distance_meters": 8500.0,
+            "avg_heart_rate": 154,
+            "max_heart_rate": 172,
+            "aerobic_training_effect": 3.6,
+            "anaerobic_training_effect": 1.2,
+            "trimp": 98.5,
+            "summary": "Fitbit Air 2026 PPG sensor capture. High tempo interval in Zone 3/4.",
+        },
+        {
+            "activity_id": f"sim_fitbit_air_{user_id}_2",
+            "activity_name": "Fitbit Air - Easy Aerobic Recovery",
+            "activity_type": "running",
+            "start_time": (now - timedelta(days=3)).strftime("%Y-%m-%dT08:00:00Z"),
+            "duration_seconds": 2100,  # 35m
+            "distance_meters": 5600.0,
+            "avg_heart_rate": 134,
+            "max_heart_rate": 145,
+            "aerobic_training_effect": 2.2,
+            "anaerobic_training_effect": 0.0,
+            "trimp": 45.0,
+            "summary": "Low intensity Zone 2 recovery jog with smooth cardiac drift.",
+        },
+        {
+            "activity_id": f"sim_fitbit_air_{user_id}_3",
+            "activity_name": "Fitbit Air - 6x800m VO2 Max Intervals",
+            "activity_type": "running",
+            "start_time": (now - timedelta(days=6)).strftime("%Y-%m-%dT18:15:00Z"),
+            "duration_seconds": 3120,  # 52m
+            "distance_meters": 10200.0,
+            "avg_heart_rate": 165,
+            "max_heart_rate": 184,
+            "aerobic_training_effect": 4.3,
+            "anaerobic_training_effect": 2.8,
+            "trimp": 135.0,
+            "summary": "High intensity interval workout. Rapid post-interval HR recovery.",
+        },
+        {
+            "activity_id": f"sim_fitbit_air_{user_id}_4",
+            "activity_name": "Fitbit Air - Sunday Long Aerobic Run",
+            "activity_type": "running",
+            "start_time": (now - timedelta(days=8)).strftime("%Y-%m-%dT08:30:00Z"),
+            "duration_seconds": 5580,  # 1h 33m
+            "distance_meters": 16400.0,
+            "avg_heart_rate": 146,
+            "max_heart_rate": 162,
+            "aerobic_training_effect": 3.9,
+            "anaerobic_training_effect": 0.4,
+            "trimp": 162.0,
+            "summary": "Endurance base building in Zone 2 with minimal cardiac decoupling.",
+        },
+        {
+            "activity_id": f"sim_fitbit_air_{user_id}_5",
+            "activity_name": "Fitbit Air - Progression Tempo Session",
+            "activity_type": "running",
+            "start_time": (now - timedelta(days=11)).strftime("%Y-%m-%dT07:15:00Z"),
+            "duration_seconds": 2880,  # 48m
+            "distance_meters": 9500.0,
+            "avg_heart_rate": 158,
+            "max_heart_rate": 176,
+            "aerobic_training_effect": 3.8,
+            "anaerobic_training_effect": 1.5,
+            "trimp": 112.0,
+            "summary": "Progressive build from Z2 to threshold Z4 pace.",
+        },
+    ]
+    engine.insert_activities(user_id, activities)
+
+    # 3. Subjective Health Status & Training Goal
+    engine.log_health_status(user_id, {
+        "feeling": "Ready & Rested",
+        "soreness_level": 2,
+        "fatigue_level": 2,
+        "sleep_quality": 4,
+        "readiness_score": 88,
+        "notes": "Simulated Fitbit Air telemetry active. HRV baseline stable.",
+    })
+    engine.save_user_goal(user_id, {
+        "goal_id": f"goal_{user_id}_1",
+        "goal_type": "event",
+        "description": "Sub-40min 10K Target",
+        "target_metric": "pace_10k",
+        "target_value": 240,
+        "target_date": "2026-12-01",
+        "status": "active",
+    })
+    log.info(f"✅ Simulated biometric data successfully seeded for '{user_id}'.")
 
 
 SETUP_HTML = """<!DOCTYPE html>
@@ -75,7 +207,7 @@ SETUP_HTML = """<!DOCTYPE html>
         </div>
         <div class="space-y-2">
           <label class="block text-sm font-semibold text-slate-300">3. Biometric Tracker</label>
-          <select id="watch_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+          <select id="watch_provider" onchange="toggleTrackerOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
             <option value="garmin">Garmin Connect (FIT / Telemetry)</option>
             <option value="fitbit">Fitbit (OAuth2 PKCE / Web API)</option>
             <option value="google_health">Google Health API (Fitbit Air 2026)</option>
@@ -83,11 +215,55 @@ SETUP_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- Google Health / Fitbit Air Configuration Section -->
+      <div id="google-health-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Google Health & Fitbit Air</span>
+            <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+          </div>
+          <span class="text-xs text-slate-400">health.googleapis.com</span>
+        </div>
+
+        <!-- Mode 1: Simulated / Mock Device (Instant Offline Local Testing) -->
+        <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+          <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+            <input type="checkbox" id="use_mock_data" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
+            <span class="text-xs font-semibold text-slate-200">🧪 Enable Simulated Fitbit Air (Instant Offline Demo Data)</span>
+          </label>
+          <p class="text-[11px] text-slate-400 pl-6.5">Zero credentials needed. Automatically seeds 14 days of realistic HRV, sleep stages, Body Battery, and running sessions into DuckDB so you can explore the dashboard immediately.</p>
+        </div>
+
+        <!-- Mode 2: Live Device Connection -->
+        <div class="space-y-2 pt-1">
+          <label class="block text-xs font-medium text-slate-300">Live Device: Google Cloud OAuth Client ID</label>
+          <div class="flex space-x-2">
+            <input type="text" id="google_client_id" placeholder="e.g. 123456-xxx.apps.googleusercontent.com"
+                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+            <button type="button" onclick="connectGoogleOAuth()"
+                    class="bg-white hover:bg-slate-100 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              <span>Connect with Google</span>
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500">Redirects to Google Accounts for PKCE authorization. Callback: <code>/auth/google/callback</code></p>
+        </div>
+
+        <!-- Mode 3: Manual Token JSON Paste -->
+        <details class="text-[11px] text-slate-400">
+          <summary class="cursor-pointer hover:text-slate-300 select-none">Or paste raw token JSON manually</summary>
+          <div class="mt-2 space-y-1">
+            <textarea id="google_token_json" rows="2" placeholder='{"access_token": "ya29...", "refresh_token": "1//..."}'
+                       class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-[10px] font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
+          </div>
+        </details>
+      </div>
+
       <!-- Embeddings & LLM -->
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="block text-sm font-semibold text-slate-300">4. Local Embeddings</label>
-          <select id="embeddings_provider" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+          <select id="embeddings_provider" onchange="toggleEmbeddingOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
             <option value="fastembed">FastEmbed (ONNX, CPU/ARM, 0 GPU)</option>
             <option value="ollama">Ollama (nomic-embed-text)</option>
             <option value="google">Google Gemini Embeddings</option>
@@ -104,36 +280,70 @@ SETUP_HTML = """<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- Ollama Configuration Section -->
+      <!-- Ollama Embedding Settings -->
+      <div id="embedding-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-2">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ollama Embeddings Service</label>
+          <span class="text-xs text-slate-400">nomic-embed-text (768 dims)</span>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Ollama Host URL / IP</label>
+          <input type="text" id="embedding_base_url" value="http://192.168.89.32:11434/v1" placeholder="http://192.168.89.32:11434/v1"
+                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+          <p class="text-[10px] text-slate-500 mt-1">E.g., your ThinkCentre IP: <code>http://192.168.89.32:11434/v1</code> or <code>http://localhost:11434/v1</code></p>
+        </div>
+      </div>
+
+      <!-- Ollama / LLM Configuration Section -->
       <div id="ollama-config-section" class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ollama Endpoint Settings</label>
-          <span class="text-xs text-slate-400">Local or Cloud Hosted</span>
+          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Ollama LLM Settings</label>
+          <span class="text-xs text-slate-400">Ollama Cloud: <code>https://ollama.com/v1</code></span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Base URL</label>
-            <input type="text" id="llm_base_url" value="http://localhost:11434/v1" placeholder="https://ollama.com/v1"
+            <label class="block text-xs text-slate-400 mb-1">Base URL (must end in /v1)</label>
+            <input type="text" id="llm_base_url" value="https://ollama.com/v1" placeholder="https://ollama.com/v1"
                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
           </div>
           <div>
             <label class="block text-xs text-slate-400 mb-1">API Key (Cloud/Remote)</label>
-            <input type="password" id="llm_api_key" placeholder="Optional for local, required for cloud"
+            <input type="password" id="llm_api_key" placeholder="Bearer API Key from ollama.com"
                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
           </div>
         </div>
       </div>
 
-      <div id="status-msg" class="hidden p-4 rounded-xl text-sm"></div>
-
-      <button type="submit" id="submit-btn"
-              class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition duration-150 shadow-lg shadow-blue-600/30">
-        Save & Initialize System
-      </button>
+      <div class="pt-4 border-t border-slate-800 flex justify-end">
+        <button type="submit" id="submit-btn"
+                class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg hover:shadow-blue-500/25 transition">
+          Save Configuration & Launch
+        </button>
+      </div>
     </form>
+
+    <div id="status-msg" class="hidden p-4 rounded-xl text-sm"></div>
   </div>
 
   <script>
+    function toggleTrackerOptions(provider) {
+      const sec = document.getElementById('google-health-config-section');
+      if (provider === 'google_health') {
+        sec.classList.remove('hidden');
+      } else {
+        sec.classList.add('hidden');
+      }
+    }
+
+    function toggleEmbeddingOptions(provider) {
+      const sec = document.getElementById('embedding-config-section');
+      if (provider === 'ollama') {
+        sec.classList.remove('hidden');
+      } else {
+        sec.classList.add('hidden');
+      }
+    }
+
     function toggleLlmOptions(provider) {
       const sec = document.getElementById('ollama-config-section');
       if (provider === 'ollama' || provider === 'openai') {
@@ -141,6 +351,16 @@ SETUP_HTML = """<!DOCTYPE html>
       } else {
         sec.classList.add('hidden');
       }
+    }
+
+    function connectGoogleOAuth() {
+      const userId = document.getElementById('user_id').value || 'athlete_1';
+      const clientId = document.getElementById('google_client_id').value;
+      let url = '/auth/google/login?user_id=' + encodeURIComponent(userId);
+      if (clientId) {
+        url += '&client_id=' + encodeURIComponent(clientId);
+      }
+      window.location.href = url;
     }
 
     async function saveSetup(e) {
@@ -154,9 +374,13 @@ SETUP_HTML = """<!DOCTYPE html>
         user_id: document.getElementById('user_id').value,
         watch_provider: document.getElementById('watch_provider').value,
         embeddings_provider: document.getElementById('embeddings_provider').value,
+        embedding_base_url: document.getElementById('embedding_base_url') ? document.getElementById('embedding_base_url').value : null,
         llm_provider: document.getElementById('llm_provider').value,
         llm_base_url: document.getElementById('llm_base_url').value,
         llm_api_key: document.getElementById('llm_api_key').value || null,
+        google_client_id: document.getElementById('google_client_id') ? document.getElementById('google_client_id').value : null,
+        google_token_json: document.getElementById('google_token_json') ? document.getElementById('google_token_json').value : null,
+        use_mock_data: document.getElementById('use_mock_data') ? document.getElementById('use_mock_data').checked : false,
         generate_key: true
       };
 
@@ -188,6 +412,9 @@ SETUP_HTML = """<!DOCTYPE html>
         btn.innerText = 'Retry Setup';
       }
     }
+
+    // Initialize toggle state
+    toggleTrackerOptions(document.getElementById('watch_provider').value);
   </script>
 </body>
 </html>
@@ -218,100 +445,111 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
       <div class="flex items-center space-x-3">
         <!-- Athlete Switcher Dropdown -->
-        <div class="flex items-center space-x-2 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5">
-          <span class="text-xs text-slate-400">Athlete:</span>
-          <select id="user-select" class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer" onchange="switchAthlete(this.value)">
-            <!-- Options populated dynamically -->
+        <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+          <label for="user-select" class="text-xs font-semibold text-slate-400">Athlete:</label>
+          <select id="user-select" onchange="switchAthlete(this.value)" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
+            <option value="{{ATHLETE_ID}}" selected>{{ATHLETE_ID}}</option>
           </select>
         </div>
-        <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1">
-          <span>🔄</span> Refresh
-        </button>
-        <a href="/setup" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition flex items-center gap-1">
-          <span>⚙️</span> Setup
+
+        <a href="/setup" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-xl transition border border-slate-700">
+          ⚙️ Setup
+        </a>
+        <a href="/docs" target="_blank" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-xl transition border border-slate-700">
+          API Docs
         </a>
       </div>
     </header>
 
-    <!-- Top KPI Row -->
+    <!-- Success notification banner (e.g. from OAuth redirect) -->
+    <div id="oauth-success-banner" class="hidden bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <span class="text-lg">🎉</span>
+        <span class="text-xs text-emerald-200 font-medium">Google Health API (Fitbit Air 2026) connected successfully! Biometric telemetry is live.</span>
+      </div>
+      <button onclick="this.parentElement.remove()" class="text-emerald-400 hover:text-emerald-200 text-xs font-bold px-2 py-1">✕</button>
+    </div>
+
+    <!-- KPIs -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-slate-400 text-xs font-medium">Subjective Feeling</div>
-        <div id="kpi-feeling" class="text-2xl font-bold text-white mt-1 capitalize">--</div>
-        <div class="text-xs text-slate-500 mt-1">Self-reported recovery state</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Resting Heart Rate</div>
+        <div id="kpi-rhr" class="text-3xl font-bold text-white">-- bpm</div>
+        <div class="text-xs text-emerald-400">Baseline resting</div>
       </div>
-      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-slate-400 text-xs font-medium">Resting Heart Rate</div>
-        <div id="kpi-rhr" class="text-2xl font-bold text-rose-400 mt-1">-- bpm</div>
-        <div class="text-xs text-slate-500 mt-1">Basal morning resting rate</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">HRV (RMSSD)</div>
+        <div id="kpi-hrv" class="text-3xl font-bold text-white">-- ms</div>
+        <div class="text-xs text-slate-400">Autonomic recovery</div>
       </div>
-      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-slate-400 text-xs font-medium">HRV RMSSD</div>
-        <div id="kpi-hrv" class="text-2xl font-bold text-blue-400 mt-1">-- ms</div>
-        <div class="text-xs text-slate-500 mt-1">Autonomic nervous balance</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Body Battery</div>
+        <div id="kpi-bb" class="text-3xl font-bold text-blue-400">-- / 100</div>
+        <div class="text-xs text-slate-400">Energy reserves</div>
       </div>
-      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-        <div class="text-slate-400 text-xs font-medium">Body Battery</div>
-        <div id="kpi-bb" class="text-2xl font-bold text-emerald-400 mt-1">-- / 100</div>
-        <div class="text-xs text-slate-500 mt-1">End of day energy reserve</div>
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Subjective Feeling</div>
+        <div id="kpi-feeling" class="text-2xl font-bold text-emerald-400 capitalize">--</div>
+        <div class="text-xs text-slate-400">Athlete check-in</div>
       </div>
     </div>
 
-    <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Physiological Trends -->
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-        <h2 class="text-sm font-semibold text-slate-300 mb-4">Physiological Trends (RHR & HRV)</h2>
+    <!-- Main Grid: Chart & Heart Rate Zones -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- 14-Day Physiology Chart -->
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="font-bold text-lg text-white">14-Day Physiological Recovery Trends</h2>
+          <span class="text-xs text-slate-400">RHR & HRV (RMSSD)</span>
+        </div>
         <div id="chart-physio" class="h-64"></div>
       </div>
-      <!-- Heart Rate Zones -->
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-        <h2 class="text-sm font-semibold text-slate-300 mb-4">Heart Rate Zones (BPM)</h2>
-        <div id="zones-container" class="space-y-3 pt-2">
-          <!-- Populated dynamically -->
+
+      <!-- Zones & Training Intensity -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <h2 class="font-bold text-lg text-white">Heart Rate Training Zones</h2>
+        <div id="zones-container" class="space-y-3">
+          <!-- Populated by JS -->
         </div>
       </div>
     </div>
 
     <!-- Recent Activities Table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-sm font-semibold text-slate-300">Recent Sessions & Telemetry</h2>
-        <span class="text-xs text-slate-500">Last 10 activities</span>
-      </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+      <h2 class="font-bold text-lg text-white">Recent Training Sessions</h2>
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
-          <thead class="text-slate-400 border-b border-slate-800 uppercase tracking-wider">
+        <table class="w-full text-left text-sm text-slate-400">
+          <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
             <tr>
-              <th class="py-2">Date / Time</th>
-              <th class="py-2">Session Name</th>
-              <th class="py-2">Type</th>
-              <th class="py-2">Distance</th>
-              <th class="py-2">Duration</th>
-              <th class="py-2">Avg HR</th>
-              <th class="py-2">Avg Power</th>
+              <th class="py-3 px-2">Date</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Distance</th>
+              <th>Duration</th>
+              <th>Avg HR</th>
+              <th>Power / TE</th>
             </tr>
           </thead>
-          <tbody id="activities-tbody" class="divide-y divide-slate-800/60 text-slate-200">
+          <tbody id="activities-tbody" class="divide-y divide-slate-800/60">
             <tr><td colspan="7" class="py-4 text-center text-slate-500">Loading activities...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Interactive AI Coach Chat -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+    <!-- Chat with AI Coach -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
       <div class="flex items-center space-x-2">
         <span class="text-xl">🤖</span>
-        <h2 class="text-sm font-semibold text-slate-300">Ask Your Biometric AI Coach</h2>
+        <h2 class="font-bold text-lg text-white">Ask Your Biometric AI Coach</h2>
       </div>
-      <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3 text-xs">
-        <div class="text-slate-400">Coach: Hello! I have analyzed your recent biometric data. How can I help with your training today?</div>
+      <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300">
+        <div class="text-slate-500 text-xs">Coach: "Hello! I have loaded your biometric trends and recent running sessions. Ask me about your recovery, cardiac drift, or workout prescription."</div>
       </div>
-      <form class="flex space-x-2" onsubmit="sendChatMessage(event)">
-        <input type="text" id="chat-input" placeholder="e.g. Can I do tempo intervals today given my HRV?"
-               class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
-        <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition">
+      <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
+        <input type="text" id="chat-input" placeholder="e.g. Can I perform a VO2max interval workout today based on my HRV?"
+               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+        <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
           Send
         </button>
       </form>
@@ -321,6 +559,11 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
   <script>
     let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
+
+    // Check for auth callback status
+    if (new URLSearchParams(window.location.search).get('auth') === 'google_success') {
+      document.getElementById('oauth-success-banner')?.classList.remove('hidden');
+    }
 
     async function initAthleteSelector() {
       try {
@@ -383,54 +626,67 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
         // Activities
         renderActivities(data.activities || []);
-
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       }
     }
 
     function renderZones(zones) {
-      const zContainer = document.getElementById('zones-container');
-      const zoneDefs = [
-        { name: 'Zone 1 - Recovery', max: zones.z1_max || 135, color: 'bg-blue-500' },
-        { name: 'Zone 2 - Aerobic Base', max: zones.z2_max || 152, color: 'bg-emerald-500' },
-        { name: 'Zone 3 - Tempo', max: zones.z3_max || 165, color: 'bg-amber-500' },
-        { name: 'Zone 4 - Threshold', max: zones.z4_max || 178, color: 'bg-orange-500' },
-        { name: 'Zone 5 - Anaerobic', max: 'Max', color: 'bg-rose-500' }
-      ];
-      zContainer.innerHTML = zoneDefs.map(function(z) {
-        return '<div>' +
-          '<div class="flex justify-between text-xs mb-1">' +
-            '<span class="text-slate-300 font-medium">' + z.name + '</span>' +
-            '<span class="font-mono text-slate-400">< ' + z.max + ' bpm</span>' +
-          '</div>' +
-          '<div class="w-full bg-slate-800 rounded-full h-2">' +
-            '<div class="' + z.color + ' h-2 rounded-full" style="width: 100%"></div>' +
-          '</div>' +
-        '</div>';
-      }).join('');
+      const c = document.getElementById('zones-container');
+      c.innerHTML = `
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 1: Active Recovery</span><span>< ${zones.z1_max} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-sky-400 h-2 rounded-full" style="width: 20%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 2: Aerobic Base (AeT)</span><span>${zones.z1_max} - ${zones.z2_max} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width: 40%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 3: Tempo</span><span>${zones.z2_max} - ${zones.z3_max} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width: 60%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 4: Sub-Threshold (AnT)</span><span>${zones.z3_max} - ${zones.z4_max} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-orange-500 h-2 rounded-full" style="width: 80%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 5: VO2 Max / Anaerobic</span><span>> ${zones.z4_max} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width: 100%"></div></div>
+        </div>
+      `;
     }
 
-    function renderPhysioChart(series) {
-      const dates = series.map(function(s) { return s.date; });
-      const rhr = series.map(function(s) { return s.resting_heart_rate; });
-      const hrv = series.map(function(s) { return (s.hrv_rmssd != null && !isNaN(s.hrv_rmssd)) ? Math.round(s.hrv_rmssd) : null; });
+    function renderPhysioChart(seriesData) {
+      const dates = seriesData.map(d => (d.date ? String(d.date).substring(5) : ''));
+      const rhr = seriesData.map(d => d.resting_heart_rate);
+      const hrv = seriesData.map(d => (d.hrv_rmssd != null ? Math.round(d.hrv_rmssd) : null));
 
       const options = {
-        chart: { type: 'line', height: 240, toolbar: { show: false }, background: 'transparent' },
-        theme: { mode: 'dark' },
-        stroke: { curve: 'smooth', width: 2 },
         series: [
-          { name: 'Resting HR (bpm)', data: rhr },
+          { name: 'RHR (bpm)', data: rhr },
           { name: 'HRV RMSSD (ms)', data: hrv }
         ],
+        chart: {
+          type: 'line',
+          height: 250,
+          background: 'transparent',
+          toolbar: { show: false }
+        },
+        colors: ['#38bdf8', '#34d399'],
+        stroke: { curve: 'smooth', width: 3 },
+        theme: { mode: 'dark' },
         xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
-        yaxis: { labels: { style: { colors: '#94a3b8' } } },
-        colors: ['#ef4444', '#3b82f6'],
-        grid: { borderColor: '#1e293b' }
+        yaxis: [
+          { title: { text: 'RHR (bpm)', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } },
+          { opposite: true, title: { text: 'HRV (ms)', style: { color: '#34d399' } }, labels: { style: { colors: '#94a3b8' } } }
+        ],
+        grid: { borderColor: '#334155' }
       };
 
-      if (physioChart) physioChart.destroy();
+      if (physioChart) {
+        physioChart.destroy();
+      }
       physioChart = new ApexCharts(document.getElementById('chart-physio'), options);
       physioChart.render();
     }
@@ -485,18 +741,19 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       btn.innerText = 'Thinking...';
 
       try {
-        const res = await fetch('/v1/chat/completions', {
+        const res = await fetch('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-User-ID': currentUserId },
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: msg }]
-          })
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-ID': currentUserId
+          },
+          body: JSON.stringify({ message: msg, user_id: currentUserId })
         });
         const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content || 'No response received.';
+        const reply = data.response || data.message || 'Analysis complete.';
         chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal">' + reply + '</span></div>';
       } catch (err) {
-        chatBox.innerHTML += '<div class="text-rose-400">Error: Could not reach coach API.</div>';
+        chatBox.innerHTML += '<div class="text-rose-400 text-xs">Error communicating with coach: ' + err.message + '</div>';
       } finally {
         btn.disabled = false;
         btn.innerText = 'Send';
@@ -504,20 +761,10 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    function refreshData() {
-      loadDashboard();
-    }
-
-    window.onload = async function() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlUser = urlParams.get('user_id');
-      if (urlUser) {
-        currentUserId = urlUser;
-        document.getElementById('athlete-badge').innerText = urlUser;
-      }
+    window.addEventListener('DOMContentLoaded', async () => {
       await initAthleteSelector();
       await loadDashboard();
-    };
+    });
   </script>
 </body>
 </html>
@@ -545,7 +792,7 @@ async def setup_page():
 
 @router.post("/setup/save")
 async def save_setup(payload: SetupConfigPayload):
-    """Initializes the chosen storage engine and creates the user profile and API key."""
+    """Initializes the chosen storage engine, creates the user profile, tokens, and optional demo data."""
     engine = get_storage_engine(mode="local" if payload.storage_mode == "local" else "gcp")
 
     # 1. Initialize or update user profile
@@ -558,11 +805,34 @@ async def save_setup(payload: SetupConfigPayload):
         "llm_provider": payload.llm_provider,
         "llm_base_url": payload.llm_base_url,
         "embeddings_provider": payload.embeddings_provider,
+        "embedding_base_url": payload.embedding_base_url,
         "setup_completed_at": datetime.now().isoformat(),
     }
     engine.update_user_profile(payload.user_id, updated_profile)
 
-    # 2. Generate initial API key for external agents / CLI
+    # 2. Handle manual Google Health token JSON paste if provided
+    if payload.google_token_json:
+        try:
+            tok_data = json.loads(payload.google_token_json)
+            token_dir = Path.home() / ".google_health"
+            token_dir.mkdir(parents=True, exist_ok=True)
+            (token_dir / f"google_tokens_{payload.user_id}.json").write_text(json.dumps(tok_data, indent=2))
+
+            storage_dir = os.getenv("LOCAL_STORAGE_DIR")
+            if storage_dir:
+                local_tok_dir = Path(storage_dir) / ".google_health"
+                local_tok_dir.mkdir(parents=True, exist_ok=True)
+                (local_tok_dir / f"google_tokens_{payload.user_id}.json").write_text(json.dumps(tok_data, indent=2))
+
+            log.info(f"💾 Saved manual Google Health tokens for '{payload.user_id}'")
+        except Exception as e:
+            log.warning(f"Could not parse manual google_token_json: {e}")
+
+    # 3. Seed mock biometric data if requested or in local-first mock mode
+    if payload.use_mock_data or (payload.storage_mode == "local" and payload.watch_provider in ("google_health", "fitbit") and not payload.google_token_json):
+        seed_mock_biometric_data(engine, payload.user_id)
+
+    # 4. Generate initial API key for external agents / CLI
     api_key = engine.create_api_key(payload.user_id, name="initial_setup_key")
 
     log.info(f"✅ Setup completed successfully for user '{payload.user_id}' with mode '{payload.storage_mode}'")
@@ -573,6 +843,120 @@ async def save_setup(payload: SetupConfigPayload):
         "api_key": api_key,
         "watch_provider": payload.watch_provider,
     }
+
+
+@router.get("/auth/google/login")
+async def google_auth_login(
+    request: Request,
+    user_id: str = Query("athlete_1", description="Target athlete or tenant user ID"),
+    client_id: str | None = Query(None, description="Optional Google OAuth Client ID"),
+):
+    """Initiates Google Health OAuth 2.0 PKCE authorization flow."""
+    from fitbit_training_toolkit_sdk.auth.google_auth import GoogleHealthOAuthClient
+
+    effective_client_id = client_id or os.getenv("GOOGLE_HEALTH_CLIENT_ID", "local-client.apps.googleusercontent.com")
+    base_url = str(request.base_url).rstrip("/")
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto and base_url.startswith("http://") and forwarded_proto == "https":
+        base_url = "https://" + base_url[len("http://"):]
+    redirect_uri = f"{base_url}/auth/google/callback"
+
+    oauth_client = GoogleHealthOAuthClient(
+        client_id=effective_client_id,
+        redirect_uri=redirect_uri,
+    )
+    state = f"{user_id}:{secrets.token_urlsafe(16)}"
+    auth_url, verifier = oauth_client.get_authorization_url(state=state)
+
+    _oauth_sessions[state] = {
+        "user_id": user_id,
+        "code_verifier": verifier,
+        "client_id": effective_client_id,
+        "redirect_uri": redirect_uri,
+    }
+
+    if request.headers.get("accept", "").startswith("application/json"):
+        return {"auth_url": auth_url, "state": state}
+    return RedirectResponse(url=auth_url, status_code=307)
+
+
+@router.get("/auth/google/callback")
+async def google_auth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
+    """Handles OAuth 2.0 PKCE callback and token exchange from accounts.google.com."""
+    from fitbit_training_toolkit_sdk.auth.google_auth import GoogleHealthOAuthClient
+
+    if error or not code or not state:
+        return HTMLResponse(
+            f"<html><body style='background:#0f172a;color:#ef4444;font-family:sans-serif;padding:40px;text-align:center;'>"
+            f"<h2>Google OAuth Authorization Failed</h2>"
+            f"<p>{error or 'Missing authorization code or state parameter.'}</p>"
+            f"<a href='/setup' style='color:#38bdf8;text-decoration:underline;'>Return to Setup Wizard</a>"
+            f"</body></html>",
+            status_code=400,
+        )
+
+    session_data = _oauth_sessions.pop(state, None)
+    if not session_data:
+        return HTMLResponse(
+            "<html><body style='background:#0f172a;color:#ef4444;font-family:sans-serif;padding:40px;text-align:center;'>"
+            "<h2>OAuth Session Expired</h2>"
+            "<p>The state parameter is invalid or the session has timed out. Please try again from the Setup Wizard.</p>"
+            "<a href='/setup' style='color:#38bdf8;text-decoration:underline;'>Return to Setup Wizard</a>"
+            "</body></html>",
+            status_code=400,
+        )
+
+    user_id = session_data["user_id"]
+    verifier = session_data["code_verifier"]
+    client_id = session_data["client_id"]
+    redirect_uri = session_data["redirect_uri"]
+
+    try:
+        oauth_client = GoogleHealthOAuthClient(
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+        )
+        token_data = oauth_client.exchange_code_for_tokens(code, verifier)
+
+        # Save tokens to ~/.google_health/google_tokens_{user_id}.json
+        token_dir = Path.home() / ".google_health"
+        token_dir.mkdir(parents=True, exist_ok=True)
+        token_file = token_dir / f"google_tokens_{user_id}.json"
+        token_file.write_text(json.dumps(token_data, indent=2))
+
+        # Also persist to LOCAL_STORAGE_DIR/.google_health if set
+        storage_dir = os.getenv("LOCAL_STORAGE_DIR")
+        if storage_dir:
+            local_tok_dir = Path(storage_dir) / ".google_health"
+            local_tok_dir.mkdir(parents=True, exist_ok=True)
+            (local_tok_dir / f"google_tokens_{user_id}.json").write_text(json.dumps(token_data, indent=2))
+
+        # Update user profile in storage
+        engine = get_storage_engine()
+        existing = engine.get_user_profile(user_id)
+        engine.update_user_profile(user_id, {
+            **existing,
+            "user_id": user_id,
+            "watch_provider": "google_health",
+            "google_health_connected": True,
+            "google_health_connected_at": datetime.now().isoformat(),
+        })
+
+        return RedirectResponse(url=f"/dashboard?user_id={user_id}&auth=google_success", status_code=303)
+    except Exception as e:
+        log.exception(f"Failed to exchange Google Health auth code: {e}")
+        return HTMLResponse(
+            f"<html><body style='background:#0f172a;color:#ef4444;font-family:sans-serif;padding:40px;text-align:center;'>"
+            f"<h2>Token Exchange Error</h2>"
+            f"<p>Failed to exchange code for tokens: {str(e)}</p>"
+            f"<a href='/setup' style='color:#38bdf8;text-decoration:underline;'>Return to Setup Wizard</a>"
+            f"</body></html>",
+            status_code=500,
+        )
 
 
 @router.get("/dashboard/users")

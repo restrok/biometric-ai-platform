@@ -401,6 +401,36 @@ class LocalStorageEngine(StorageEngine):
         finally:
             conn.close()
 
+    def insert_daily_physiology(self, user_id: str, records: list[dict[str, Any]]) -> None:
+        if not records:
+            return
+        conn = self._get_duckdb_conn()
+        try:
+            for rec in records:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO daily_physiology (
+                        user_id, date, resting_heart_rate, hrv_sdnn, hrv_rmssd,
+                        body_battery_max, body_battery_min, stress_avg,
+                        sleep_duration_seconds, sleep_score
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        user_id,
+                        rec.get("date"),
+                        rec.get("resting_heart_rate"),
+                        rec.get("hrv_sdnn"),
+                        rec.get("hrv_rmssd"),
+                        rec.get("body_battery_max"),
+                        rec.get("body_battery_min"),
+                        rec.get("stress_avg"),
+                        rec.get("sleep_duration_seconds"),
+                        rec.get("sleep_score"),
+                    ],
+                )
+        finally:
+            conn.close()
+
     def get_recent_activities(
         self,
         user_id: str,

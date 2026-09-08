@@ -88,6 +88,11 @@ class StorageEngine(ABC):
         pass
 
     @abstractmethod
+    def insert_daily_physiology(self, user_id: str, records: list[dict[str, Any]]) -> None:
+        """Inserts or updates daily physiological metrics (RHR, HRV, Body Battery, Sleep)."""
+        pass
+
+    @abstractmethod
     def get_recent_activities(
         self,
         user_id: str,

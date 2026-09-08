@@ -45,12 +45,14 @@ def get_provider(
 
     if str(watch_provider).lower() in ("google_health", "google"):
         from fitbit_training_toolkit_sdk.core.google_health import GoogleHealthProvider
+        from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
 
         google_token_file = Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
         if google_token_file.exists():
             provider = GoogleHealthProvider(token_path=google_token_file)
         else:
-            provider = GoogleHealthProvider(client_id="default_google_client")
+            log.info(f"No Google Health tokens found on disk for {user_id}, falling back to MockFitbitProvider for simulated testing.")
+            provider = MockFitbitProvider()
         _providers[cache_key] = provider
         return provider
 
