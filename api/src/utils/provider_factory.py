@@ -47,8 +47,13 @@ def get_provider(
         from fitbit_training_toolkit_sdk.core.google_health import GoogleHealthProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
 
+        from src.utils.vault import get_vault
+
+        vault_tokens = get_vault().retrieve_tokens("google_health", target_user)
         google_token_file = Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
-        if google_token_file.exists():
+        if vault_tokens:
+            provider = GoogleHealthProvider(tokens=vault_tokens)
+        elif google_token_file.exists():
             provider = GoogleHealthProvider(token_path=google_token_file)
         else:
             log.info(f"No Google Health tokens found on disk for {user_id}, falling back to MockFitbitProvider for simulated testing.")
@@ -60,8 +65,13 @@ def get_provider(
         from fitbit_training_toolkit_sdk.core.fitbit import FitbitProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
 
+        from src.utils.vault import get_vault
+
+        vault_tokens = get_vault().retrieve_tokens("fitbit", target_user)
         fitbit_token_file = Path.home() / ".fitbit" / f"fitbit_tokens_{user_id or 'default'}.json"
-        if fitbit_token_file.exists():
+        if vault_tokens:
+            provider = FitbitProvider(tokens=vault_tokens)
+        elif fitbit_token_file.exists():
             provider = FitbitProvider(token_path=fitbit_token_file)
         else:
             log.info(f"No Fitbit tokens on disk for {user_id}, using MockFitbitProvider for testing.")
