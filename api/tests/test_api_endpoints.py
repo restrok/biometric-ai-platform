@@ -268,6 +268,8 @@ def test_setup_api_key_generation(client: TestClient):
     assert data["user_id"] == "athlete_mcp_test"
     assert data["api_key"].startswith("bio_")
     assert "X-API-Key" in data["mcp_config"]["mcpServers"]["biometric-ai"]["headers"]
+    assert data["mcp_url"] == "/mcp/sse"
+    assert data["mcp_config"]["mcpServers"]["biometric-ai"]["url"] == "http://localhost:8002/mcp/sse"
 
 
 def test_delete_athlete_cascade(client: TestClient):

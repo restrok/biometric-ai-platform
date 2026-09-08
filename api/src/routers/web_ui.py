@@ -332,7 +332,7 @@ SETUP_HTML = """<!DOCTYPE html>
           <div class="flex items-center space-x-2">
             <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">🔑 Servidor MCP & API Key (Model Context Protocol)</span>
           </div>
-          <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">SSE Endpoint: /mcp</span>
+          <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">SSE Endpoint: /mcp/sse</span>
         </div>
         <p class="text-xs text-slate-400 leading-relaxed">
           Cada atleta tiene su clave API para interactuar con agentes IA (Antigravity, Claude Desktop, Cursor) a través del protocolo MCP.
@@ -623,7 +623,7 @@ SETUP_HTML = """<!DOCTYPE html>
           const configSnippet = {
             "mcpServers": {
               "biometric-ai": {
-                "url": `http://${host}/mcp`,
+                "url": `http://${host}/mcp/sse`,
                 "headers": {
                   "X-API-Key": data.api_key
                 }
@@ -1243,11 +1243,11 @@ async def generate_api_key_endpoint(payload: ApiKeyRequest):
         "status": "success",
         "user_id": payload.user_id,
         "api_key": raw_key,
-        "mcp_url": "/mcp",
+        "mcp_url": "/mcp/sse",
         "mcp_config": {
             "mcpServers": {
                 "biometric-ai": {
-                    "url": "http://localhost:8002/mcp",
+                    "url": "http://localhost:8002/mcp/sse",
                     "headers": {
                         "X-API-Key": raw_key,
                     },
