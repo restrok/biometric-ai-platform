@@ -36,7 +36,7 @@ GARMIN_SSO_LOGIN_URL = (
 
 class SetupConfigPayload(BaseModel):
     storage_mode: str = "local"
-    user_id: str = "fsirio"
+    user_id: str = "athlete_1"
     watch_provider: str = "garmin"
     embeddings_provider: str = "fastembed"
     embedding_base_url: str | None = None
@@ -47,6 +47,7 @@ class SetupConfigPayload(BaseModel):
     fitbit_client_id: str | None = None
     fitbit_token_json: str | None = None
     google_client_id: str | None = None
+    google_client_secret: str | None = None
     google_token_json: str | None = None
     use_mock_data: bool = False
     generate_key: bool = True
@@ -231,7 +232,10 @@ SETUP_HTML = """<!DOCTYPE html>
 
         <!-- Biometric Tracker Selection -->
         <div class="space-y-2">
-          <label class="block text-sm font-semibold text-slate-300">2. Dispositivo / Tracker Biométrico</label>
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-slate-300">2. Dispositivo / Tracker Biométrico</label>
+            <span id="tracker-status-pill" class="text-[11px] font-mono text-slate-400">Consultando estado...</span>
+          </div>
           <select id="watch_provider" onchange="toggleTrackerOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
             <option value="garmin">Garmin Connect Integration (FIT / Telemetry)</option>
             <option value="fitbit">Fitbit Web API (OAuth2 PKCE)</option>
@@ -246,7 +250,7 @@ SETUP_HTML = """<!DOCTYPE html>
               <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Garmin Connect Integration</span>
               <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-mono">SSO / FIT</span>
             </div>
-            <span class="text-xs text-slate-400">connect.garmin.com</span>
+            <span id="garmin-badge-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded">⚪ No conectado</span>
           </div>
 
           <!-- Mode 1: Simulated Garmin Device -->
@@ -285,39 +289,87 @@ SETUP_HTML = """<!DOCTYPE html>
         <!-- Fitbit Configuration Section -->
         <div id="fitbit-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Fitbit Web API</span>
-            <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Fitbit Web API</span>
+              <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+            </div>
+            <span id="fitbit-badge-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded">⚪ No conectado</span>
           </div>
+
           <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
             <label class="flex items-center space-x-2.5 cursor-pointer select-none">
               <input type="checkbox" id="use_mock_fitbit" class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700">
               <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Fitbit</span>
             </label>
           </div>
-          <div class="flex items-center justify-between pt-2 border-t border-slate-700/50">
-            <button type="button" onclick="connectFitbitOAuth()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
-              Conectar con Fitbit OAuth ↗
-            </button>
+
+          <div class="space-y-3 pt-2 border-t border-slate-700/50">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Fitbit OAuth Client ID (dev.fitbit.com)</label>
+              <input type="text" id="fitbit_client_id" placeholder="23BXYZ"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-slate-400">Callback: /auth/fitbit/callback</span>
+              <button type="button" onclick="connectFitbitOAuth()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow">
+                <span>Conectar con Fitbit OAuth</span> <span>↗</span>
+              </button>
+            </div>
+
+            <!-- Manual Token JSON Paste for Fitbit -->
+            <details class="text-xs text-slate-400 cursor-pointer pt-1 border-t border-slate-700/40">
+              <summary class="hover:text-white font-medium text-slate-300">O pegar JSON con tokens OAuth (CLI / Directo)</summary>
+              <textarea id="fitbit_token_json" rows="2" placeholder='{"access_token": "...", "refresh_token": "..."}'
+                        class="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg p-2 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500"></textarea>
+            </details>
           </div>
         </div>
 
         <!-- Google Health Configuration Section -->
         <div id="google-health-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Google Health & Fitbit Air (Fitbit Air 2026)</span>
-            <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Google Health & Fitbit Air (Fitbit Air 2026)</span>
+              <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+            </div>
+            <span id="google-badge-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded">⚪ No conectado</span>
           </div>
+
           <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
             <label class="flex items-center space-x-2.5 cursor-pointer select-none">
               <input type="checkbox" id="use_mock_google" class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700">
               <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Fitbit Air</span>
             </label>
           </div>
-          <div class="flex items-center justify-between pt-2 border-t border-slate-700/50">
-            <span class="text-xs text-slate-400">OAuth 2.0 PKCE Directo</span>
-            <button type="button" onclick="connectGoogleOAuth()" class="bg-white hover:bg-slate-100 text-slate-900 px-3 py-1.5 rounded-lg text-xs font-semibold transition">
-              Conectar con Google ↗
-            </button>
+
+          <div class="space-y-3 pt-2 border-t border-slate-700/50">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Google OAuth Client ID</label>
+              <input type="text" id="google_client_id"
+                     value="188311881874-03v3k6i5svn4n1804alg6nv75pq1otc7.apps.googleusercontent.com"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+              <p class="text-[10px] text-slate-400">Generado en Google Cloud Console &gt; APIs &amp; Services &gt; Credentials (Web Application).</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Google Client Secret (Opcional si es PKCE público)</label>
+              <input type="password" id="google_client_secret" placeholder="Client secret..."
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-[11px] text-slate-400">Callback: /auth/google/callback</span>
+              <button type="button" onclick="connectGoogleOAuth()" class="bg-white hover:bg-slate-100 text-slate-900 px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+                <span>Conectar con Google</span> <span>↗</span>
+              </button>
+            </div>
+
+            <!-- Manual Token JSON Paste for Google Health -->
+            <details class="text-xs text-slate-400 cursor-pointer pt-1 border-t border-slate-700/40">
+              <summary class="hover:text-white font-medium text-slate-300">O pegar JSON con tokens OAuth (CLI / Script de autenticación)</summary>
+              <textarea id="google_token_json" rows="2" placeholder='{"access_token": "ya29...", "refresh_token": "1//..."}'
+                        class="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg p-2 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500"></textarea>
+            </details>
           </div>
         </div>
 
@@ -528,9 +580,58 @@ SETUP_HTML = """<!DOCTYPE html>
         } else if (activeAthletes.length > 0) {
           sel.value = activeAthletes[0];
           document.getElementById('user_id').value = activeAthletes[0];
+          checkAthleteStatus(activeAthletes[0]);
         }
       } catch (err) {
         console.error('Error loading athletes:', err);
+      }
+    }
+
+    async function checkAthleteStatus(userId) {
+      if (!userId || userId === 'new') return;
+      try {
+        const res = await fetch(`/athletes/${encodeURIComponent(userId)}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update badges
+        const gBadge = document.getElementById('garmin-badge-status');
+        const fbBadge = document.getElementById('fitbit-badge-status');
+        const ghBadge = document.getElementById('google-badge-status');
+        const pill = document.getElementById('tracker-status-pill');
+
+        if (gBadge) {
+          gBadge.className = data.garmin_connected ? 'text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded' : 'text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded';
+          gBadge.innerText = data.garmin_connected ? '🟢 Conectado en Vault' : '⚪ No conectado';
+        }
+        if (fbBadge) {
+          fbBadge.className = data.fitbit_connected ? 'text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded' : 'text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded';
+          fbBadge.innerText = data.fitbit_connected ? '🟢 Conectado en Vault' : '⚪ No conectado';
+        }
+        if (ghBadge) {
+          ghBadge.className = data.google_health_connected ? 'text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded' : 'text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded';
+          ghBadge.innerText = data.google_health_connected ? '🟢 Conectado en Vault' : '⚪ No conectado';
+        }
+
+        if (data.google_client_id && document.getElementById('google_client_id')) {
+          document.getElementById('google_client_id').value = data.google_client_id;
+        }
+        if (data.fitbit_client_id && document.getElementById('fitbit_client_id') && !document.getElementById('fitbit_client_id').value) {
+          document.getElementById('fitbit_client_id').value = data.fitbit_client_id;
+        }
+
+        if (data.watch_provider && document.getElementById('watch_provider')) {
+          document.getElementById('watch_provider').value = data.watch_provider;
+          toggleTrackerOptions(data.watch_provider);
+        }
+
+        const activeConn = data.google_health_connected ? 'Google Health' : (data.garmin_connected ? 'Garmin' : (data.fitbit_connected ? 'Fitbit' : 'Sin conexión'));
+        if (pill) {
+          pill.innerText = 'Estado: ' + activeConn;
+          pill.className = activeConn !== 'Sin conexión' ? 'text-[11px] font-mono text-emerald-400 font-bold' : 'text-[11px] font-mono text-slate-400';
+        }
+      } catch (err) {
+        console.error('Error fetching athlete status:', err);
       }
     }
 
@@ -539,8 +640,10 @@ SETUP_HTML = """<!DOCTYPE html>
       if (val === 'new') {
         input.value = '';
         input.focus();
+        document.getElementById('tracker-status-pill').innerText = 'Nuevo atleta';
       } else {
         input.value = val;
+        checkAthleteStatus(val);
       }
       document.getElementById('mcp-key-box').classList.add('hidden');
     }
@@ -580,6 +683,11 @@ SETUP_HTML = """<!DOCTYPE html>
         user_id: userId,
         watch_provider: provider,
         garmin_sso_tokens: document.getElementById('garmin_sso_tokens')?.value || null,
+        google_client_id: document.getElementById('google_client_id')?.value.trim() || null,
+        google_client_secret: document.getElementById('google_client_secret')?.value.trim() || null,
+        google_token_json: document.getElementById('google_token_json')?.value.trim() || null,
+        fitbit_client_id: document.getElementById('fitbit_client_id')?.value.trim() || null,
+        fitbit_token_json: document.getElementById('fitbit_token_json')?.value.trim() || null,
         use_mock_data: useMock,
         generate_key: true
       };
@@ -872,12 +980,22 @@ SETUP_HTML = """<!DOCTYPE html>
 
     function connectGoogleOAuth() {
       const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
-      window.location.href = `/auth/google/login?user_id=${encodeURIComponent(userId)}`;
+      const clientId = document.getElementById('google_client_id')?.value.trim() || '';
+      let url = `/auth/google/login?user_id=${encodeURIComponent(userId)}`;
+      if (clientId) {
+        url += `&client_id=${encodeURIComponent(clientId)}`;
+      }
+      window.location.href = url;
     }
 
     function connectFitbitOAuth() {
       const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
-      window.location.href = `/auth/fitbit/login?user_id=${encodeURIComponent(userId)}`;
+      const clientId = document.getElementById('fitbit_client_id')?.value.trim() || '';
+      let url = `/auth/fitbit/login?user_id=${encodeURIComponent(userId)}`;
+      if (clientId) {
+        url += `&client_id=${encodeURIComponent(clientId)}`;
+      }
+      window.location.href = url;
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -1366,8 +1484,38 @@ async def save_setup(payload: SetupConfigPayload):
             has_tokens = True
             log.info(f"🔒 Garmin tokens encrypted into vault for '{payload.user_id}'.")
 
+    # Google Health client config and manual token paste
+    if payload.google_client_id:
+        os.environ["GOOGLE_HEALTH_CLIENT_ID"] = payload.google_client_id
+    if payload.google_client_secret:
+        os.environ["GOOGLE_HEALTH_CLIENT_SECRET"] = payload.google_client_secret
+    if payload.google_token_json:
+        try:
+            tok = json.loads(payload.google_token_json)
+            vault.store_tokens("google_health", payload.user_id, tok)
+            has_tokens = True
+            log.info(f"🔒 Google Health tokens encrypted into vault for '{payload.user_id}'.")
+        except Exception as e:
+            log.warning(f"Failed to parse google_token_json: {e}")
+
+    # Fitbit client config and manual token paste
+    if payload.fitbit_client_id:
+        os.environ["FITBIT_CLIENT_ID"] = payload.fitbit_client_id
+    if payload.fitbit_token_json:
+        try:
+            tok = json.loads(payload.fitbit_token_json)
+            vault.store_tokens("fitbit", payload.user_id, tok)
+            has_tokens = True
+            log.info(f"🔒 Fitbit tokens encrypted into vault for '{payload.user_id}'.")
+        except Exception as e:
+            log.warning(f"Failed to parse fitbit_token_json: {e}")
+
     # Seed mock biometric data if requested
-    if payload.use_mock_data or (payload.storage_mode == "local" and not has_tokens):
+    if payload.use_mock_data or (
+        payload.storage_mode == "local"
+        and not has_tokens
+        and not vault.has_tokens(payload.watch_provider, payload.user_id)
+    ):
         seed_mock_biometric_data(engine, payload.user_id, provider=payload.watch_provider)
 
     # Generate initial API key
@@ -1491,6 +1639,26 @@ async def generate_api_key_endpoint(payload: ApiKeyRequest):
                 }
             }
         },
+    }
+
+
+@router.get("/athletes/{user_id}/status")
+async def get_athlete_status(user_id: str):
+    """Returns biometric connection and vault token status for a specific athlete."""
+    vault = get_vault()
+    engine = get_storage_engine()
+    profile = engine.get_user_profile(user_id) or {}
+    return {
+        "user_id": user_id,
+        "watch_provider": profile.get("watch_provider", "garmin"),
+        "garmin_connected": vault.has_tokens("garmin", user_id),
+        "fitbit_connected": vault.has_tokens("fitbit", user_id),
+        "google_health_connected": vault.has_tokens("google_health", user_id),
+        "google_client_id": os.getenv(
+            "GOOGLE_HEALTH_CLIENT_ID",
+            "188311881874-03v3k6i5svn4n1804alg6nv75pq1otc7.apps.googleusercontent.com",
+        ),
+        "fitbit_client_id": os.getenv("FITBIT_CLIENT_ID", "23BXYZ"),
     }
 
 

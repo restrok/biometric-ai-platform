@@ -315,3 +315,15 @@ def test_delete_athlete_cascade(client: TestClient):
     # Verify user is gone from list
     res_users_after = client.get("/dashboard/users")
     assert user_id not in res_users_after.json()["users"]
+
+
+def test_athlete_status_endpoint(client: TestClient):
+    response = client.get("/athletes/athlete_1/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == "athlete_1"
+    assert "garmin_connected" in data
+    assert "fitbit_connected" in data
+    assert "google_health_connected" in data
+    assert "google_client_id" in data
+    assert "fitbit_client_id" in data
