@@ -756,12 +756,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           </button>
         </div>
 
-        <!-- Restored Original Refresh Button -->
+        <!-- Refresh Button -->
         <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
           <span>🔄</span> Refresh
         </button>
 
-        <!-- Restored Original Blue Setup Button -->
+        <!-- Blue Setup Button -->
         <a href="/setup" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20">
           <span>⚙️</span> Setup
         </a>
@@ -850,18 +850,13 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <span class="text-xl">🤖</span>
         <h2 class="font-bold text-lg text-white">Ask Your Biometric AI Coach</h2>
       </div>
-
-      <div id="chat-box" class="h-64 overflow-y-auto bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 space-y-3 text-sm font-sans">
-        <div class="text-slate-400">
-          Hola, soy tu entrenador biométrico. Puedes consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.
-        </div>
+      <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300 font-sans">
+        <div class="text-slate-400 text-xs">Hola, soy tu entrenador biométrico. Puedes consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.</div>
       </div>
-
-      <form id="chat-form" onsubmit="sendChatMessage(event)" class="flex gap-2">
-        <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi fatiga hoy?)..."
-               class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition">
-        <button type="submit" id="chat-send-btn"
-                class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2 rounded-xl transition">
+      <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
+        <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi recuperación hoy?)..."
+               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+        <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
           Send
         </button>
       </form>
@@ -869,31 +864,51 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <script>
+    let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
-    let currentUserId = '{{ATHLETE_ID}}';
+
+    // Check for auth callback status
+    const authStatus = new URLSearchParams(window.location.search).get('auth');
+    if (authStatus) {
+      const banner = document.getElementById('oauth-success-banner');
+      const text = document.getElementById('oauth-banner-text');
+      if (banner && text) {
+        banner.classList.remove('hidden');
+        if (authStatus === 'google_success') text.innerText = 'Google Health API (Fitbit Air 2026) connected successfully! Biometric telemetry is live.';
+        else if (authStatus === 'fitbit_success') text.innerText = 'Fitbit Web API connected successfully! Biometric telemetry is live.';
+        else if (authStatus === 'garmin_success') text.innerText = 'Garmin Connect SSO session initialized! Biometric telemetry is live.';
+      }
+    }
 
     async function initAthleteSelector() {
       try {
         const res = await fetch('/dashboard/users');
+        if (!res.ok) return;
         const data = await res.json();
-        const users = data.users || [];
-        const sel = document.getElementById('user-select');
-        sel.innerHTML = '';
-        users.forEach(u => {
+        const select = document.getElementById('user-select');
+        select.innerHTML = '';
+        const users = (data.users && data.users.length > 0) ? data.users : [currentUserId];
+        users.forEach(function(u) {
           const opt = document.createElement('option');
           opt.value = u;
           opt.innerText = u;
           if (u === currentUserId) opt.selected = true;
-          sel.appendChild(opt);
+          select.appendChild(opt);
         });
       } catch (err) {
-        console.error('Failed to load users:', err);
+        console.error('Failed to load users list:', err);
       }
     }
 
-    function switchAthlete(userId) {
-      currentUserId = userId;
-      document.getElementById('athlete-badge').innerText = userId;
+    function switchAthlete(newUserId) {
+      if (!newUserId || newUserId === currentUserId) return;
+      currentUserId = newUserId;
+      document.getElementById('athlete-badge').innerText = newUserId;
+      window.history.replaceState(null, '', '/dashboard?user_id=' + encodeURIComponent(newUserId));
+      loadDashboard();
+    }
+
+    function refreshData() {
       loadDashboard();
     }
 
@@ -921,26 +936,24 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
     async function loadDashboard() {
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('auth') === 'google_success') {
-          const banner = document.getElementById('oauth-success-banner');
-          document.getElementById('oauth-banner-text').innerText = '🎉 Google Health / Fitbit Air vinculado exitosamente. Tus datos biométricos ya están conectados.';
-          banner.classList.remove('hidden');
-        } else if (urlParams.get('auth') === 'fitbit_success') {
-          const banner = document.getElementById('oauth-success-banner');
-          document.getElementById('oauth-banner-text').innerText = '🎉 Fitbit conectado exitosamente con OAuth 2.0 PKCE.';
-          banner.classList.remove('hidden');
-        }
-
         const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
-        // Populate KPIs
+        // Update KPIs
+        if (data.health_status) {
+          document.getElementById('kpi-feeling').innerText = data.health_status.feeling || 'Normal';
+        } else {
+          document.getElementById('kpi-feeling').innerText = 'Optimal';
+        }
+
         if (data.daily_physiology && data.daily_physiology.length > 0) {
           const latest = data.daily_physiology[0];
-          document.getElementById('kpi-rhr').innerText = latest.resting_heart_rate ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
-          document.getElementById('kpi-hrv').innerText = latest.hrv_rmssd ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
-          document.getElementById('kpi-bb').innerText = latest.body_battery_max ? (latest.body_battery_max + ' / 100') : '-- / 100';
+          document.getElementById('kpi-rhr').innerText = (latest.resting_heart_rate != null) ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
+          document.getElementById('kpi-hrv').innerText = (latest.hrv_rmssd != null && !isNaN(latest.hrv_rmssd)) ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
+          const bbVal = (latest.body_battery_max != null) ? latest.body_battery_max : (latest.body_battery_end_of_day != null ? latest.body_battery_end_of_day : null);
+          document.getElementById('kpi-bb').innerText = (bbVal != null) ? (bbVal + ' / 100') : '-- / 100';
+
           renderPhysioChart(data.daily_physiology.slice().reverse());
         } else {
           document.getElementById('kpi-rhr').innerText = '-- bpm';
@@ -950,86 +963,113 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           document.getElementById('chart-physio').innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiológicos registrados aún.</div>';
         }
 
-        if (data.health_status) {
-          document.getElementById('kpi-feeling').innerText = data.health_status.feeling || '--';
-        } else {
-          document.getElementById('kpi-feeling').innerText = '--';
-        }
-
-        // Render Zones
+        // Zones
         renderZones(data.profile?.custom_zones || { z1_max: 135, z2_max: 152, z3_max: 165, z4_max: 178 });
 
-        // Render Activities
+        // Activities
         renderActivities(data.activities || []);
-
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       }
     }
 
     function renderZones(zones) {
-      const zContainer = document.getElementById('zones-container');
-      const zoneDefs = [
-        { name: 'Zone 1 - Recovery', max: zones.z1_max || 135, color: 'bg-blue-500' },
-        { name: 'Zone 2 - Aerobic Base', max: zones.z2_max || 152, color: 'bg-emerald-500' },
-        { name: 'Zone 3 - Tempo', max: zones.z3_max || 165, color: 'bg-amber-500' },
-        { name: 'Zone 4 - Threshold', max: zones.z4_max || 178, color: 'bg-orange-500' },
-        { name: 'Zone 5 - Anaerobic', max: 'Max', color: 'bg-rose-500' }
-      ];
-      zContainer.innerHTML = zoneDefs.map(z => `
-        <div>
-          <div class="flex justify-between text-xs mb-1">
-            <span class="text-slate-300 font-medium">${z.name}</span>
-            <span class="font-mono text-slate-400">&lt; ${z.max} bpm</span>
-          </div>
-          <div class="w-full bg-slate-800 rounded-full h-2">
-            <div class="${z.color} h-2 rounded-full" style="width: 100%"></div>
-          </div>
+      const c = document.getElementById('zones-container');
+      const z1 = zones.z1_max || 135;
+      const z2 = zones.z2_max || 152;
+      const z3 = zones.z3_max || 165;
+      const z4 = zones.z4_max || 178;
+
+      c.innerHTML = `
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 1: Active Recovery</span><span>< ${z1} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-sky-400 h-2 rounded-full" style="width: 20%"></div></div>
         </div>
-      `).join('');
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 2: Aerobic Base (AeT)</span><span>${z1} - ${z2} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width: 40%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 3: Tempo</span><span>${z2} - ${z3} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width: 60%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 4: Sub-Threshold (AnT)</span><span>${z3} - ${z4} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-orange-500 h-2 rounded-full" style="width: 80%"></div></div>
+        </div>
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold"><span>Zone 5: VO2 Max / Anaerobic</span><span>> ${z4} bpm</span></div>
+          <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width: 100%"></div></div>
+        </div>
+      `;
     }
 
-    function renderPhysioChart(series) {
-      const dates = series.map(s => s.date);
-      const rhr = series.map(s => s.resting_heart_rate);
-      const hrv = series.map(s => s.hrv_rmssd);
+    function renderPhysioChart(seriesData) {
+      const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
+      const rhr = seriesData.map(d => d.resting_heart_rate);
+      const hrv = seriesData.map(d => (d.hrv_rmssd != null ? Math.round(d.hrv_rmssd) : null));
 
       const options = {
-        chart: { type: 'line', height: 240, toolbar: { show: false }, background: 'transparent' },
-        theme: { mode: 'dark' },
-        stroke: { curve: 'smooth', width: 2 },
         series: [
-          { name: 'Resting HR (bpm)', data: rhr },
+          { name: 'RHR (bpm)', data: rhr },
           { name: 'HRV RMSSD (ms)', data: hrv }
         ],
+        chart: {
+          type: 'line',
+          height: 250,
+          background: 'transparent',
+          toolbar: { show: false }
+        },
+        colors: ['#38bdf8', '#34d399'],
+        stroke: { curve: 'smooth', width: 3 },
+        theme: { mode: 'dark' },
         xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
-        yaxis: { labels: { style: { colors: '#94a3b8' } } },
-        colors: ['#ef4444', '#3b82f6'],
-        grid: { borderColor: '#1e293b' }
+        yaxis: [
+          { title: { text: 'RHR (bpm)', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } },
+          { opposite: true, title: { text: 'HRV (ms)', style: { color: '#34d399' } }, labels: { style: { colors: '#94a3b8' } } }
+        ],
+        grid: { borderColor: '#334155' }
       };
 
-      if (physioChart) physioChart.destroy();
+      if (physioChart) {
+        physioChart.destroy();
+      }
       physioChart = new ApexCharts(document.getElementById('chart-physio'), options);
       physioChart.render();
     }
 
     function renderActivities(activities) {
       const tbody = document.getElementById('activities-tbody');
-      if (activities.length === 0) {
+      if (!activities || activities.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No activities recorded yet.</td></tr>';
         return;
       }
-      tbody.innerHTML = activities.map(a => `
-        <tr class="hover:bg-slate-800/40 transition">
-          <td class="py-3 px-2 font-medium">${a.start_time ? new Date(a.start_time).toLocaleDateString() : '--'}</td>
-          <td class="font-semibold text-slate-200">${a.activity_name || 'Run'}</td>
-          <td class="capitalize">${a.activity_type || 'running'}</td>
-          <td>${((a.distance_meters || 0) / 1000).toFixed(2)} km</td>
-          <td>${Math.round((a.duration_seconds || 0) / 60)} min</td>
-          <td>${Math.round(a.avg_heart_rate || 0)} bpm</td>
-          <td>${a.aerobic_training_effect || a.summary?.slice(0, 30) || '--'}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = activities.map(function(a) {
+        let dateStr = '--';
+        if (a.start_time) {
+          try {
+            dateStr = new Date(a.start_time).toLocaleDateString();
+          } catch (e) {
+            dateStr = String(a.start_time).substring(0, 10);
+          }
+        }
+        const distKm = ((a.distance_meters || a.distance_m || 0) / 1000).toFixed(2);
+        const durMin = Math.round((a.duration_seconds || a.duration_sec || 0) / 60);
+        const hr = (a.avg_heart_rate || a.avg_hr) ? Math.round(a.avg_heart_rate || a.avg_hr) + ' bpm' : '--';
+        const pwr = (a.avg_power && !isNaN(a.avg_power)) ? Math.round(a.avg_power) + ' W' : (a.aerobic_training_effect != null ? a.aerobic_training_effect : '--');
+        const actName = a.activity_name || a.name || 'Training Session';
+        const actType = a.activity_type || a.type || 'running';
+
+        return '<tr class="hover:bg-slate-800/40 transition">' +
+          '<td class="py-3 px-2 font-medium text-slate-300">' + dateStr + '</td>' +
+          '<td class="font-medium text-white">' + actName + '</td>' +
+          '<td class="capitalize text-slate-400">' + actType + '</td>' +
+          '<td>' + distKm + ' km</td>' +
+          '<td>' + durMin + ' min</td>' +
+          '<td>' + hr + '</td>' +
+          '<td>' + pwr + '</td>' +
+        '</tr>';
+      }).join('');
     }
 
     async function sendChatMessage(e) {
@@ -1066,10 +1106,6 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         btn.innerText = 'Send';
         chatBox.scrollTop = chatBox.scrollHeight;
       }
-    }
-
-    function refreshData() {
-      loadDashboard();
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
