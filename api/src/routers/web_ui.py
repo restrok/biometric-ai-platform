@@ -1155,19 +1155,19 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>????</span> Indicadores Clave del Atleta
+              <span>📊</span> Indicadores Clave del Atleta
             </span>
           </div>
           <div class="flex items-center space-x-1.5">
-            <button onclick="openKpiModal()" class="text-[11px] text-slate-300 hover:text-sky-400 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800/90 hover:bg-slate-800 transition flex items-center gap-1.5 shadow-sm" title="Elegir y personalizar m??tricas visibles">
-              <span>??????</span> <span>M??tricas</span>
+            <button onclick="openKpiModal()" class="text-[11px] text-slate-300 hover:text-sky-400 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800/90 hover:bg-slate-800 transition flex items-center gap-1.5 shadow-sm" title="Elegir y personalizar métricas visibles">
+              <span>⚙️</span> <span>Métricas</span>
             </button>
-            <button onclick="cycleWidgetSize('widget-kpis')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
-              <span>???</span> <span id="size-label-widget-kpis">100%</span>
+            <button onclick="cycleWidgetSize('widget-kpis')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-kpis">100%</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+            <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
           </div>
         </div>
         <div id="kpis-dynamic-container" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -1179,17 +1179,17 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>????</span> Tendencias de Recuperaci??n (14 D??as)
+              <span>📈</span> Tendencias de Recuperación (14 Días)
             </span>
           </div>
           <div class="flex items-center space-x-2">
             <span class="text-xs text-slate-400 hidden sm:inline">RHR vs HRV RMSSD</span>
-            <button onclick="cycleWidgetSize('widget-chart-physio')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
-              <span>???</span> <span id="size-label-widget-chart-physio">2/3</span>
+            <button onclick="cycleWidgetSize('widget-chart-physio')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-chart-physio">2/3</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-chart-physio', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+            <button onclick="toggleWidgetVisibility('widget-chart-physio', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
           </div>
         </div>
         <div id="chart-physio" class="h-64"></div>
@@ -1220,17 +1220,17 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="widget-chart-volume" data-widget-id="widget-chart-volume" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>????</span> Volumen Semanal Acumulado
+              <span>🏃</span> Volumen Semanal Acumulado
             </span>
           </div>
           <div class="flex items-center space-x-2">
             <span class="text-xs text-slate-400 hidden sm:inline">Distancia (km) & Horas</span>
-            <button onclick="cycleWidgetSize('widget-chart-volume')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
-              <span>???</span> <span id="size-label-widget-chart-volume">100%</span>
+            <button onclick="cycleWidgetSize('widget-chart-volume')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-chart-volume">100%</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-chart-volume', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+            <button onclick="toggleWidgetVisibility('widget-chart-volume', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
           </div>
         </div>
         <div id="chart-volume" class="h-64"></div>
@@ -1240,17 +1240,17 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="widget-chart-stress-bb" data-widget-id="widget-chart-stress-bb" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
-              <span>???</span> Estr??s Diario vs Body Battery & Sue??o
+              <span>⚡</span> Estrés Diario vs Body Battery & Sueño
             </span>
           </div>
           <div class="flex items-center space-x-2">
-            <span class="text-xs text-slate-400 hidden sm:inline">Carga Simp??tica vs Reposici??n</span>
-            <button onclick="cycleWidgetSize('widget-chart-stress-bb')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
-              <span>???</span> <span id="size-label-widget-chart-stress-bb">100%</span>
+            <span class="text-xs text-slate-400 hidden sm:inline">Carga Simpática vs Reposición</span>
+            <button onclick="cycleWidgetSize('widget-chart-stress-bb')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-chart-stress-bb">100%</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-chart-stress-bb', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+            <button onclick="toggleWidgetVisibility('widget-chart-stress-bb', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
           </div>
         </div>
         <div id="chart-stress-bb" class="h-64"></div>
@@ -1260,17 +1260,17 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       <div id="widget-chart-acwr" data-widget-id="widget-chart-acwr" class="dashboard-widget col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
-            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">???</span>
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
             <span class="text-sm font-bold text-white flex items-center gap-1.5">
               <span>??????</span> Ratio de Carga ACWR (Prevenci??n de Lesiones)
             </span>
           </div>
           <div class="flex items-center space-x-2">
             <span class="text-xs text-slate-400 hidden sm:inline">Zona Segura: 0.8 - 1.3</span>
-            <button onclick="cycleWidgetSize('widget-chart-acwr')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tama??o / ancho">
-              <span>???</span> <span id="size-label-widget-chart-acwr">100%</span>
+            <button onclick="cycleWidgetSize('widget-chart-acwr')" class="widget-size-btn text-[11px] text-slate-400 hover:text-sky-400 px-2 py-0.5 rounded-lg border border-slate-700 bg-slate-800/80 transition flex items-center gap-1" title="Cambiar tamaño / ancho">
+              <span>↔</span> <span id="size-label-widget-chart-acwr">100%</span>
             </button>
-            <button onclick="toggleWidgetVisibility('widget-chart-acwr', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">???</button>
+            <button onclick="toggleWidgetVisibility('widget-chart-acwr', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
           </div>
         </div>
         <div id="chart-acwr" class="h-64"></div>
@@ -1369,11 +1369,11 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 space-y-5 shadow-2xl mx-4">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <span>??????</span> Personalizar Indicadores Clave (KPIs)
+          <span>⚙️</span> Personalizar Indicadores Clave (KPIs)
         </h3>
         <button onclick="closeKpiModal()" class="text-slate-400 hover:text-white text-lg">???</button>
       </div>
-      <p class="text-xs text-slate-400">Seleccion?? las m??tricas que quer??s visualizar en la tarjeta principal de tu dashboard:</p>
+      <p class="text-xs text-slate-400">Seleccioná las métricas que querés visualizar en la tarjeta principal de tu dashboard:</p>
       <div id="kpi-checkbox-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
         <!-- Populated by JS -->
       </div>
@@ -1420,14 +1420,14 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
     const KPI_CATALOG = [
       { id: 'rhr', label: 'Resting Heart Rate', sub: 'Frecuencia en reposo', color: 'text-white', extract: d => (d.latest_physio?.resting_heart_rate ? `${d.latest_physio.resting_heart_rate} bpm` : '-- bpm') },
-      { id: 'hrv', label: 'HRV (RMSSD)', sub: 'Recuperaci??n auton??mica', color: 'text-emerald-400', extract: d => (d.latest_physio?.hrv_rmssd != null && !isNaN(d.latest_physio.hrv_rmssd) ? `${Math.round(d.latest_physio.hrv_rmssd)} ms` : '-- ms') },
-      { id: 'body_battery', label: 'Body Battery', sub: 'Reservas energ??ticas', color: 'text-blue-400', extract: d => {
+      { id: 'hrv', label: 'HRV (RMSSD)', sub: 'Recuperación autonómica', color: 'text-emerald-400', extract: d => (d.latest_physio?.hrv_rmssd != null && !isNaN(d.latest_physio.hrv_rmssd) ? `${Math.round(d.latest_physio.hrv_rmssd)} ms` : '-- ms') },
+      { id: 'body_battery', label: 'Body Battery', sub: 'Reservas energéticas', color: 'text-blue-400', extract: d => {
         const bb = (d.latest_physio?.body_battery_max != null) ? d.latest_physio.body_battery_max : (d.latest_physio?.body_battery_end_of_day != null ? d.latest_physio.body_battery_end_of_day : null);
         return (bb != null) ? `${bb} / 100` : '-- / 100';
       }},
-      { id: 'feeling', label: 'Sensaci??n Subjetiva', sub: 'Check-in del atleta', color: 'text-emerald-400', extract: d => (d.health_status?.feeling || 'Optimal') },
-      { id: 'stress_avg', label: 'Estr??s Diario', sub: 'Carga simp??tica', color: 'text-amber-400', extract: d => (d.latest_physio?.all_day_stress_avg != null && d.latest_physio.all_day_stress_avg >= 0 ? `${d.latest_physio.all_day_stress_avg} / 100` : '--') },
-      { id: 'sleep', label: 'Puntuaci??n de Sue??o', sub: 'Calidad del descanso', color: 'text-indigo-400', extract: d => (d.latest_physio?.sleep_score != null && d.latest_physio.sleep_score > 0 ? `${d.latest_physio.sleep_score} pts` : (d.latest_physio?.sleep_duration_hrs ? `${d.latest_physio.sleep_duration_hrs}h` : '--')) },
+      { id: 'feeling', label: 'Sensación Subjetiva', sub: 'Check-in del atleta', color: 'text-emerald-400', extract: d => (d.health_status?.feeling || 'Optimal') },
+      { id: 'stress_avg', label: 'Estrés Diario', sub: 'Carga simpática', color: 'text-amber-400', extract: d => (d.latest_physio?.all_day_stress_avg != null && d.latest_physio.all_day_stress_avg >= 0 ? `${d.latest_physio.all_day_stress_avg} / 100` : '--') },
+      { id: 'sleep', label: 'Puntuación de Sueño', sub: 'Calidad del descanso', color: 'text-indigo-400', extract: d => (d.latest_physio?.sleep_score != null && d.latest_physio.sleep_score > 0 ? `${d.latest_physio.sleep_score} pts` : (d.latest_physio?.sleep_duration_hrs ? `${d.latest_physio.sleep_duration_hrs}h` : '--')) },
       { id: 'acwr', label: 'Ratio Carga (ACWR)', sub: 'Riesgo lesivo (0.8 - 1.3)', color: 'text-sky-400', extract: d => (d.acwr != null ? `${d.acwr.toFixed(2)}` : '1.00') },
       { id: 'vo2max', label: 'VO2 Max Estimado', sub: 'Capacidad aer??bica', color: 'text-teal-400', extract: d => (d.profile?.vo2max || d.latest_activity?.vo2max ? `${d.profile?.vo2max || d.latest_activity?.vo2max} ml/kg` : '52 ml/kg') },
       { id: 'weekly_km', label: 'Volumen Semanal', sub: 'Distancia acumulada', color: 'text-purple-400', extract: d => (d.weekly_km != null ? `${d.weekly_km} km` : '-- km') },
@@ -1437,11 +1437,11 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     const DEFAULT_KPIS = ['rhr', 'hrv', 'body_battery', 'feeling', 'stress_avg', 'sleep', 'acwr', 'weekly_km'];
 
     const WIDGET_DEFINITIONS = [
-      { id: 'widget-kpis', icon: '????', name: 'M??tricas Principales (KPIs)', desc: 'Tarjetas personalizables de salud y carga (RHR, HRV, Sue??o, etc.)' },
-      { id: 'widget-chart-physio', icon: '????', name: 'Recuperaci??n Fisiol??gica (14 D??as)', desc: 'Gr??fico dual de RHR vs HRV RMSSD' },
+      { id: 'widget-kpis', icon: '📊', name: 'Métricas Principales (KPIs)', desc: 'Tarjetas personalizables de salud y carga (RHR, HRV, Sueño, etc.)' },
+      { id: 'widget-chart-physio', icon: '📈', name: 'Recuperación Fisiológica (14 Días)', desc: 'Gráfico dual de RHR vs HRV RMSSD' },
       { id: 'widget-zones', icon: '????', name: 'Zonas de Ritmo Card??aco', desc: 'Distribuci??n de frecuencias card??acas (Z1 a Z5)' },
-      { id: 'widget-chart-volume', icon: '????', name: 'Volumen Semanal Acumulado', desc: 'Historial de distancia (km) y horas de entrenamiento' },
-      { id: 'widget-chart-stress-bb', icon: '???', name: 'Estr??s Diario vs Body Battery', desc: 'Fatiga simp??tica vs recarga energ??tica diaria' },
+      { id: 'widget-chart-volume', icon: '🏃', name: 'Volumen Semanal Acumulado', desc: 'Historial de distancia (km) y horas de entrenamiento' },
+      { id: 'widget-chart-stress-bb', icon: '⚡', name: 'Estrés Diario vs Body Battery', desc: 'Fatiga simpática vs recarga energética diaria' },
       { id: 'widget-chart-acwr', icon: '??????', name: 'Control de Carga (ACWR)', desc: 'Carga aguda vs cr??nica con banda de zona ??ptima segura' },
       { id: 'widget-goals', icon: '????', name: 'Objetivos de Rendimiento', desc: 'Metas y objetivos activos del atleta' },
       { id: 'widget-activities', icon: '????', name: 'Sesiones Recientes', desc: 'Tabla de actividades con distancia, ritmo y potencia' },
@@ -1562,7 +1562,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         if (cb.checked) selected.push(cb.value);
       });
       if (selected.length === 0) {
-        showToast('Debes seleccionar al menos una m??trica');
+        showToast('Debes seleccionar al menos una métrica');
         return;
       }
       if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
@@ -1572,7 +1572,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         renderKpis(cachedDashboardData);
       }
       persistLayout(currentLayout);
-      showToast('M??tricas actualizadas correctamente');
+      showToast('Métricas actualizadas correctamente');
     }
 
 async function loadAthleteLayout(userId) {
@@ -2058,7 +2058,7 @@ Esta acción es irreversible.`)) {
       if (!el) return;
       if (!seriesData || seriesData.length === 0) {
         if (physioChart) { physioChart.destroy(); physioChart = null; }
-        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiol??gicos registrados a??n.</div>';
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiológicos registrados aún.</div>';
         return;
       }
       const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
@@ -2092,7 +2092,7 @@ Esta acción es irreversible.`)) {
       if (!el) return;
       if (!seriesData || seriesData.length === 0) {
         if (stressBbChart) { stressBbChart.destroy(); stressBbChart = null; }
-        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos de estr??s ni Body Battery a??n.</div>';
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos de estrés ni Body Battery aún.</div>';
         return;
       }
       const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
@@ -2102,7 +2102,7 @@ Esta acción es irreversible.`)) {
       const options = {
         series: [
           { name: 'Body Battery (Max/D??a)', type: 'area', data: bb },
-          { name: 'Estr??s Diario Promedio', type: 'line', data: stress }
+          { name: 'Estrés Diario Promedio', type: 'line', data: stress }
         ],
         chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
         colors: ['#38bdf8', '#f59e0b'],
@@ -2112,7 +2112,7 @@ Esta acción es irreversible.`)) {
         xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
         yaxis: [
           { min: 0, max: 100, title: { text: 'Body Battery', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } },
-          { min: 0, max: 100, opposite: true, title: { text: 'Estr??s (0-100)', style: { color: '#f59e0b' } }, labels: { style: { colors: '#94a3b8' } } }
+          { min: 0, max: 100, opposite: true, title: { text: 'Estrés (0-100)', style: { color: '#f59e0b' } }, labels: { style: { colors: '#94a3b8' } } }
         ],
         grid: { borderColor: '#334155' }
       };
@@ -2137,7 +2137,7 @@ Esta acción es irreversible.`)) {
       const options = {
         series: [
           { name: 'Distancia (km)', type: 'column', data: km },
-          { name: 'Duraci??n (Horas)', type: 'line', data: hours }
+          { name: 'Duración (Horas)', type: 'line', data: hours }
         ],
         chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
         colors: ['#a855f7', '#38bdf8'],
@@ -2207,7 +2207,7 @@ Esta acción es irreversible.`)) {
               fillColor: '#10b981',
               opacity: 0.12,
               label: {
-                text: 'Zona ??ptima / Segura (0.8 - 1.3)',
+                text: 'Zona Óptima / Segura (0.8 - 1.3)',
                 style: { color: '#34d399', background: '#064e3b', fontSize: '10px' }
               }
             },
@@ -3077,5 +3077,5 @@ async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
     clean_layout = {"order": order, "visible": visible, "sizes": sizes, "active_kpis": active_kpis}
 
     engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
-    log.info(f"???? Saved personalized dashboard layout for athlete: {user_id}")
+    log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")
     return {"status": "ok", "user_id": user_id, "layout": clean_layout}
