@@ -34,7 +34,7 @@ config = get_config()
 _bq_clients: dict[str, bigquery.Client] = {}
 
 
-def get_bq_client(project_id: str) -> bigquery.Client:
+def get_bq_client(project_id: str | None = None) -> bigquery.Client:
     """Gets or creates a BigQuery client for the given project ID.
 
     Args:
@@ -44,9 +44,10 @@ def get_bq_client(project_id: str) -> bigquery.Client:
         A BigQuery client instance.
     """
     global _bq_clients
-    if project_id not in _bq_clients:
-        _bq_clients[project_id] = bigquery.Client(project=project_id)
-    return _bq_clients[project_id]
+    pid = project_id or os.getenv("GOOGLE_CLOUD_PROJECT") or "bio-intelligence-dev"
+    if pid not in _bq_clients:
+        _bq_clients[pid] = bigquery.Client(project=pid)
+    return _bq_clients[pid]
 
 
 class RetrieverInput(BaseModel):
@@ -156,9 +157,9 @@ def _retrieve_biometric_data_cached(
         A dictionary containing the user's biometric context.
     """
     if not project_id:
-        project_id = config["project_id"]
+        project_id = config.get("project_id") or os.getenv("GOOGLE_CLOUD_PROJECT") or "bio-intelligence-dev"
     if not dataset:
-        dataset = config["dataset_id"]
+        dataset = config.get("dataset_id") or "biometric_data_dev"
 
     if not project_id:
         log.warning("GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data.")

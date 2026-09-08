@@ -31,7 +31,7 @@ BUCKET_NAME = os.getenv("DATALAKE_BUCKET")
 DATASET_NAME = os.getenv("DATASET_NAME", "biometric_data_dev")
 
 if not PROJECT_ID or not BUCKET_NAME:
-    raise ValueError("GOOGLE_CLOUD_PROJECT and DATALAKE_BUCKET environment variables must be set.")
+    log.warning("GOOGLE_CLOUD_PROJECT or DATALAKE_BUCKET not set. Cloud ETL requires these variables.")
 
 
 def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timestamp | None:
