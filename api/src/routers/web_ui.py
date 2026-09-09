@@ -2345,13 +2345,15 @@ Esta acción es irreversible.`)) {
       if (timeframe === '15s') {
         return sorted.slice(-15);
       }
-      const now = new Date();
+      const latestTimestamp = sorted.length > 0 ? new Date(sorted[sorted.length - 1].start_time || 0).getTime() : Date.now();
+      const refTime = Math.max(Date.now(), latestTimestamp);
+
       if (timeframe === '30d') {
-        const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(refTime - 30 * 24 * 60 * 60 * 1000);
         return sorted.filter(a => new Date(a.start_time || 0) >= cutoff);
       }
       if (timeframe === '3m') {
-        const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(refTime - 90 * 24 * 60 * 60 * 1000);
         return sorted.filter(a => new Date(a.start_time || 0) >= cutoff);
       }
       return sorted;
@@ -2840,7 +2842,8 @@ Esta acción es irreversible.`)) {
         tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No hay actividades registradas aún.</td></tr>';
         return;
       }
-      tbody.innerHTML = activities.map(function(a) {
+      const recentList = activities.slice(0, 10);
+      tbody.innerHTML = recentList.map(function(a) {
         let dateStr = '--';
         if (a.start_time) {
           try {
@@ -3525,7 +3528,7 @@ async def dashboard_data(user_id: str | None = None, force: bool = False):
         fut_health = executor.submit(engine.get_health_status, target_user)
         fut_goals = executor.submit(engine.get_user_goals, target_user)
         fut_physio = executor.submit(engine.get_daily_physiology, target_user, 14)
-        fut_acts = executor.submit(engine.get_recent_activities, target_user, 10)
+        fut_acts = executor.submit(engine.get_recent_activities, target_user, 60)
         fut_macro = executor.submit(engine.query_macro_load_history, target_user, "weekly", 3)
 
         profile = fut_profile.result()
