@@ -140,7 +140,7 @@ class StorageEngine(ABC):
         pass
 
     @abstractmethod
-    def list_users(self) -> list[str]:
+    def list_users(self, force_refresh: bool = False) -> list[str]:
         """Retrieves list of active athlete/user IDs."""
         pass
 

@@ -1,3 +1,5 @@
+import time
+
 """Web UI router providing zero-configuration Setup wizard and dark-mode Dashboard."""
 
 import json
@@ -1041,13 +1043,28 @@ SETUP_HTML = """<!DOCTYPE html>
 
 
 DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="es" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Biometric AI Coach - Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <style>
+    .sortable-ghost {
+      opacity: 0.35;
+      border: 2px dashed #0284c7 !important;
+      background: rgba(15, 23, 42, 0.6) !important;
+    }
+    .sortable-chosen {
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+    }
+    .edit-mode-ring {
+      outline: 1px dashed rgba(56, 189, 248, 0.45);
+      outline-offset: 4px;
+    }
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="max-w-7xl mx-auto p-6 space-y-6">
@@ -1058,15 +1075,15 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-white">Biometric AI Coach</h1>
           <div class="flex items-center gap-2 mt-0.5">
-            <span class="text-xs text-slate-400">Current Athlete:</span>
+            <span class="text-xs text-slate-400">Atleta Activo:</span>
             <span id="athlete-badge" class="text-xs font-mono font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">{{ATHLETE_ID}}</span>
           </div>
         </div>
       </div>
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2.5 flex-wrap gap-y-2">
         <!-- Athlete Switcher Dropdown & Delete Shortcut -->
         <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
-          <label for="user-select" class="text-xs font-semibold text-slate-400">Athlete:</label>
+          <label for="user-select" class="text-xs font-semibold text-slate-400">Atleta:</label>
           <select id="user-select" onchange="switchAthlete(this.value)" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-medium focus:outline-none focus:border-blue-500">
             <option value="{{ATHLETE_ID}}" selected>{{ATHLETE_ID}}</option>
           </select>
@@ -1077,12 +1094,17 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
         <!-- Direct Sync Button -->
         <button id="btn-dash-sync" onclick="syncAthleteData()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
-          <span>⚡</span> Sync Biometrics
+          <span>⚡</span> Sincronizar
         </button>
 
         <!-- Refresh Button -->
         <button onclick="refreshData()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
-          <span>🔄</span> Refresh
+          <span>🔄</span> Actualizar
+        </button>
+
+        <!-- Customize Dashboard Button -->
+        <button id="btn-customize-toggle" onclick="toggleCustomizeMode()" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold px-3 py-2 rounded-xl border border-slate-700 hover:border-sky-500/50 transition flex items-center gap-1.5">
+          <span>🎨</span> <span id="customize-btn-label">Personalizar</span>
         </button>
 
         <!-- Blue Setup Button -->
@@ -1092,104 +1114,1060 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </header>
 
-    <!-- Success notification banner (e.g. from OAuth redirect) -->
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Customize Mode Toolbar (Visible in Edit Mode) -->
+    <div id="customize-toolbar" class="hidden bg-slate-900/95 backdrop-blur border border-sky-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl transition-all">
+      <div class="flex items-center space-x-2.5 text-xs">
+        <span class="flex h-2.5 w-2.5 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-500"></span>
+        </span>
+        <div>
+          <span class="font-bold text-sky-400">Modo Personalización Activo</span>
+          <p class="text-slate-400 text-[11px]">Arrastrá desde <span class="font-mono text-white">⠿</span> para ordenar, usá <span class="font-mono text-sky-400">↔ Tamaño</span> para poner tarjetas una al lado de otra (2/3 + 1/3, o 50/50), o <span class="font-mono text-rose-400">✕</span> para ocultar.</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 self-end sm:self-auto">
+        <button onclick="openWidgetCatalog()" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-semibold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-sky-600/20">
+          <span>➕</span> Catálogo de Widgets
+        </button>
+        <button onclick="resetDashboardLayout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 transition">
+          ↺ Restablecer
+        </button>
+        <button onclick="saveAndExitCustomize()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1 shadow-md shadow-emerald-600/20">
+          ✓ Guardar y Salir
+        </button>
+      </div>
+    </div>
+
+    <!-- Success notification banner -->
     <div id="oauth-success-banner" class="hidden bg-emerald-950/70 border border-emerald-800/80 rounded-xl p-3.5 flex items-center justify-between">
       <div class="flex items-center space-x-2.5">
         <span class="text-lg">🎉</span>
-        <span id="oauth-banner-text" class="text-xs text-emerald-200 font-medium">Tracker account connected successfully! Biometric telemetry is live.</span>
+        <span id="oauth-banner-text" class="text-xs text-emerald-200 font-medium">Cuenta de rastreador conectada exitosamente.</span>
       </div>
       <button onclick="this.parentElement.remove()" class="text-emerald-400 hover:text-emerald-200 text-xs font-bold px-2 py-1">✕</button>
     </div>
 
-    <!-- KPIs -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Resting Heart Rate</div>
-        <div id="kpi-rhr" class="text-3xl font-bold text-white">-- bpm</div>
-        <div class="text-xs text-emerald-400">Baseline resting</div>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">HRV (RMSSD)</div>
-        <div id="kpi-hrv" class="text-3xl font-bold text-white">-- ms</div>
-        <div class="text-xs text-slate-400">Autonomic recovery</div>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Body Battery</div>
-        <div id="kpi-bb" class="text-3xl font-bold text-blue-400">-- / 100</div>
-        <div class="text-xs text-slate-400">Energy reserves</div>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-1">
-        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Subjective Feeling</div>
-        <div id="kpi-feeling" class="text-2xl font-bold text-emerald-400 capitalize">--</div>
-        <div class="text-xs text-slate-400">Athlete check-in</div>
-      </div>
-    </div>
+    <!-- Configurable Widgets 12-Column Grid Container -->
+    <div id="dashboard-widgets-container" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-    <!-- Main Grid: Chart & Heart Rate Zones -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- 14-Day Physiology Chart -->
-      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="font-bold text-lg text-white">14-Day Physiological Recovery Trends</h2>
-          <span class="text-xs text-slate-400">RHR & HRV (RMSSD)</span>
+      <!-- WIDGET 1: KPI Cards -->
+      <div id="widget-kpis" data-widget-id="widget-kpis" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>📊</span> Indicadores Clave del Atleta
+            </span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="openKpiModal()" class="text-[11px] text-slate-300 hover:text-sky-400 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800/90 hover:bg-slate-800 transition flex items-center gap-1.5 shadow-sm" title="Elegir y personalizar métricas visibles">
+              <span>⚙️</span> <span>Métricas</span>
+            </button>
+            <button onclick="toggleWidgetVisibility('widget-kpis', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div id="kpis-dynamic-container" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <!-- Populated dynamically by renderKpis() -->
+        </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET 2: 14-Day Physiology Chart (Default 2/3 = 8 cols) -->
+      <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>📈</span> Tendencias de Recuperación (14 Días)
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">RHR vs HRV RMSSD</span>
+            <button onclick="toggleWidgetVisibility('widget-chart-physio', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
         </div>
         <div id="chart-physio" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
       </div>
 
-      <!-- Zones & Training Intensity -->
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <h2 class="font-bold text-lg text-white">Heart Rate Training Zones</h2>
+      <!-- WIDGET 3: Heart Rate Zones (Default 1/3 = 4 cols) -->
+      <div id="widget-zones" data-widget-id="widget-zones" class="dashboard-widget relative col-span-12 lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>💓</span> Zonas de Ritmo Cardíaco
+            </span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="toggleWidgetVisibility('widget-zones', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
         <div id="zones-container" class="space-y-3">
           <!-- Populated by JS -->
         </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET: Weekly Training Volume (km & hours) -->
+      <div id="widget-chart-volume" data-widget-id="widget-chart-volume" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🏃</span> Volumen Semanal Acumulado
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">Distancia (km) & Horas</span>
+            <button onclick="toggleWidgetVisibility('widget-chart-volume', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div id="chart-volume" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET: Daily Stress vs Body Battery & Sleep -->
+      <div id="widget-chart-stress-bb" data-widget-id="widget-chart-stress-bb" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>⚡</span> Estrés Diario vs Body Battery & Sueño
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">Carga Simpática vs Reposición</span>
+            <button onclick="toggleWidgetVisibility('widget-chart-stress-bb', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div id="chart-stress-bb" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET: Training Load & ACWR Risk Ratio -->
+      <div id="widget-chart-acwr" data-widget-id="widget-chart-acwr" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>\u2696\ufe0f</span> Ratio de Carga ACWR (Prevenci\u00f3n de Lesiones)
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 hidden sm:inline">Zona Segura: 0.8 - 1.3</span>
+            <button onclick="toggleWidgetVisibility('widget-chart-acwr', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div id="chart-acwr" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+
+      <!-- WIDGET: Running Progression (Efficiency & Peak Paces) -->
+      <div id="widget-progress-running" data-widget-id="widget-progress-running" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">\u283f</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>\U0001f3c3</span> Progreso Running: Eficiencia & R\u00e9cords (MMP)
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <!-- Timeframe Filter -->
+            <div class="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5 text-[11px]">
+              <button onclick="setRunningTimeframe('15s')" id="rtf-15s" class="rtf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition">15 Sesiones</button>
+              <button onclick="setRunningTimeframe('30d')" id="rtf-30d" class="rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">30 D\u00edas</button>
+              <button onclick="setRunningTimeframe('3m')" id="rtf-3m" class="rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">3 Meses</button>
+              <button onclick="setRunningTimeframe('all')" id="rtf-all" class="rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">Todo</button>
+            </div>
+            <button onclick="toggleWidgetVisibility('widget-progress-running', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">\u2715</button>
+          </div>
+        </div>
+        <div id="chart-progress-running" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET: Swimming Progression (SWOLF & Pace / 100m) -->
+      <div id="widget-progress-swimming" data-widget-id="widget-progress-swimming" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">\u283f</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>\U0001f3ca</span> Progreso Nataci\u00f3n: Eficiencia SWOLF & Ritmo
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <!-- Timeframe Filter -->
+            <div class="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5 text-[11px]">
+              <button onclick="setSwimmingTimeframe('15s')" id="stf-15s" class="stf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition">15 Sesiones</button>
+              <button onclick="setSwimmingTimeframe('30d')" id="stf-30d" class="stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">30 D\u00edas</button>
+              <button onclick="setSwimmingTimeframe('3m')" id="stf-3m" class="stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">3 Meses</button>
+              <button onclick="setSwimmingTimeframe('all')" id="stf-all" class="stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">Todo</button>
+            </div>
+            <button onclick="toggleWidgetVisibility('widget-progress-swimming', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">\u2715</button>
+          </div>
+        </div>
+        <div id="chart-progress-swimming" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET 4: Active Goals -->
+      <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🎯</span> Objetivos de Rendimiento Activos
+            </span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="toggleWidgetVisibility('widget-goals', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div id="goals-container" class="space-y-2.5">
+          <div class="text-slate-500 text-xs py-2">Cargando objetivos...</div>
+        </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET 5: Recent Activities Table -->
+      <div id="widget-activities" data-widget-id="widget-activities" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🏃</span> Sesiones de Entrenamiento Recientes
+            </span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="toggleWidgetVisibility('widget-activities', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-400">
+            <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-2">Fecha</th>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Distancia</th>
+                <th>Duración</th>
+                <th>FC Media</th>
+                <th>Potencia / TE</th>
+              </tr>
+            </thead>
+            <tbody id="activities-tbody" class="divide-y divide-slate-800/60">
+              <tr><td colspan="7" class="py-4 text-center text-slate-500">Cargando actividades...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET 6: Chat with AI Coach -->
+      <div id="widget-coach" data-widget-id="widget-coach" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>🤖</span> Asistente Biométrico AI (Chat en Vivo)
+            </span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <button onclick="toggleWidgetVisibility('widget-coach', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">✕</button>
+          </div>
+        </div>
+        <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300 font-sans">
+          <div class="text-slate-400 text-xs">Hola, soy tu entrenador biométrico. Podés consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.</div>
+        </div>
+        <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
+          <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi recuperación hoy?)..."
+                 class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
+          <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
+            Enviar
+          </button>
+        </form>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- KPI Metrics Customizer Modal -->
+  <div id="kpi-customizer-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 space-y-5 shadow-2xl mx-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>⚙️</span> Personalizar Indicadores Clave (KPIs)
+        </h3>
+        <button onclick="closeKpiModal()" class="text-slate-400 hover:text-white text-lg">\u2715</button>
+      </div>
+      <p class="text-xs text-slate-400">Seleccioná las métricas que querés visualizar en la tarjeta principal de tu dashboard:</p>
+      <div id="kpi-checkbox-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
+        <!-- Populated by JS -->
+      </div>
+      <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+        <button onclick="resetKpisToDefault()" class="text-xs text-slate-400 hover:text-rose-400 transition">Restablecer sugeridos</button>
+        <div class="flex space-x-3">
+          <button onclick="closeKpiModal()" class="px-4 py-1.5 rounded-xl border border-slate-700 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition">Cancelar</button>
+          <button onclick="saveKpiPreferences()" class="px-4 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition shadow-md">Guardar</button>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- Recent Activities Table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <h2 class="font-bold text-lg text-white">Recent Training Sessions</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-400">
-          <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
-            <tr>
-              <th class="py-3 px-2">Date</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Distance</th>
-              <th>Duration</th>
-              <th>Avg HR</th>
-              <th>Power / TE</th>
-            </tr>
-          </thead>
-          <tbody id="activities-tbody" class="divide-y divide-slate-800/60">
-            <tr><td colspan="7" class="py-4 text-center text-slate-500">Loading activities...</td></tr>
-          </tbody>
-        </table>
+  <!-- Widget Catalog Modal -->
+  <div id="widget-catalog-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between p-5 border-b border-slate-800">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">🎨</span>
+          <h3 class="font-bold text-lg text-white">Catálogo de Widgets</h3>
+        </div>
+        <button onclick="closeWidgetCatalog()" class="text-slate-400 hover:text-white text-sm p-1">✕</button>
       </div>
-    </div>
-
-    <!-- Chat with AI Coach -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-      <div class="flex items-center space-x-2">
-        <span class="text-xl">🤖</span>
-        <h2 class="font-bold text-lg text-white">Ask Your Biometric AI Coach</h2>
+      <div class="p-5 space-y-3.5 max-h-[60vh] overflow-y-auto" id="catalog-list">
+        <!-- Generated by JS -->
       </div>
-      <div id="chat-box" class="h-48 overflow-y-auto bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2 text-sm text-slate-300 font-sans">
-        <div class="text-slate-400 text-xs">Hola, soy tu entrenador biométrico. Puedes consultarme sobre tu recuperación, zonas de ritmo cardíaco o planificación de tus próximas carreras.</div>
+      <div class="p-4 bg-slate-950/60 border-t border-slate-800 flex justify-between items-center">
+        <button onclick="resetDashboardLayout()" class="text-xs text-slate-400 hover:text-white transition">↺ Restablecer todo</button>
+        <button onclick="closeWidgetCatalog()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl transition">Aceptar</button>
       </div>
-      <form onsubmit="sendChatMessage(event)" class="flex space-x-2">
-        <input type="text" id="chat-input" placeholder="Pregúntale a tu entrenador (ej: ¿Cómo está mi recuperación hoy?)..."
-               class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition">
-        <button type="submit" id="chat-send-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl transition">
-          Send
-        </button>
-      </form>
     </div>
   </div>
 
   <script>
     let currentUserId = "{{ATHLETE_ID}}";
     let physioChart = null;
+    let stressBbChart = null;
+    let volumeChart = null;
+    let acwrChart = null;
+    let runningProgressChart = null;
+    let swimmingProgressChart = null;
+    let currentRunningTimeframe = '15s';
+    let currentSwimmingTimeframe = '15s';
+    let cachedDashboardData = null;
+    let isCustomizeMode = false;
+    let sortableInstance = null;
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'pointer-events-auto bg-slate-900 border ' + 
+        (type === 'error' ? 'border-rose-500/80 text-rose-300' : 'border-emerald-500/80 text-emerald-300') + 
+        ' px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs font-semibold transform transition-all duration-300 opacity-0 translate-y-2';
+      toast.innerHTML = '<span>' + (type === 'error' ? '⚠️' : '✓') + '</span> <span>' + message + '</span>';
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+      });
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+    let currentLayout = null;
+
+    const KPI_CATALOG = [
+      { id: 'rhr', label: 'Resting Heart Rate', sub: 'Frecuencia en reposo', color: 'text-white', extract: d => (d.latest_physio?.resting_heart_rate ? `${d.latest_physio.resting_heart_rate} bpm` : '-- bpm') },
+      { id: 'hrv', label: 'HRV (RMSSD)', sub: 'Recuperación autonómica', color: 'text-emerald-400', extract: d => (d.latest_physio?.hrv_rmssd != null && !isNaN(d.latest_physio.hrv_rmssd) ? `${Math.round(d.latest_physio.hrv_rmssd)} ms` : '-- ms') },
+      { id: 'body_battery', label: 'Body Battery', sub: 'Reservas energéticas', color: 'text-blue-400', extract: d => {
+        const bb = (d.latest_physio?.body_battery_max != null) ? d.latest_physio.body_battery_max : (d.latest_physio?.body_battery_end_of_day != null ? d.latest_physio.body_battery_end_of_day : null);
+        return (bb != null) ? `${bb} / 100` : '-- / 100';
+      }},
+      { id: 'feeling', label: 'Sensación Subjetiva', sub: 'Check-in del atleta', color: 'text-emerald-400', extract: d => (d.health_status?.feeling || 'Optimal') },
+      { id: 'stress_avg', label: 'Estrés Diario', sub: 'Carga simpática', color: 'text-amber-400', extract: d => (d.latest_physio?.all_day_stress_avg != null && d.latest_physio.all_day_stress_avg >= 0 ? `${d.latest_physio.all_day_stress_avg} / 100` : '--') },
+      { id: 'sleep', label: 'Puntuación de Sueño', sub: 'Calidad del descanso', color: 'text-indigo-400', extract: d => (d.latest_physio?.sleep_score != null && d.latest_physio.sleep_score > 0 ? `${d.latest_physio.sleep_score} pts` : (d.latest_physio?.sleep_duration_hrs ? `${d.latest_physio.sleep_duration_hrs}h` : '--')) },
+      { id: 'acwr', label: 'Ratio Carga (ACWR)', sub: 'Riesgo lesivo (0.8 - 1.3)', color: 'text-sky-400', extract: d => (d.acwr != null ? `${d.acwr.toFixed(2)}` : '1.00') },
+      { id: 'vo2max', label: 'VO2 Max Estimado', sub: 'Capacidad aer\u00f3bica', color: 'text-teal-400', extract: d => (d.profile?.vo2max || d.latest_activity?.vo2max ? `${d.profile?.vo2max || d.latest_activity?.vo2max} ml/kg` : '52 ml/kg') },
+      { id: 'weekly_km', label: 'Volumen Semanal', sub: 'Distancia acumulada', color: 'text-purple-400', extract: d => (d.weekly_km != null ? `${d.weekly_km} km` : '-- km') },
+      { id: 'steps', label: 'Pasos Diarios', sub: 'Actividad basal', color: 'text-emerald-300', extract: d => (d.latest_physio?.total_steps != null && d.latest_physio.total_steps > 0 ? `${d.latest_physio.total_steps.toLocaleString()}` : '--') }
+    ];
+
+    const DEFAULT_KPIS = ['rhr', 'hrv', 'body_battery', 'feeling', 'stress_avg', 'sleep', 'acwr', 'weekly_km'];
+
+    const WIDGET_DEFINITIONS = [
+      { id: 'widget-kpis', icon: '📊', name: 'Métricas Principales (KPIs)', desc: 'Tarjetas personalizables de salud y carga (RHR, HRV, Sueño, etc.)' },
+      { id: 'widget-chart-physio', icon: '📈', name: 'Recuperación Fisiológica (14 Días)', desc: 'Gráfico dual de RHR vs HRV RMSSD' },
+      { id: 'widget-zones', icon: '\U0001f3c3', name: 'Zonas de Ritmo Card\u00edaco', desc: 'Distribuci\u00f3n de frecuencias card\u00edacas (Z1 a Z5)' },
+      { id: 'widget-progress-running', icon: '\U0001f3c3', name: 'Progreso Running (Eficiencia & MMP)', desc: 'Factor de eficiencia Pace/HR, Potencia y evoluci\u00f3n temporal' },
+      { id: 'widget-progress-swimming', icon: '\U0001f3ca', name: 'Progreso Nataci\u00f3n (SWOLF & Ritmo)', desc: 'M\u00e9tricas de eficiencia SWOLF, ritmo/100m y conteo de brazadas' },
+      { id: 'widget-chart-volume', icon: '🏃', name: 'Volumen Semanal Acumulado', desc: 'Historial de distancia (km) y horas de entrenamiento' },
+      { id: 'widget-chart-stress-bb', icon: '\u26a1', name: 'Estr\u00e9s Diario vs Body Battery', desc: 'Fatiga simp\u00e1tica vs recarga energ\u00e9tica diaria' },
+      { id: 'widget-chart-acwr', icon: '\u2696\ufe0f', name: 'Control de Carga (ACWR)', desc: 'Carga aguda vs cr\u00f3nica con banda de zona \u00f3ptima segura' },
+      { id: 'widget-goals', icon: '\U0001f3af', name: 'Objetivos de Rendimiento', desc: 'Metas y objetivos activos del atleta' },
+      { id: 'widget-activities', icon: '\U0001f4ca', name: 'Sesiones Recientes', desc: 'Tabla de actividades con distancia, ritmo y potencia' },
+      { id: 'widget-coach', icon: '\U0001f916', name: 'Entrenador AI (Chat)', desc: 'Asistente conversacional biom\u00e9trico' }
+    ];
+
+    const DEFAULT_LAYOUT = {
+      order: [
+        'widget-kpis',
+        'widget-chart-physio',
+        'widget-zones',
+        'widget-progress-running',
+        'widget-progress-swimming',
+        'widget-chart-volume',
+        'widget-chart-stress-bb',
+        'widget-chart-acwr',
+        'widget-goals',
+        'widget-activities',
+        'widget-coach'
+      ],
+      visible: {
+        'widget-kpis': true,
+        'widget-chart-physio': true,
+        'widget-zones': true,
+        'widget-progress-running': true,
+        'widget-progress-swimming': true,
+        'widget-chart-volume': true,
+        'widget-chart-stress-bb': false,
+        'widget-chart-acwr': false,
+        'widget-goals': true,
+        'widget-activities': true,
+        'widget-coach': true
+      },
+      sizes: {
+        'widget-kpis': '12',
+        'widget-chart-physio': '8',
+        'widget-zones': '4',
+        'widget-progress-running': '12',
+        'widget-progress-swimming': '12',
+        'widget-chart-volume': '12',
+        'widget-chart-stress-bb': '12',
+        'widget-chart-acwr': '12',
+        'widget-goals': '12',
+        'widget-activities': '12',
+        'widget-coach': '12'
+      },
+      active_kpis: DEFAULT_KPIS
+    };
+
+    const SIZE_CLASSES = {
+      '12': ['col-span-12'],
+      '8': ['col-span-12', 'lg:col-span-8'],
+      '6': ['col-span-12', 'lg:col-span-6'],
+      '4': ['col-span-12', 'lg:col-span-4']
+    };
+
+    const SIZE_LABELS = {
+      '12': '100%',
+      '8': '2/3',
+      '6': '1/2',
+      '4': '1/3'
+    };
+
+    const SIZE_CYCLE = ['12', '8', '6', '4'];
+
+    function getStorageKey(userId) {
+      return 'biometric_dashboard_layout_' + (userId || currentUserId || 'default');
+    }
+
+        function redrawAllCharts() {
+      setTimeout(() => {
+        const vis = (currentLayout && currentLayout.visible) || DEFAULT_LAYOUT.visible;
+        if (physioChart && vis['widget-chart-physio'] !== false) {
+          try { physioChart.render(); } catch(e) {}
+        }
+        if (stressBbChart && vis['widget-chart-stress-bb'] !== false) {
+          try { stressBbChart.render(); } catch(e) {}
+        }
+        if (volumeChart && vis['widget-chart-volume'] !== false) {
+          try { volumeChart.render(); } catch(e) {}
+        }
+        if (acwrChart && vis['widget-chart-acwr'] !== false) {
+          try { acwrChart.render(); } catch(e) {}
+        }
+        if (runningProgressChart && vis['widget-progress-running'] !== false) {
+          try { runningProgressChart.render(); } catch(e) {}
+        }
+        if (swimmingProgressChart && vis['widget-progress-swimming'] !== false) {
+          try { swimmingProgressChart.render(); } catch(e) {}
+        }
+      }, 120);
+    }
+
+    function openKpiModal() {
+      const modal = document.getElementById('kpi-customizer-modal');
+      const listEl = document.getElementById('kpi-checkbox-list');
+      if (!modal || !listEl) return;
+      const active = (currentLayout && currentLayout.active_kpis) || DEFAULT_KPIS;
+      listEl.innerHTML = KPI_CATALOG.map(k => {
+        const isChecked = active.includes(k.id);
+        return `
+          <label class="flex items-center space-x-3 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition select-none">
+            <input type="checkbox" value="${k.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-900">
+            <div>
+              <div class="text-sm font-semibold text-white">${k.label}</div>
+              <div class="text-xs text-slate-400">${k.sub}</div>
+            </div>
+          </label>
+        `;
+      }).join('');
+      modal.classList.remove('hidden');
+    }
+
+    function closeKpiModal() {
+      const modal = document.getElementById('kpi-customizer-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function resetKpisToDefault() {
+      const checkboxes = document.querySelectorAll('#kpi-checkbox-list input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        cb.checked = DEFAULT_KPIS.includes(cb.value);
+      });
+    }
+
+    function saveKpiPreferences() {
+      const checkboxes = document.querySelectorAll('#kpi-checkbox-list input[type="checkbox"]');
+      const selected = [];
+      checkboxes.forEach(cb => {
+        if (cb.checked) selected.push(cb.value);
+      });
+      if (selected.length === 0) {
+        showToast('Debes seleccionar al menos una métrica');
+        return;
+      }
+      if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      currentLayout.active_kpis = selected;
+      closeKpiModal();
+      if (cachedDashboardData) {
+        renderKpis(cachedDashboardData);
+      }
+      persistLayout(currentLayout);
+      showToast('Métricas actualizadas correctamente');
+    }
+
+async function loadAthleteLayout(userId) {
+      const targetUser = userId || currentUserId;
+      let layout = null;
+
+      // 1. Check client local cache
+      try {
+        const raw = localStorage.getItem(getStorageKey(targetUser));
+        if (raw) layout = JSON.parse(raw);
+      } catch (e) {}
+
+      // 2. Fetch athlete-specific layout from server
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(targetUser) + '/dashboard-layout');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.layout) {
+            layout = data.layout;
+            localStorage.setItem(getStorageKey(targetUser), JSON.stringify(layout));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch remote layout for', targetUser, err);
+      }
+
+      if (!layout) {
+        layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      }
+
+      // Backward compatibility: migrate widget-chart to widget-chart-physio only if not already present
+      if (layout.visible && 'widget-chart' in layout.visible) {
+        if (!('widget-chart-physio' in layout.visible)) {
+          layout.visible['widget-chart-physio'] = layout.visible['widget-chart'];
+        }
+        delete layout.visible['widget-chart'];
+      }
+      if (layout.sizes && 'widget-chart' in layout.sizes) {
+        if (!('widget-chart-physio' in layout.sizes)) {
+          layout.sizes['widget-chart-physio'] = layout.sizes['widget-chart'];
+        }
+        delete layout.sizes['widget-chart'];
+      }
+      if (layout.order) {
+        layout.order = layout.order.map(x => x === 'widget-chart' ? 'widget-chart-physio' : x);
+      }
+      if (!layout.active_kpis) {
+        layout.active_kpis = DEFAULT_KPIS.slice();
+      }
+
+      // Merge defaults for visible, order, and sizes
+      layout.visible = Object.assign({}, DEFAULT_LAYOUT.visible, layout.visible || {});
+      layout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes, layout.sizes || {});
+
+      const order = Array.isArray(layout.order) ? layout.order.slice() : DEFAULT_LAYOUT.order.slice();
+      DEFAULT_LAYOUT.order.forEach(id => {
+        if (!order.includes(id)) order.push(id);
+      });
+      layout.order = order;
+
+      currentLayout = layout;
+      applyLayout(currentLayout);
+      return currentLayout;
+    }
+
+    async function persistLayout(layout) {
+      if (!layout) layout = currentLayout;
+      if (!layout) return;
+
+      const container = document.getElementById('dashboard-widgets-container');
+      if (container) {
+        const domWidgets = Array.from(container.children).filter(el => el.classList.contains('dashboard-widget'));
+        layout.order = domWidgets.map(el => el.id).filter(Boolean);
+
+        // Ensure sizes map accurately matches actual classes in the DOM
+        if (!layout.sizes) layout.sizes = {};
+        domWidgets.forEach(w => {
+          const wid = w.id;
+          if (w.classList.contains('lg:col-span-4')) layout.sizes[wid] = '4';
+          else if (w.classList.contains('lg:col-span-6')) layout.sizes[wid] = '6';
+          else if (w.classList.contains('lg:col-span-8')) layout.sizes[wid] = '8';
+          else layout.sizes[wid] = '12';
+        });
+      }
+      if (!layout.active_kpis) {
+        layout.active_kpis = DEFAULT_KPIS.slice();
+      }
+
+      if (layout.visible && 'widget-chart' in layout.visible) {
+        delete layout.visible['widget-chart'];
+      }
+      if (layout.sizes && 'widget-chart' in layout.sizes) {
+        delete layout.sizes['widget-chart'];
+      }
+      currentLayout = layout;
+      localStorage.setItem(getStorageKey(currentUserId), JSON.stringify(layout));
+
+      // Persist to athlete profile on server
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(currentUserId) + '/dashboard-layout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(layout)
+        });
+        if (res.ok) {
+          showToast('Diseño guardado para ' + currentUserId);
+        }
+      } catch (err) {
+        console.warn('Could not persist remote layout for', currentUserId, err);
+      }
+    }
+
+    function applyLayout(layout) {
+      if (!layout) layout = currentLayout || DEFAULT_LAYOUT;
+      const container = document.getElementById('dashboard-widgets-container');
+      if (!container) return;
+
+      // Reorder elements according to athlete layout
+      layout.order.forEach(widgetId => {
+        const el = document.getElementById(widgetId);
+        if (el) container.appendChild(el);
+      });
+
+      // Set visibility and sizes according to athlete preference
+      Object.keys(layout.visible).forEach(widgetId => {
+        const el = document.getElementById(widgetId);
+        if (!el) return;
+
+        // Visibility
+        if (layout.visible[widgetId]) {
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+
+        // Size classes
+        const currentSize = (layout.sizes && layout.sizes[widgetId]) || DEFAULT_LAYOUT.sizes[widgetId] || '12';
+        el.classList.remove('col-span-12', 'lg:col-span-8', 'lg:col-span-6', 'lg:col-span-4');
+        const classes = SIZE_CLASSES[currentSize] || SIZE_CLASSES['12'];
+        classes.forEach(c => el.classList.add(c));
+
+        // Update size button label
+        const labelEl = document.getElementById('size-label-' + widgetId);
+        if (labelEl) {
+          labelEl.innerText = SIZE_LABELS[currentSize] || '100%';
+        }
+      });
+
+      // Trigger redraw of charts
+      window.dispatchEvent(new Event('resize'));
+      redrawAllCharts();
+      initResizeHandles();
+    }
+
+    function cycleWidgetSize(widgetId) {
+      if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+
+      const currentSize = currentLayout.sizes[widgetId] || '12';
+      const currentIndex = SIZE_CYCLE.indexOf(currentSize);
+      const nextIndex = (currentIndex + 1) % SIZE_CYCLE.length;
+      const newSize = SIZE_CYCLE[nextIndex];
+
+      currentLayout.sizes[widgetId] = newSize;
+      applyLayout(currentLayout);
+      persistLayout(currentLayout);
+    }
+
+
+
+    function setWidgetSize(widgetId, newSize) {
+      if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+      currentLayout.sizes[widgetId] = newSize;
+      applyLayout(currentLayout);
+      persistLayout(currentLayout);
+    }
+
+    function initResizeHandles() {
+      const container = document.getElementById('dashboard-widgets-container');
+      if (!container || container.dataset.resizeInitialized) return;
+      container.dataset.resizeInitialized = 'true';
+
+      let activeWidget = null;
+      let activeWidgetId = null;
+      let startX = 0;
+      let startY = 0;
+      let initialWidth = 0;
+      let containerWidth = 0;
+      let currentPreviewedSize = null;
+      let badgeEl = null;
+
+      function onStart(e) {
+        const handle = e.target.closest('.resize-handle');
+        if (!handle) return;
+
+        const widget = handle.closest('.dashboard-widget');
+        if (!widget) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        activeWidget = widget;
+        activeWidgetId = widget.getAttribute('data-widget-id');
+        startX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        startY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+
+        const widgetRect = widget.getBoundingClientRect();
+        initialWidth = widgetRect.width;
+        containerWidth = container.getBoundingClientRect().width;
+
+        const currentSize = (currentLayout && currentLayout.sizes && currentLayout.sizes[activeWidgetId]) || DEFAULT_LAYOUT.sizes[activeWidgetId] || '12';
+        currentPreviewedSize = currentSize;
+
+        // Visual feedback on widget
+        widget.classList.add('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
+        document.body.style.cursor = 'se-resize';
+        document.body.style.userSelect = 'none';
+
+        // Create floating preview badge near cursor
+        badgeEl = document.createElement('div');
+        badgeEl.id = 'resize-drag-badge';
+        badgeEl.className = 'fixed pointer-events-none z-50 bg-sky-500 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1.5';
+        const initialDesc = currentSize === '12' ? '100% (Ancho Completo)' : (currentSize === '8' ? '2/3 (66%)' : (currentSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
+        badgeEl.innerHTML = '<span>\u2194</span> <span>' + initialDesc + '</span>';
+        badgeEl.style.left = (startX + 15) + 'px';
+        badgeEl.style.top = (startY - 30) + 'px';
+        document.body.appendChild(badgeEl);
+
+        window.addEventListener('mousemove', onMove, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchend', onEnd);
+      }
+
+      function onMove(e) {
+        if (!activeWidget) return;
+        e.preventDefault();
+
+        const curX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        const curY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+        const deltaX = curX - startX;
+
+        // Update badge position
+        if (badgeEl) {
+          badgeEl.style.left = (curX + 15) + 'px';
+          badgeEl.style.top = (curY - 30) + 'px';
+        }
+
+        // Calculate fraction of container
+        const projectedWidth = Math.max(100, initialWidth + deltaX);
+        const ratio = projectedWidth / (containerWidth || 1);
+
+        let targetSize = '12';
+        if (ratio < 0.42) {
+          targetSize = '4';       // 1/3 (33%)
+        } else if (ratio < 0.58) {
+          targetSize = '6';       // 1/2 (50%)
+        } else if (ratio < 0.83) {
+          targetSize = '8';       // 2/3 (66%)
+        } else {
+          targetSize = '12';      // 100%
+        }
+
+        if (targetSize !== currentPreviewedSize) {
+          currentPreviewedSize = targetSize;
+
+          // Apply classes live
+          activeWidget.classList.remove('col-span-12', 'lg:col-span-8', 'lg:col-span-6', 'lg:col-span-4');
+          const classes = SIZE_CLASSES[targetSize] || SIZE_CLASSES['12'];
+          classes.forEach(c => activeWidget.classList.add(c));
+
+          // Update widget button label
+          const labelEl = document.getElementById('size-label-' + activeWidgetId);
+          if (labelEl) {
+            labelEl.innerText = SIZE_LABELS[targetSize] || '100%';
+          }
+
+          // Update badge text
+          if (badgeEl) {
+            const desc = targetSize === '12' ? '100% (Ancho Completo)' : (targetSize === '8' ? '2/3 (66%)' : (targetSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
+            badgeEl.innerHTML = '<span>\u2194</span> <span>' + desc + '</span>';
+          }
+
+          // Trigger responsive ApexCharts adjustment
+          redrawAllCharts();
+        }
+      }
+
+      function onEnd(e) {
+        if (!activeWidget) return;
+
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('touchend', onEnd);
+
+        // Remove highlight & styles
+        activeWidget.classList.remove('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        if (badgeEl) {
+          badgeEl.remove();
+          badgeEl = null;
+        }
+
+        // Persist new layout
+        if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+        if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
+        currentLayout.sizes[activeWidgetId] = currentPreviewedSize;
+
+        persistLayout(currentLayout);
+        window.dispatchEvent(new Event('resize'));
+        redrawAllCharts();
+
+        activeWidget = null;
+        activeWidgetId = null;
+      }
+
+      container.addEventListener('mousedown', onStart);
+      container.addEventListener('touchstart', onStart, { passive: false });
+    }
+
+    function toggleCustomizeMode(forceState) {
+      if (typeof forceState === 'boolean') {
+        isCustomizeMode = forceState;
+      } else {
+        isCustomizeMode = !isCustomizeMode;
+      }
+
+      const toolbar = document.getElementById('customize-toolbar');
+      const btnText = document.getElementById('customize-btn-label');
+      const btn = document.getElementById('btn-customize-toggle');
+      const handles = document.querySelectorAll('.drag-handle');
+      const removeBtns = document.querySelectorAll('.widget-remove-btn');
+      const widgets = document.querySelectorAll('.dashboard-widget');
+
+      if (isCustomizeMode) {
+        toolbar.classList.remove('hidden');
+        btnText.innerText = 'Cerrar Edición';
+        btn.classList.add('border-sky-500', 'bg-sky-950/30');
+        handles.forEach(h => h.classList.remove('hidden'));
+        removeBtns.forEach(b => b.classList.remove('hidden'));
+        widgets.forEach(w => w.classList.add('edit-mode-ring'));
+
+        // Init Sortable
+        const container = document.getElementById('dashboard-widgets-container');
+        if (container && window.Sortable && !sortableInstance) {
+          sortableInstance = new Sortable(container, {
+            handle: '.drag-handle',
+            animation: 200,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: function() {
+              persistLayout();
+              window.dispatchEvent(new Event('resize'));
+              if (physioChart) {
+                setTimeout(() => { try { physioChart.render(); } catch(e){} }, 100);
+              }
+            }
+          });
+        }
+      } else {
+        toolbar.classList.add('hidden');
+        btnText.innerText = 'Personalizar';
+        btn.classList.remove('border-sky-500', 'bg-sky-950/30');
+        handles.forEach(h => h.classList.add('hidden'));
+        removeBtns.forEach(b => b.classList.add('hidden'));
+        widgets.forEach(w => w.classList.remove('edit-mode-ring'));
+
+        if (sortableInstance) {
+          sortableInstance.destroy();
+          sortableInstance = null;
+        }
+      }
+    }
+
+    function toggleWidgetVisibility(widgetId, explicitState) {
+      const el = document.getElementById(widgetId);
+      if (!el || !currentLayout) return;
+      const newState = (explicitState !== undefined) ? explicitState : el.classList.contains('hidden');
+      currentLayout.visible[widgetId] = newState;
+
+      if (newState) {
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+
+      persistLayout(currentLayout);
+      populateCatalogList();
+
+      redrawAllCharts();
+    }
+
+    function openWidgetCatalog() {
+      populateCatalogList();
+      document.getElementById('widget-catalog-modal').classList.remove('hidden');
+    }
+
+    function closeWidgetCatalog() {
+      document.getElementById('widget-catalog-modal').classList.add('hidden');
+    }
+
+    function populateCatalogList() {
+      const listEl = document.getElementById('catalog-list');
+      if (!listEl) return;
+      const layout = currentLayout || DEFAULT_LAYOUT;
+      listEl.innerHTML = WIDGET_DEFINITIONS.map(w => {
+        const isChecked = layout.visible[w.id] !== false;
+        const currentSize = (layout.sizes && layout.sizes[w.id]) || DEFAULT_LAYOUT.sizes[w.id] || '12';
+        return `
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 transition gap-2.5">
+            <div class="flex items-center space-x-3">
+              <span class="text-xl">${w.icon}</span>
+              <div>
+                <div class="text-sm font-semibold text-white">${w.name}</div>
+                <div class="text-xs text-slate-400">${w.desc}</div>
+              </div>
+            </div>
+            <div class="flex items-center space-x-3 self-end sm:self-auto">
+              <!-- Size selector -->
+              <select onchange="setWidgetSize('${w.id}', this.value)" class="bg-slate-800 border border-slate-700 rounded-lg text-xs px-2.5 py-1 text-slate-200 focus:outline-none focus:border-sky-500">
+                <option value="12" ${currentSize === '12' ? 'selected' : ''}>100% Ancho</option>
+                <option value="8" ${currentSize === '8' ? 'selected' : ''}>2/3 Ancho (66%)</option>
+                <option value="6" ${currentSize === '6' ? 'selected' : ''}>1/2 Mitad (50%)</option>
+                <option value="4" ${currentSize === '4' ? 'selected' : ''}>1/3 Ancho (33%)</option>
+              </select>
+              <!-- Visibility Switch -->
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWidgetVisibility('${w.id}', this.checked)" class="sr-only peer">
+                <div class="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500"></div>
+              </label>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function resetDashboardLayout() {
+      const layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+      await persistLayout(layout);
+      applyLayout(layout);
+      populateCatalogList();
+    }
 
     // Check for auth callback status
     const authStatus = new URLSearchParams(window.location.search).get('auth');
@@ -1198,9 +2176,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       const text = document.getElementById('oauth-banner-text');
       if (banner && text) {
         banner.classList.remove('hidden');
-        if (authStatus === 'google_success') text.innerText = 'Google Health API (Fitbit Air 2026) connected successfully! Biometric telemetry is live.';
-        else if (authStatus === 'fitbit_success') text.innerText = 'Fitbit Web API connected successfully! Biometric telemetry is live.';
-        else if (authStatus === 'garmin_success') text.innerText = 'Garmin Connect SSO session initialized! Biometric telemetry is live.';
+        if (authStatus === 'google_success') text.innerText = 'Google Health API (Fitbit Air 2026) conectado exitosamente.';
+        else if (authStatus === 'fitbit_success') text.innerText = 'Fitbit Web API conectado exitosamente.';
+        else if (authStatus === 'garmin_success') text.innerText = 'Sesión de Garmin Connect SSO inicializada.';
       }
     }
 
@@ -1224,20 +2202,48 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    function switchAthlete(newUserId) {
+    async function switchAthlete(newUserId) {
       if (!newUserId || newUserId === currentUserId) return;
       currentUserId = newUserId;
       document.getElementById('athlete-badge').innerText = newUserId;
       window.history.replaceState(null, '', '/dashboard?user_id=' + encodeURIComponent(newUserId));
-      loadDashboard();
+      
+      // Load and apply this athlete's specific dashboard layout!
+      await loadAthleteLayout(newUserId);
+      await loadDashboard();
     }
 
     function refreshData() {
-      loadDashboard();
+      loadDashboard(true);
+    }
+
+    async function syncAthleteData() {
+      const btn = document.getElementById('btn-dash-sync');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Sincronizando...';
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(currentUserId) + '/sync?days_back=7', {
+          method: 'POST'
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('Sincronización iniciada en segundo plano para ' + currentUserId);
+          setTimeout(() => { refreshData(); }, 3000);
+        } else {
+          alert('Error al sincronizar: ' + (data.detail || 'Error desconocido'));
+        }
+      } catch (err) {
+        alert('Error de conexión: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Sincronizar';
+      }
     }
 
     async function deleteCurrentAthlete() {
-      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${currentUserId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?\n\nEsta acción es irreversible.`)) {
+      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${currentUserId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?
+
+Esta acción es irreversible.`)) {
         return;
       }
       try {
@@ -1258,43 +2264,321 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       }
     }
 
-    async function loadDashboard() {
+    async function loadDashboard(force = false) {
       try {
-        const res = await fetch('/dashboard/data?user_id=' + encodeURIComponent(currentUserId));
+        const url = '/dashboard/data?user_id=' + encodeURIComponent(currentUserId) + (force ? '&force=true' : '');
+        const res = await fetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
-        // Update KPIs
-        if (data.health_status) {
-          document.getElementById('kpi-feeling').innerText = data.health_status.feeling || 'Normal';
-        } else {
-          document.getElementById('kpi-feeling').innerText = 'Optimal';
-        }
-
+        cachedDashboardData = data;
         if (data.daily_physiology && data.daily_physiology.length > 0) {
-          const latest = data.daily_physiology[0];
-          document.getElementById('kpi-rhr').innerText = (latest.resting_heart_rate != null) ? (latest.resting_heart_rate + ' bpm') : '-- bpm';
-          document.getElementById('kpi-hrv').innerText = (latest.hrv_rmssd != null && !isNaN(latest.hrv_rmssd)) ? (Math.round(latest.hrv_rmssd) + ' ms') : '-- ms';
-          const bbVal = (latest.body_battery_max != null) ? latest.body_battery_max : (latest.body_battery_end_of_day != null ? latest.body_battery_end_of_day : null);
-          document.getElementById('kpi-bb').innerText = (bbVal != null) ? (bbVal + ' / 100') : '-- / 100';
-
-          renderPhysioChart(data.daily_physiology.slice().reverse());
-        } else {
-          document.getElementById('kpi-rhr').innerText = '-- bpm';
-          document.getElementById('kpi-hrv').innerText = '-- ms';
-          document.getElementById('kpi-bb').innerText = '-- / 100';
-          if (physioChart) { physioChart.destroy(); physioChart = null; }
-          document.getElementById('chart-physio').innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiológicos registrados aún.</div>';
+          data.latest_physio = data.daily_physiology[0];
         }
+        if (data.activities && data.activities.length > 0) {
+          data.latest_activity = data.activities[0];
+        }
+
+        // Render dynamic KPIs
+        renderKpis(data);
+
+        // Render all charts
+        const physioSeries = (data.daily_physiology || []).slice().reverse();
+        renderRunningProgressChart(data.activities || []);
+        renderSwimmingProgressChart(data.activities || []);
+        renderPhysioChart(physioSeries);
+        renderStressBBChart(physioSeries);
+        renderVolumeChart(data.macro_load || []);
+        renderAcwrChart(data.macro_load || []);
 
         // Zones
         renderZones(data.profile?.custom_zones || { z1_max: 135, z2_max: 152, z3_max: 165, z4_max: 178 });
+
+        // Goals
+        renderGoals(data.goals || []);
 
         // Activities
         renderActivities(data.activities || []);
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       }
+    }
+
+
+    async function saveAndExitCustomize() {
+      await persistLayout();
+      toggleCustomizeMode(false);
+      showToast('Configuración de dashboard guardada exitosamente');
+    }
+
+    function setRunningTimeframe(tf) {
+      currentRunningTimeframe = tf;
+      document.querySelectorAll('.rtf-btn').forEach(b => {
+        b.className = 'rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition';
+      });
+      const activeBtn = document.getElementById('rtf-' + tf);
+      if (activeBtn) {
+        activeBtn.className = 'rtf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition';
+      }
+      if (cachedDashboardData) {
+        renderRunningProgressChart(cachedDashboardData.activities || []);
+      }
+    }
+
+    function setSwimmingTimeframe(tf) {
+      currentSwimmingTimeframe = tf;
+      document.querySelectorAll('.stf-btn').forEach(b => {
+        b.className = 'stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition';
+      });
+      const activeBtn = document.getElementById('stf-' + tf);
+      if (activeBtn) {
+        activeBtn.className = 'stf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition';
+      }
+      if (cachedDashboardData) {
+        renderSwimmingProgressChart(cachedDashboardData.activities || []);
+      }
+    }
+
+    function filterActivitiesByTimeframe(activities, timeframe) {
+      if (!activities || activities.length === 0) return [];
+      const sorted = activities.slice().sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
+      if (timeframe === '15s') {
+        return sorted.slice(-15);
+      }
+      const latestTimestamp = sorted.length > 0 ? new Date(sorted[sorted.length - 1].start_time || 0).getTime() : Date.now();
+      const refTime = Math.max(Date.now(), latestTimestamp);
+
+      if (timeframe === '30d') {
+        const cutoff = new Date(refTime - 30 * 24 * 60 * 60 * 1000);
+        return sorted.filter(a => new Date(a.start_time || 0) >= cutoff);
+      }
+      if (timeframe === '3m') {
+        const cutoff = new Date(refTime - 90 * 24 * 60 * 60 * 1000);
+        return sorted.filter(a => new Date(a.start_time || 0) >= cutoff);
+      }
+      return sorted;
+    }
+
+    function renderRunningProgressChart(allActivities) {
+      const el = document.getElementById('chart-progress-running');
+      if (!el) return;
+
+      const runs = (allActivities || []).filter(a => {
+        const t = (a.activity_type || a.type || '').toLowerCase();
+        return t.includes('run') || t.includes('carrera') || t.includes('running');
+      });
+
+      const filtered = filterActivitiesByTimeframe(runs, currentRunningTimeframe);
+
+      if (filtered.length === 0) {
+        if (runningProgressChart) { runningProgressChart.destroy(); runningProgressChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin sesiones de running registradas en este per\u00edodo.</div>';
+        return;
+      }
+
+      const dates = [];
+      const efSeries = [];
+      const paceSeries = [];
+      const hrSeries = [];
+
+      filtered.forEach(a => {
+        let dStr = '--';
+        if (a.start_time) {
+          try {
+            const dt = new Date(a.start_time);
+            dStr = (dt.getMonth() + 1).toString().padStart(2, '0') + '-' + dt.getDate().toString().padStart(2, '0');
+          } catch(e) {
+            dStr = String(a.start_time).substring(5, 10);
+          }
+        }
+        dates.push(dStr);
+
+        const distM = a.distance_meters || a.distance_m || 0;
+        const durSec = a.duration_seconds || a.duration_sec || 0;
+        const avgHr = a.avg_heart_rate || a.avg_hr || 0;
+
+        // Pace in min/km
+        let paceMin = 0;
+        if (distM > 0 && durSec > 0) {
+          paceMin = Math.round((durSec / 60) / (distM / 1000) * 100) / 100;
+        }
+        paceSeries.push(paceMin);
+        hrSeries.push(Math.round(avgHr));
+
+        // Efficiency Factor (EF): Speed (m/min) / HR
+        let ef = 0;
+        if (avgHr > 0 && durSec > 0 && distM > 0) {
+          const speedMMin = distM / (durSec / 60);
+          ef = Math.round((speedMMin / avgHr) * 100) / 100;
+        }
+        efSeries.push(ef);
+      });
+
+      const options = {
+        series: [
+          { name: 'Factor Eficiencia (m/min / bpm)', type: 'line', data: efSeries },
+          { name: 'Ritmo (min/km)', type: 'line', data: paceSeries },
+          { name: 'FC Media (bpm)', type: 'column', data: hrSeries }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#38bdf8', '#34d399', '#f59e0b'],
+        stroke: { curve: 'smooth', width: [3, 2, 0] },
+        plotOptions: { bar: { columnWidth: '35%', borderRadius: 3 } },
+        fill: { opacity: [1, 1, 0.25] },
+        theme: { mode: 'dark' },
+        xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          {
+            title: { text: 'Eficiencia', style: { color: '#38bdf8' } },
+            labels: { style: { colors: '#38bdf8' } },
+            min: Math.max(0, Math.floor(Math.min(...efSeries.filter(v => v > 0), 1) * 0.9)),
+          },
+          {
+            opposite: true,
+            title: { text: 'Ritmo (min/km)', style: { color: '#34d399' } },
+            labels: { style: { colors: '#34d399' } },
+            reversed: true
+          },
+          {
+            show: false,
+            title: { text: 'FC Media' },
+            min: 100,
+            max: 200
+          }
+        ],
+        grid: { borderColor: '#334155' },
+        tooltip: {
+          shared: true,
+          y: {
+            formatter: function(val, opt) {
+              if (opt.seriesIndex === 0) return val + ' pts';
+              if (opt.seriesIndex === 1) {
+                const mins = Math.floor(val);
+                const secs = Math.round((val - mins) * 60).toString().padStart(2, '0');
+                return mins + ':' + secs + ' /km';
+              }
+              return val + ' bpm';
+            }
+          }
+        }
+      };
+
+      if (runningProgressChart) { runningProgressChart.destroy(); }
+      runningProgressChart = new ApexCharts(el, options);
+      runningProgressChart.render();
+    }
+
+    function renderSwimmingProgressChart(allActivities) {
+      const el = document.getElementById('chart-progress-swimming');
+      if (!el) return;
+
+      const swims = (allActivities || []).filter(a => {
+        const t = (a.activity_type || a.type || a.name || '').toLowerCase();
+        return t.includes('swim') || t.includes('nataci') || t.includes('piscina');
+      });
+
+      const filtered = filterActivitiesByTimeframe(swims, currentSwimmingTimeframe);
+
+      if (filtered.length === 0) {
+        if (swimmingProgressChart) { swimmingProgressChart.destroy(); swimmingProgressChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin sesiones de nataci\u00f3n registradas en este per\u00edodo.</div>';
+        return;
+      }
+
+      const dates = [];
+      const pace100mSeries = [];
+      const swolfSeries = [];
+      const strokesSeries = [];
+
+      filtered.forEach(a => {
+        let dStr = '--';
+        if (a.start_time) {
+          try {
+            const dt = new Date(a.start_time);
+            dStr = (dt.getMonth() + 1).toString().padStart(2, '0') + '-' + dt.getDate().toString().padStart(2, '0');
+          } catch(e) {
+            dStr = String(a.start_time).substring(5, 10);
+          }
+        }
+        dates.push(dStr);
+
+        const distM = a.distance_meters || a.distance_m || 0;
+        const durSec = a.duration_seconds || a.duration_sec || 0;
+
+        // Pace per 100m in minutes
+        let pace100 = 0;
+        if (distM > 0 && durSec > 0) {
+          pace100 = Math.round(((durSec / 60) / (distM / 100)) * 100) / 100;
+        }
+        pace100mSeries.push(pace100);
+
+        // SWOLF calculation: strokes per length + seconds per length
+        let swolf = parseFloat(a.avg_swolf) || 0;
+        if (!swolf && a.active_lengths && a.active_lengths > 0 && a.total_strokes) {
+          const strokesPerLen = parseFloat(a.avg_strokes_per_length) || (parseFloat(a.total_strokes) / a.active_lengths);
+          const timePerLen = durSec / a.active_lengths;
+          swolf = Math.round(strokesPerLen + timePerLen);
+        }
+        if (!swolf && pace100 > 0) {
+          swolf = Math.round(pace100 * 25);
+        }
+        swolfSeries.push(swolf);
+
+        // Strokes per length
+        const strokes = parseFloat(a.avg_strokes_per_length) || (a.total_strokes ? Math.round(parseFloat(a.total_strokes) / (a.active_lengths || 1)) : 14);
+        strokesSeries.push(Math.round(strokes * 10) / 10);
+      });
+
+      const options = {
+        series: [
+          { name: 'Ritmo / 100m (min)', type: 'line', data: pace100mSeries },
+          { name: '\u00cdndice SWOLF (menor es mejor)', type: 'line', data: swolfSeries },
+          { name: 'Brazadas / Largo', type: 'column', data: strokesSeries }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#06b6d4', '#ec4899', '#6366f1'],
+        stroke: { curve: 'smooth', width: [3, 3, 0] },
+        plotOptions: { bar: { columnWidth: '35%', borderRadius: 3 } },
+        fill: { opacity: [1, 1, 0.3] },
+        theme: { mode: 'dark' },
+        xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          {
+            title: { text: 'Ritmo / 100m', style: { color: '#06b6d4' } },
+            labels: { style: { colors: '#06b6d4' } },
+            reversed: true
+          },
+          {
+            opposite: true,
+            title: { text: 'SWOLF', style: { color: '#ec4899' } },
+            labels: { style: { colors: '#ec4899' } },
+            reversed: true
+          },
+          {
+            show: false,
+            title: { text: 'Brazadas / Largo' }
+          }
+        ],
+        grid: { borderColor: '#334155' },
+        tooltip: {
+          shared: true,
+          y: {
+            formatter: function(val, opt) {
+              if (opt.seriesIndex === 0) {
+                const mins = Math.floor(val);
+                const secs = Math.round((val - mins) * 60).toString().padStart(2, '0');
+                return mins + ':' + secs + ' /100m';
+              }
+              if (opt.seriesIndex === 1) return val + ' pts (SWOLF)';
+              return val + ' brazadas';
+            }
+          }
+        }
+      };
+
+      if (swimmingProgressChart) { swimmingProgressChart.destroy(); }
+      swimmingProgressChart = new ApexCharts(el, options);
+      swimmingProgressChart.render();
     }
 
     function renderZones(zones) {
@@ -1306,29 +2590,84 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
 
       c.innerHTML = `
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 1: Active Recovery</span><span>< ${z1} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 1: Recuperación Activa</span><span>< ${z1} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-sky-400 h-2 rounded-full" style="width: 20%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 2: Aerobic Base (AeT)</span><span>${z1} - ${z2} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 2: Base Aeróbica (AeT)</span><span>${z1} - ${z2} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-emerald-400 h-2 rounded-full" style="width: 40%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 3: Tempo</span><span>${z2} - ${z3} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 3: Tempo</span><span>${z2} - ${z3} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-amber-400 h-2 rounded-full" style="width: 60%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 4: Sub-Threshold (AnT)</span><span>${z3} - ${z4} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 4: Sub-Umbral (AnT)</span><span>${z3} - ${z4} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-orange-500 h-2 rounded-full" style="width: 80%"></div></div>
         </div>
         <div class="space-y-1">
-          <div class="flex justify-between text-xs font-semibold"><span>Zone 5: VO2 Max / Anaerobic</span><span>> ${z4} bpm</span></div>
+          <div class="flex justify-between text-xs font-semibold"><span>Zona 5: VO2 Max / Anaeróbico</span><span>> ${z4} bpm</span></div>
           <div class="w-full bg-slate-800 rounded-full h-2"><div class="bg-rose-500 h-2 rounded-full" style="width: 100%"></div></div>
         </div>
       `;
     }
 
+    function renderGoals(goals) {
+      const container = document.getElementById('goals-container');
+      if (!container) return;
+      if (!goals || goals.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-xs py-2">No hay objetivos activos configurados aún. Podés pedirle a tu coach AI que fije metas (ej: Sub-40m en 10K, acumular 45km semanales).</div>';
+        return;
+      }
+      container.innerHTML = goals.map(function(g) {
+        const title = g.title || g.description || g.goal_id || 'Meta deportiva';
+        let targetText = '';
+        if (g.target_metric && g.target_value) {
+          targetText = g.target_metric + ': ' + g.target_value;
+        } else if (g.target_value) {
+          targetText = (g.goal_type ? g.goal_type.toUpperCase() + ': ' : 'Meta: ') + g.target_value;
+        }
+        const dateStr = g.target_date ? ('Fecha meta: ' + g.target_date) : 'Sin fecha límite';
+        const subtitle = targetText ? `${targetText} • ${dateStr}` : dateStr;
+        return `
+          <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 flex items-center justify-between hover:border-slate-700 transition">
+            <div>
+              <div class="text-sm font-semibold text-white">${title}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${subtitle}</div>
+            </div>
+            <span class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">Activo</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderKpis(data) {
+      const container = document.getElementById('kpis-dynamic-container');
+      if (!container) return;
+      const activeIds = (currentLayout && currentLayout.active_kpis) || DEFAULT_KPIS;
+      const selectedMetrics = activeIds.map(id => KPI_CATALOG.find(k => k.id === id)).filter(Boolean);
+
+      container.innerHTML = selectedMetrics.map(m => {
+        let val = '--';
+        try { val = m.extract(data); } catch(e){}
+        return `
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 space-y-1 hover:border-slate-700 transition">
+            <div class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">${m.label}</div>
+            <div class="text-2xl font-bold ${m.color}">${val}</div>
+            <div class="text-[11px] text-slate-400">${m.sub}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
     function renderPhysioChart(seriesData) {
+      const el = document.getElementById('chart-physio');
+      if (!el) return;
+      if (!seriesData || seriesData.length === 0) {
+        if (physioChart) { physioChart.destroy(); physioChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos fisiológicos registrados aún.</div>';
+        return;
+      }
       const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
       const rhr = seriesData.map(d => d.resting_heart_rate);
       const hrv = seriesData.map(d => (d.hrv_rmssd != null ? Math.round(d.hrv_rmssd) : null));
@@ -1338,12 +2677,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           { name: 'RHR (bpm)', data: rhr },
           { name: 'HRV RMSSD (ms)', data: hrv }
         ],
-        chart: {
-          type: 'line',
-          height: 250,
-          background: 'transparent',
-          toolbar: { show: false }
-        },
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
         colors: ['#38bdf8', '#34d399'],
         stroke: { curve: 'smooth', width: 3 },
         theme: { mode: 'dark' },
@@ -1355,20 +2689,161 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         grid: { borderColor: '#334155' }
       };
 
-      if (physioChart) {
-        physioChart.destroy();
-      }
-      physioChart = new ApexCharts(document.getElementById('chart-physio'), options);
+      if (physioChart) { physioChart.destroy(); }
+      physioChart = new ApexCharts(el, options);
       physioChart.render();
+    }
+
+    function renderStressBBChart(seriesData) {
+      const el = document.getElementById('chart-stress-bb');
+      if (!el) return;
+      if (!seriesData || seriesData.length === 0) {
+        if (stressBbChart) { stressBbChart.destroy(); stressBbChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin datos de estrés ni Body Battery aún.</div>';
+        return;
+      }
+      const dates = seriesData.map(d => (d.date ? String(d.date).substring(5, 10) : ''));
+      const bb = seriesData.map(d => (d.body_battery_max != null ? d.body_battery_max : (d.body_battery_end_of_day != null ? d.body_battery_end_of_day : null)));
+      const stress = seriesData.map(d => (d.all_day_stress_avg != null && d.all_day_stress_avg >= 0 ? d.all_day_stress_avg : null));
+
+      const options = {
+        series: [
+          { name: 'Body Battery (Max/D\u00eda)', type: 'area', data: bb },
+          { name: 'Estrés Diario Promedio', type: 'line', data: stress }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#38bdf8', '#f59e0b'],
+        stroke: { curve: 'smooth', width: [2, 3] },
+        fill: { type: ['gradient', 'solid'], gradient: { opacityFrom: 0.35, opacityTo: 0.05 } },
+        theme: { mode: 'dark' },
+        xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          { min: 0, max: 100, title: { text: 'Body Battery', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } },
+          { min: 0, max: 100, opposite: true, title: { text: 'Estrés (0-100)', style: { color: '#f59e0b' } }, labels: { style: { colors: '#94a3b8' } } }
+        ],
+        grid: { borderColor: '#334155' }
+      };
+
+      if (stressBbChart) { stressBbChart.destroy(); }
+      stressBbChart = new ApexCharts(el, options);
+      stressBbChart.render();
+    }
+
+    function renderVolumeChart(macroLoad) {
+      const el = document.getElementById('chart-volume');
+      if (!el) return;
+      if (!macroLoad || macroLoad.length === 0) {
+        if (volumeChart) { volumeChart.destroy(); volumeChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin historial de volumen semanal registrado a\u00fan.</div>';
+        return;
+      }
+      const periods = macroLoad.map(m => m.period ? String(m.period).substring(5) : '');
+      const km = macroLoad.map(m => Math.round((m.total_distance_km || 0) * 10) / 10);
+      const hours = macroLoad.map(m => Math.round((m.total_hours || 0) * 10) / 10);
+
+      const options = {
+        series: [
+          { name: 'Distancia (km)', type: 'column', data: km },
+          { name: 'Duración (Horas)', type: 'line', data: hours }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#a855f7', '#38bdf8'],
+        stroke: { width: [0, 3], curve: 'smooth' },
+        plotOptions: { bar: { columnWidth: '45%', borderRadius: 4 } },
+        theme: { mode: 'dark' },
+        xaxis: { categories: periods, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          { title: { text: 'Distancia (km)', style: { color: '#a855f7' } }, labels: { style: { colors: '#94a3b8' } } },
+          { opposite: true, title: { text: 'Horas', style: { color: '#38bdf8' } }, labels: { style: { colors: '#94a3b8' } } }
+        ],
+        grid: { borderColor: '#334155' }
+      };
+
+      if (volumeChart) { volumeChart.destroy(); }
+      volumeChart = new ApexCharts(el, options);
+      volumeChart.render();
+    }
+
+    function renderAcwrChart(macroLoad) {
+      const el = document.getElementById('chart-acwr');
+      if (!el) return;
+      if (!macroLoad || macroLoad.length < 2) {
+        if (acwrChart) { acwrChart.destroy(); acwrChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Se requieren al menos 2 semanas de actividades para proyectar ACWR.</div>';
+        return;
+      }
+
+      const periods = [];
+      const acwrSeries = [];
+
+      for (let i = 0; i < macroLoad.length; i++) {
+        const cur = macroLoad[i];
+        const pLabel = cur.period ? String(cur.period).substring(5) : `S${i+1}`;
+        periods.push(pLabel);
+
+        const recent = cur.total_distance_km || 0;
+        let pastWeeks = macroLoad.slice(Math.max(0, i - 4), i);
+        if (pastWeeks.length === 0) pastWeeks = [cur];
+        const chronic = pastWeeks.reduce((acc, w) => acc + (w.total_distance_km || 0), 0) / pastWeeks.length;
+        const ratio = chronic > 0 ? Math.round((recent / chronic) * 100) / 100 : 1.0;
+        acwrSeries.push(ratio);
+      }
+
+      const options = {
+        series: [
+          { name: 'Ratio ACWR', data: acwrSeries }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#38bdf8'],
+        stroke: { curve: 'smooth', width: 3 },
+        theme: { mode: 'dark' },
+        markers: { size: 5, colors: ['#38bdf8'], strokeColors: '#0f172a', strokeWidth: 2 },
+        xaxis: { categories: periods, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: {
+          min: 0,
+          max: Math.max(2.0, Math.ceil(Math.max(...acwrSeries, 1.5) * 1.2)),
+          title: { text: 'ACWR Ratio', style: { color: '#38bdf8' } },
+          labels: { style: { colors: '#94a3b8' } }
+        },
+        annotations: {
+          yaxis: [
+            {
+              y: 0.8,
+              y2: 1.3,
+              borderColor: '#10b981',
+              fillColor: '#10b981',
+              opacity: 0.12,
+              label: {
+                text: 'Zona Óptima / Segura (0.8 - 1.3)',
+                style: { color: '#34d399', background: '#064e3b', fontSize: '10px' }
+              }
+            },
+            {
+              y: 1.5,
+              borderColor: '#f43f5e',
+              label: {
+                text: 'Riesgo Alto (> 1.5)',
+                style: { color: '#fb7185', background: '#881337', fontSize: '10px' }
+              }
+            }
+          ]
+        },
+        grid: { borderColor: '#334155' }
+      };
+
+      if (acwrChart) { acwrChart.destroy(); }
+      acwrChart = new ApexCharts(el, options);
+      acwrChart.render();
     }
 
     function renderActivities(activities) {
       const tbody = document.getElementById('activities-tbody');
       if (!activities || activities.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No activities recorded yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">No hay actividades registradas aún.</td></tr>';
         return;
       }
-      tbody.innerHTML = activities.map(function(a) {
+      const recentList = activities.slice(0, 10);
+      tbody.innerHTML = recentList.map(function(a) {
         let dateStr = '--';
         if (a.start_time) {
           try {
@@ -1381,7 +2856,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         const durMin = Math.round((a.duration_seconds || a.duration_sec || 0) / 60);
         const hr = (a.avg_heart_rate || a.avg_hr) ? Math.round(a.avg_heart_rate || a.avg_hr) + ' bpm' : '--';
         const pwr = (a.avg_power && !isNaN(a.avg_power)) ? Math.round(a.avg_power) + ' W' : (a.aerobic_training_effect != null ? a.aerobic_training_effect : '--');
-        const actName = a.activity_name || a.name || 'Training Session';
+        const actName = a.activity_name || a.name || 'Sesión de entrenamiento';
         const actType = a.activity_type || a.type || 'running';
 
         return '<tr class="hover:bg-slate-800/40 transition">' +
@@ -1403,13 +2878,13 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       if (!msg) return;
 
       const chatBox = document.getElementById('chat-box');
-      chatBox.innerHTML += '<div class="text-blue-400 font-semibold">You: <span class="text-slate-200 font-normal">' + msg + '</span></div>';
+      chatBox.innerHTML += '<div class="text-blue-400 font-semibold">Tú: <span class="text-slate-200 font-normal">' + msg + '</span></div>';
       input.value = '';
       chatBox.scrollTop = chatBox.scrollHeight;
 
       const btn = document.getElementById('chat-send-btn');
       btn.disabled = true;
-      btn.innerText = 'Thinking...';
+      btn.innerText = 'Pensando...';
 
       try {
         const res = await fetch('/chat', {
@@ -1421,20 +2896,22 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
           body: JSON.stringify({ message: msg, user_id: currentUserId })
         });
         const data = await res.json();
-        const reply = data.response || data.message || 'Analysis complete.';
+        const reply = data.response || data.message || 'Análisis completado.';
         chatBox.innerHTML += '<div class="text-emerald-400 font-semibold">Coach: <span class="text-slate-200 font-normal whitespace-pre-wrap">' + reply + '</span></div>';
       } catch (err) {
-        chatBox.innerHTML += '<div class="text-rose-400 text-xs">Error communicating with coach: ' + err.message + '</div>';
+        chatBox.innerHTML += '<div class="text-rose-400 text-xs">Error al consultar al coach: ' + err.message + '</div>';
       } finally {
         btn.disabled = false;
-        btn.innerText = 'Send';
+        btn.innerText = 'Enviar';
         chatBox.scrollTop = chatBox.scrollHeight;
       }
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
       await initAthleteSelector();
+      await loadAthleteLayout(currentUserId);
       await loadDashboard();
+      initResizeHandles();
     });
   </script>
 </body>
@@ -2007,6 +3484,9 @@ async def fitbit_auth_callback(
         )
 
 
+_dashboard_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
 @router.get("/dashboard/users")
 async def dashboard_users():
     """Returns list of all active registered athletes/users."""
@@ -2026,17 +3506,50 @@ async def dashboard_page(user_id: str | None = None):
 
 
 @router.get("/dashboard/data")
-async def dashboard_data(user_id: str | None = None):
-    """Returns biometric summary JSON payload for the dashboard."""
-    engine = get_storage_engine()
-    users = engine.list_users()
-    target_user = str(user_id or (users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user")))
+async def dashboard_data(user_id: str | None = None, force: bool = False):
+    """Returns biometric summary JSON payload for the dashboard, fetching sources in parallel."""
+    from concurrent.futures import ThreadPoolExecutor
 
-    profile = engine.get_user_profile(target_user)
-    health_status = engine.get_health_status(target_user)
-    goals = engine.get_user_goals(target_user)
-    daily_physio = engine.get_daily_physiology(target_user, days=14)
-    recent_acts = engine.get_recent_activities(target_user, limit=10)
+    engine = get_storage_engine()
+    if user_id:
+        target_user = user_id
+    else:
+        users = engine.list_users()
+        target_user = str(users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user"))
+
+    now = time.time()
+    if not force and target_user in _dashboard_cache:
+        cache_time, cached_payload = _dashboard_cache[target_user]
+        if now - cache_time < 60:
+            return cached_payload
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        fut_profile = executor.submit(engine.get_user_profile, target_user)
+        fut_health = executor.submit(engine.get_health_status, target_user)
+        fut_goals = executor.submit(engine.get_user_goals, target_user)
+        fut_physio = executor.submit(engine.get_daily_physiology, target_user, 14)
+        fut_acts = executor.submit(engine.get_recent_activities, target_user, 60)
+        fut_macro = executor.submit(engine.query_macro_load_history, target_user, "weekly", 3)
+
+        profile = fut_profile.result()
+        health_status = fut_health.result()
+        goals = fut_goals.result()
+        daily_physio = fut_physio.result()
+        recent_acts = fut_acts.result()
+        try:
+            macro_load = fut_macro.result() or []
+        except Exception as e:
+            log.warning(f"Failed to query macro load for {target_user}: {e}")
+            macro_load = []
+
+    computed_acwr = None
+    weekly_km = 0.0
+    if macro_load:
+        recent_km = float(macro_load[-1].get("total_distance_km", 0.0))
+        weekly_km = round(recent_km, 1)
+        past_weeks = macro_load[-4:-1] if len(macro_load) >= 4 else macro_load[:-1]
+        chronic_km = sum(float(w.get("total_distance_km", 0.0)) for w in past_weeks) / max(1, len(past_weeks))
+        computed_acwr = round(recent_km / chronic_km, 2) if chronic_km > 0 else 1.0
 
     raw_payload = {
         "user_id": target_user,
@@ -2045,8 +3558,13 @@ async def dashboard_data(user_id: str | None = None):
         "goals": goals,
         "daily_physiology": daily_physio,
         "activities": recent_acts,
+        "macro_load": macro_load,
+        "acwr": computed_acwr,
+        "weekly_km": weekly_km,
     }
-    return _sanitize_for_json(raw_payload)
+    sanitized = _sanitize_for_json(raw_payload)
+    _dashboard_cache[target_user] = (now, sanitized)
+    return sanitized
 
 
 @router.post("/athletes/{user_id}/sync")
@@ -2058,6 +3576,7 @@ async def trigger_athlete_sync(user_id: str, days_back: int = 7):
 
     def _sync():
         try:
+            _dashboard_cache.pop(user_id, None)
             log.info(f"🔄 Direct UI sync started for athlete {user_id} (days_back={days_back})...")
             run_etl(user_id=user_id, days_back=days_back)
         except Exception as e:
@@ -2070,3 +3589,117 @@ async def trigger_athlete_sync(user_id: str, days_back: int = 7):
         "days_back": days_back,
         "message": f"Sincronización iniciada en segundo plano para {user_id}.",
     }
+
+
+DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
+    "order": [
+        "widget-kpis",
+        "widget-chart-physio",
+        "widget-zones",
+        "widget-progress-running",
+        "widget-progress-swimming",
+        "widget-chart-volume",
+        "widget-chart-stress-bb",
+        "widget-chart-acwr",
+        "widget-goals",
+        "widget-activities",
+        "widget-coach",
+    ],
+    "visible": {
+        "widget-kpis": True,
+        "widget-chart-physio": True,
+        "widget-zones": True,
+        "widget-progress-running": True,
+        "widget-progress-swimming": True,
+        "widget-chart-volume": True,
+        "widget-chart-stress-bb": False,
+        "widget-chart-acwr": False,
+        "widget-goals": True,
+        "widget-activities": True,
+        "widget-coach": True,
+    },
+    "sizes": {
+        "widget-kpis": "12",
+        "widget-chart-physio": "8",
+        "widget-zones": "4",
+        "widget-progress-running": "12",
+        "widget-progress-swimming": "12",
+        "widget-chart-volume": "12",
+        "widget-chart-stress-bb": "12",
+        "widget-chart-acwr": "12",
+        "widget-goals": "12",
+        "widget-activities": "12",
+        "widget-coach": "12",
+    },
+    "active_kpis": [
+        "rhr",
+        "hrv",
+        "body_battery",
+        "feeling",
+        "stress_avg",
+        "sleep",
+        "acwr",
+        "weekly_km",
+    ],
+}
+
+
+@router.get("/athletes/{user_id}/dashboard-layout")
+async def get_athlete_dashboard_layout(user_id: str):
+    """Returns the customized dashboard layout for a specific athlete."""
+    engine = get_storage_engine()
+    profile = engine.get_user_profile(user_id) or {}
+    saved_layout = profile.get("dashboard_layout")
+    if saved_layout and isinstance(saved_layout, dict):
+        merged_visible = {**DEFAULT_DASHBOARD_LAYOUT["visible"], **saved_layout.get("visible", {})}
+        merged_sizes = {**DEFAULT_DASHBOARD_LAYOUT["sizes"], **saved_layout.get("sizes", {})}
+
+        # Backward compatibility: migrate widget-chart to widget-chart-physio without overwriting valid values
+        if "widget-chart" in merged_visible:
+            val = merged_visible.pop("widget-chart")
+            if "widget-chart-physio" not in saved_layout.get("visible", {}):
+                merged_visible["widget-chart-physio"] = val
+        if "widget-chart" in merged_sizes:
+            val = merged_sizes.pop("widget-chart")
+            if "widget-chart-physio" not in saved_layout.get("sizes", {}):
+                merged_sizes["widget-chart-physio"] = val
+
+        order = list(saved_layout.get("order", DEFAULT_DASHBOARD_LAYOUT["order"]))
+        if "widget-chart" in order:
+            order = ["widget-chart-physio" if x == "widget-chart" else x for x in order]
+
+        for wid in DEFAULT_DASHBOARD_LAYOUT["order"]:
+            if wid not in order:
+                order.append(wid)
+
+        active_kpis = saved_layout.get("active_kpis", DEFAULT_DASHBOARD_LAYOUT["active_kpis"])
+        return {
+            "user_id": user_id,
+            "layout": {
+                "order": order,
+                "visible": merged_visible,
+                "sizes": merged_sizes,
+                "active_kpis": active_kpis,
+            },
+        }
+    return {"user_id": user_id, "layout": DEFAULT_DASHBOARD_LAYOUT}
+
+
+@router.post("/athletes/{user_id}/dashboard-layout")
+async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
+    """Persists a personalized dashboard widget layout for a specific athlete."""
+    engine = get_storage_engine()
+    raw_order = payload.get("order", DEFAULT_DASHBOARD_LAYOUT["order"])
+    raw_visible = payload.get("visible", DEFAULT_DASHBOARD_LAYOUT["visible"])
+    raw_sizes = payload.get("sizes", DEFAULT_DASHBOARD_LAYOUT["sizes"])
+    active_kpis = payload.get("active_kpis", DEFAULT_DASHBOARD_LAYOUT["active_kpis"])
+
+    # Clean legacy keys so they are never persisted or merged back
+    clean_visible = {k: v for k, v in raw_visible.items() if k != "widget-chart"}
+    clean_sizes = {k: v for k, v in raw_sizes.items() if k != "widget-chart"}
+    clean_order = ["widget-chart-physio" if x == "widget-chart" else x for x in raw_order]
+    clean_layout = {"order": clean_order, "visible": clean_visible, "sizes": clean_sizes, "active_kpis": active_kpis}
+
+    engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
+    log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")
+    return {"status": "ok", "user_id": user_id, "layout": clean_layout}
