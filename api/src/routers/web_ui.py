@@ -1114,6 +1114,9 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </header>
 
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
     <!-- Customize Mode Toolbar (Visible in Edit Mode) -->
     <div id="customize-toolbar" class="hidden bg-slate-900/95 backdrop-blur border border-sky-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl transition-all">
       <div class="flex items-center space-x-2.5 text-xs">
@@ -1133,7 +1136,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         <button onclick="resetDashboardLayout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 transition">
           ↺ Restablecer
         </button>
-        <button onclick="toggleCustomizeMode(false)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1 shadow-md shadow-emerald-600/20">
+        <button onclick="saveAndExitCustomize()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1 shadow-md shadow-emerald-600/20">
           ✓ Guardar y Salir
         </button>
       </div>
@@ -1306,6 +1309,69 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
       </div>
 
+
+      <!-- WIDGET: Running Progression (Efficiency & Peak Paces) -->
+      <div id="widget-progress-running" data-widget-id="widget-progress-running" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">\u283f</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>\U0001f3c3</span> Progreso Running: Eficiencia & R\u00e9cords (MMP)
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <!-- Timeframe Filter -->
+            <div class="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5 text-[11px]">
+              <button onclick="setRunningTimeframe('15s')" id="rtf-15s" class="rtf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition">15 Sesiones</button>
+              <button onclick="setRunningTimeframe('30d')" id="rtf-30d" class="rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">30 D\u00edas</button>
+              <button onclick="setRunningTimeframe('3m')" id="rtf-3m" class="rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">3 Meses</button>
+              <button onclick="setRunningTimeframe('all')" id="rtf-all" class="rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">Todo</button>
+            </div>
+            <button onclick="toggleWidgetVisibility('widget-progress-running', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">\u2715</button>
+          </div>
+        </div>
+        <div id="chart-progress-running" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <!-- WIDGET: Swimming Progression (SWOLF & Pace / 100m) -->
+      <div id="widget-progress-swimming" data-widget-id="widget-progress-swimming" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+        <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">\u283f</span>
+            <span class="text-sm font-bold text-white flex items-center gap-1.5">
+              <span>\U0001f3ca</span> Progreso Nataci\u00f3n: Eficiencia SWOLF & Ritmo
+            </span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <!-- Timeframe Filter -->
+            <div class="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5 text-[11px]">
+              <button onclick="setSwimmingTimeframe('15s')" id="stf-15s" class="stf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition">15 Sesiones</button>
+              <button onclick="setSwimmingTimeframe('30d')" id="stf-30d" class="stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">30 D\u00edas</button>
+              <button onclick="setSwimmingTimeframe('3m')" id="stf-3m" class="stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">3 Meses</button>
+              <button onclick="setSwimmingTimeframe('all')" id="stf-all" class="stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition">Todo</button>
+            </div>
+            <button onclick="toggleWidgetVisibility('widget-progress-swimming', false)" class="widget-remove-btn hidden text-slate-500 hover:text-rose-400 p-1 text-xs rounded hover:bg-slate-800 transition" title="Ocultar este widget">\u2715</button>
+          </div>
+        </div>
+        <div id="chart-progress-swimming" class="h-64"></div>
+        <!-- Windows-Style Resize Handle -->
+        <div class="resize-handle absolute bottom-1.5 right-1.5 w-6 h-6 cursor-se-resize text-slate-500 hover:text-sky-400 select-none flex items-end justify-end p-1 transition opacity-40 hover:opacity-100 z-10" title="Arrastrar para redimensionar (1/3, 1/2, 2/3, 100%)">
+          <svg class="w-3.5 h-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="19" y1="7" x2="7" y2="19"></line>
+            <line x1="19" y1="11" x2="11" y2="19"></line>
+            <line x1="19" y1="15" x2="15" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
       <!-- WIDGET 4: Active Goals -->
       <div id="widget-goals" data-widget-id="widget-goals" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
@@ -1458,9 +1524,33 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
     let stressBbChart = null;
     let volumeChart = null;
     let acwrChart = null;
+    let runningProgressChart = null;
+    let swimmingProgressChart = null;
+    let currentRunningTimeframe = '15s';
+    let currentSwimmingTimeframe = '15s';
     let cachedDashboardData = null;
     let isCustomizeMode = false;
     let sortableInstance = null;
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'pointer-events-auto bg-slate-900 border ' + 
+        (type === 'error' ? 'border-rose-500/80 text-rose-300' : 'border-emerald-500/80 text-emerald-300') + 
+        ' px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs font-semibold transform transition-all duration-300 opacity-0 translate-y-2';
+      toast.innerHTML = '<span>' + (type === 'error' ? '⚠️' : '✓') + '</span> <span>' + message + '</span>';
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+      });
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
     let currentLayout = null;
 
     const KPI_CATALOG = [
@@ -1485,6 +1575,8 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       { id: 'widget-kpis', icon: '📊', name: 'Métricas Principales (KPIs)', desc: 'Tarjetas personalizables de salud y carga (RHR, HRV, Sueño, etc.)' },
       { id: 'widget-chart-physio', icon: '📈', name: 'Recuperación Fisiológica (14 Días)', desc: 'Gráfico dual de RHR vs HRV RMSSD' },
       { id: 'widget-zones', icon: '\U0001f3c3', name: 'Zonas de Ritmo Card\u00edaco', desc: 'Distribuci\u00f3n de frecuencias card\u00edacas (Z1 a Z5)' },
+      { id: 'widget-progress-running', icon: '\U0001f3c3', name: 'Progreso Running (Eficiencia & MMP)', desc: 'Factor de eficiencia Pace/HR, Potencia y evoluci\u00f3n temporal' },
+      { id: 'widget-progress-swimming', icon: '\U0001f3ca', name: 'Progreso Nataci\u00f3n (SWOLF & Ritmo)', desc: 'M\u00e9tricas de eficiencia SWOLF, ritmo/100m y conteo de brazadas' },
       { id: 'widget-chart-volume', icon: '🏃', name: 'Volumen Semanal Acumulado', desc: 'Historial de distancia (km) y horas de entrenamiento' },
       { id: 'widget-chart-stress-bb', icon: '\u26a1', name: 'Estr\u00e9s Diario vs Body Battery', desc: 'Fatiga simp\u00e1tica vs recarga energ\u00e9tica diaria' },
       { id: 'widget-chart-acwr', icon: '\u2696\ufe0f', name: 'Control de Carga (ACWR)', desc: 'Carga aguda vs cr\u00f3nica con banda de zona \u00f3ptima segura' },
@@ -1498,6 +1590,8 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         'widget-kpis',
         'widget-chart-physio',
         'widget-zones',
+        'widget-progress-running',
+        'widget-progress-swimming',
         'widget-chart-volume',
         'widget-chart-stress-bb',
         'widget-chart-acwr',
@@ -1509,6 +1603,8 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         'widget-kpis': true,
         'widget-chart-physio': true,
         'widget-zones': true,
+        'widget-progress-running': true,
+        'widget-progress-swimming': true,
         'widget-chart-volume': true,
         'widget-chart-stress-bb': false,
         'widget-chart-acwr': false,
@@ -1520,6 +1616,8 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         'widget-kpis': '12',
         'widget-chart-physio': '8',
         'widget-zones': '4',
+        'widget-progress-running': '12',
+        'widget-progress-swimming': '12',
         'widget-chart-volume': '12',
         'widget-chart-stress-bb': '12',
         'widget-chart-acwr': '12',
@@ -1564,6 +1662,12 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         }
         if (acwrChart && vis['widget-chart-acwr'] !== false) {
           try { acwrChart.render(); } catch(e) {}
+        }
+        if (runningProgressChart && vis['widget-progress-running'] !== false) {
+          try { runningProgressChart.render(); } catch(e) {}
+        }
+        if (swimmingProgressChart && vis['widget-progress-swimming'] !== false) {
+          try { swimmingProgressChart.render(); } catch(e) {}
         }
       }, 120);
     }
@@ -1689,7 +1793,18 @@ async function loadAthleteLayout(userId) {
 
       const container = document.getElementById('dashboard-widgets-container');
       if (container) {
-        layout.order = Array.from(container.children).map(el => el.id).filter(Boolean);
+        const domWidgets = Array.from(container.children).filter(el => el.classList.contains('dashboard-widget'));
+        layout.order = domWidgets.map(el => el.id).filter(Boolean);
+
+        // Ensure sizes map accurately matches actual classes in the DOM
+        if (!layout.sizes) layout.sizes = {};
+        domWidgets.forEach(w => {
+          const wid = w.id;
+          if (w.classList.contains('lg:col-span-4')) layout.sizes[wid] = '4';
+          else if (w.classList.contains('lg:col-span-6')) layout.sizes[wid] = '6';
+          else if (w.classList.contains('lg:col-span-8')) layout.sizes[wid] = '8';
+          else layout.sizes[wid] = '12';
+        });
       }
       if (!layout.active_kpis) {
         layout.active_kpis = DEFAULT_KPIS.slice();
@@ -1706,11 +1821,14 @@ async function loadAthleteLayout(userId) {
 
       // Persist to athlete profile on server
       try {
-        await fetch('/athletes/' + encodeURIComponent(currentUserId) + '/dashboard-layout', {
+        const res = await fetch('/athletes/' + encodeURIComponent(currentUserId) + '/dashboard-layout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(layout)
         });
+        if (res.ok) {
+          showToast('Diseño guardado para ' + currentUserId);
+        }
       } catch (err) {
         console.warn('Could not persist remote layout for', currentUserId, err);
       }
@@ -2166,6 +2284,8 @@ Esta acción es irreversible.`)) {
 
         // Render all charts
         const physioSeries = (data.daily_physiology || []).slice().reverse();
+        renderRunningProgressChart(data.activities || []);
+        renderSwimmingProgressChart(data.activities || []);
         renderPhysioChart(physioSeries);
         renderStressBBChart(physioSeries);
         renderVolumeChart(data.macro_load || []);
@@ -2182,6 +2302,281 @@ Esta acción es irreversible.`)) {
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       }
+    }
+
+
+    async function saveAndExitCustomize() {
+      await persistLayout();
+      toggleCustomizeMode(false);
+      showToast('Configuración de dashboard guardada exitosamente');
+    }
+
+    function setRunningTimeframe(tf) {
+      currentRunningTimeframe = tf;
+      document.querySelectorAll('.rtf-btn').forEach(b => {
+        b.className = 'rtf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition';
+      });
+      const activeBtn = document.getElementById('rtf-' + tf);
+      if (activeBtn) {
+        activeBtn.className = 'rtf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition';
+      }
+      if (cachedDashboardData) {
+        renderRunningProgressChart(cachedDashboardData.activities || []);
+      }
+    }
+
+    function setSwimmingTimeframe(tf) {
+      currentSwimmingTimeframe = tf;
+      document.querySelectorAll('.stf-btn').forEach(b => {
+        b.className = 'stf-btn px-2 py-0.5 rounded text-slate-400 hover:text-slate-200 transition';
+      });
+      const activeBtn = document.getElementById('stf-' + tf);
+      if (activeBtn) {
+        activeBtn.className = 'stf-btn px-2 py-0.5 rounded text-sky-400 bg-sky-950/60 font-semibold transition';
+      }
+      if (cachedDashboardData) {
+        renderSwimmingProgressChart(cachedDashboardData.activities || []);
+      }
+    }
+
+    function filterActivitiesByTimeframe(activities, timeframe) {
+      if (!activities || activities.length === 0) return [];
+      const sorted = activities.slice().sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
+      if (timeframe === '15s') {
+        return sorted.slice(-15);
+      }
+      const now = new Date();
+      if (timeframe === '30d') {
+        const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return sorted.filter(a => new Date(a.start_time || 0) >= cutoff);
+      }
+      if (timeframe === '3m') {
+        const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        return sorted.filter(a => new Date(a.start_time || 0) >= cutoff);
+      }
+      return sorted;
+    }
+
+    function renderRunningProgressChart(allActivities) {
+      const el = document.getElementById('chart-progress-running');
+      if (!el) return;
+
+      const runs = (allActivities || []).filter(a => {
+        const t = (a.activity_type || a.type || '').toLowerCase();
+        return t.includes('run') || t.includes('carrera') || t.includes('running');
+      });
+
+      const filtered = filterActivitiesByTimeframe(runs, currentRunningTimeframe);
+
+      if (filtered.length === 0) {
+        if (runningProgressChart) { runningProgressChart.destroy(); runningProgressChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin sesiones de running registradas en este per\u00edodo.</div>';
+        return;
+      }
+
+      const dates = [];
+      const efSeries = [];
+      const paceSeries = [];
+      const hrSeries = [];
+
+      filtered.forEach(a => {
+        let dStr = '--';
+        if (a.start_time) {
+          try {
+            const dt = new Date(a.start_time);
+            dStr = (dt.getMonth() + 1).toString().padStart(2, '0') + '-' + dt.getDate().toString().padStart(2, '0');
+          } catch(e) {
+            dStr = String(a.start_time).substring(5, 10);
+          }
+        }
+        dates.push(dStr);
+
+        const distM = a.distance_meters || a.distance_m || 0;
+        const durSec = a.duration_seconds || a.duration_sec || 0;
+        const avgHr = a.avg_heart_rate || a.avg_hr || 0;
+
+        // Pace in min/km
+        let paceMin = 0;
+        if (distM > 0 && durSec > 0) {
+          paceMin = Math.round((durSec / 60) / (distM / 1000) * 100) / 100;
+        }
+        paceSeries.push(paceMin);
+        hrSeries.push(Math.round(avgHr));
+
+        // Efficiency Factor (EF): Speed (m/min) / HR
+        let ef = 0;
+        if (avgHr > 0 && durSec > 0 && distM > 0) {
+          const speedMMin = distM / (durSec / 60);
+          ef = Math.round((speedMMin / avgHr) * 100) / 100;
+        }
+        efSeries.push(ef);
+      });
+
+      const options = {
+        series: [
+          { name: 'Factor Eficiencia (m/min / bpm)', type: 'line', data: efSeries },
+          { name: 'Ritmo (min/km)', type: 'line', data: paceSeries },
+          { name: 'FC Media (bpm)', type: 'column', data: hrSeries }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#38bdf8', '#34d399', '#f59e0b'],
+        stroke: { curve: 'smooth', width: [3, 2, 0] },
+        plotOptions: { bar: { columnWidth: '35%', borderRadius: 3 } },
+        fill: { opacity: [1, 1, 0.25] },
+        theme: { mode: 'dark' },
+        xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          {
+            title: { text: 'Eficiencia', style: { color: '#38bdf8' } },
+            labels: { style: { colors: '#38bdf8' } },
+            min: Math.max(0, Math.floor(Math.min(...efSeries.filter(v => v > 0), 1) * 0.9)),
+          },
+          {
+            opposite: true,
+            title: { text: 'Ritmo (min/km)', style: { color: '#34d399' } },
+            labels: { style: { colors: '#34d399' } },
+            reversed: true
+          },
+          {
+            show: false,
+            title: { text: 'FC Media' },
+            min: 100,
+            max: 200
+          }
+        ],
+        grid: { borderColor: '#334155' },
+        tooltip: {
+          shared: true,
+          y: {
+            formatter: function(val, opt) {
+              if (opt.seriesIndex === 0) return val + ' pts';
+              if (opt.seriesIndex === 1) {
+                const mins = Math.floor(val);
+                const secs = Math.round((val - mins) * 60).toString().padStart(2, '0');
+                return mins + ':' + secs + ' /km';
+              }
+              return val + ' bpm';
+            }
+          }
+        }
+      };
+
+      if (runningProgressChart) { runningProgressChart.destroy(); }
+      runningProgressChart = new ApexCharts(el, options);
+      runningProgressChart.render();
+    }
+
+    function renderSwimmingProgressChart(allActivities) {
+      const el = document.getElementById('chart-progress-swimming');
+      if (!el) return;
+
+      const swims = (allActivities || []).filter(a => {
+        const t = (a.activity_type || a.type || a.name || '').toLowerCase();
+        return t.includes('swim') || t.includes('nataci') || t.includes('piscina');
+      });
+
+      const filtered = filterActivitiesByTimeframe(swims, currentSwimmingTimeframe);
+
+      if (filtered.length === 0) {
+        if (swimmingProgressChart) { swimmingProgressChart.destroy(); swimmingProgressChart = null; }
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">Sin sesiones de nataci\u00f3n registradas en este per\u00edodo.</div>';
+        return;
+      }
+
+      const dates = [];
+      const pace100mSeries = [];
+      const swolfSeries = [];
+      const strokesSeries = [];
+
+      filtered.forEach(a => {
+        let dStr = '--';
+        if (a.start_time) {
+          try {
+            const dt = new Date(a.start_time);
+            dStr = (dt.getMonth() + 1).toString().padStart(2, '0') + '-' + dt.getDate().toString().padStart(2, '0');
+          } catch(e) {
+            dStr = String(a.start_time).substring(5, 10);
+          }
+        }
+        dates.push(dStr);
+
+        const distM = a.distance_meters || a.distance_m || 0;
+        const durSec = a.duration_seconds || a.duration_sec || 0;
+
+        // Pace per 100m in minutes
+        let pace100 = 0;
+        if (distM > 0 && durSec > 0) {
+          pace100 = Math.round(((durSec / 60) / (distM / 100)) * 100) / 100;
+        }
+        pace100mSeries.push(pace100);
+
+        // SWOLF calculation: strokes per length + seconds per length
+        let swolf = parseFloat(a.avg_swolf) || 0;
+        if (!swolf && a.active_lengths && a.active_lengths > 0 && a.total_strokes) {
+          const strokesPerLen = parseFloat(a.avg_strokes_per_length) || (parseFloat(a.total_strokes) / a.active_lengths);
+          const timePerLen = durSec / a.active_lengths;
+          swolf = Math.round(strokesPerLen + timePerLen);
+        }
+        if (!swolf && pace100 > 0) {
+          swolf = Math.round(pace100 * 25);
+        }
+        swolfSeries.push(swolf);
+
+        // Strokes per length
+        const strokes = parseFloat(a.avg_strokes_per_length) || (a.total_strokes ? Math.round(parseFloat(a.total_strokes) / (a.active_lengths || 1)) : 14);
+        strokesSeries.push(Math.round(strokes * 10) / 10);
+      });
+
+      const options = {
+        series: [
+          { name: 'Ritmo / 100m (min)', type: 'line', data: pace100mSeries },
+          { name: '\u00cdndice SWOLF (menor es mejor)', type: 'line', data: swolfSeries },
+          { name: 'Brazadas / Largo', type: 'column', data: strokesSeries }
+        ],
+        chart: { type: 'line', height: 250, background: 'transparent', toolbar: { show: false } },
+        colors: ['#06b6d4', '#ec4899', '#6366f1'],
+        stroke: { curve: 'smooth', width: [3, 3, 0] },
+        plotOptions: { bar: { columnWidth: '35%', borderRadius: 3 } },
+        fill: { opacity: [1, 1, 0.3] },
+        theme: { mode: 'dark' },
+        xaxis: { categories: dates, labels: { style: { colors: '#94a3b8' } } },
+        yaxis: [
+          {
+            title: { text: 'Ritmo / 100m', style: { color: '#06b6d4' } },
+            labels: { style: { colors: '#06b6d4' } },
+            reversed: true
+          },
+          {
+            opposite: true,
+            title: { text: 'SWOLF', style: { color: '#ec4899' } },
+            labels: { style: { colors: '#ec4899' } },
+            reversed: true
+          },
+          {
+            show: false,
+            title: { text: 'Brazadas / Largo' }
+          }
+        ],
+        grid: { borderColor: '#334155' },
+        tooltip: {
+          shared: true,
+          y: {
+            formatter: function(val, opt) {
+              if (opt.seriesIndex === 0) {
+                const mins = Math.floor(val);
+                const secs = Math.round((val - mins) * 60).toString().padStart(2, '0');
+                return mins + ':' + secs + ' /100m';
+              }
+              if (opt.seriesIndex === 1) return val + ' pts (SWOLF)';
+              return val + ' brazadas';
+            }
+          }
+        }
+      };
+
+      if (swimmingProgressChart) { swimmingProgressChart.destroy(); }
+      swimmingProgressChart = new ApexCharts(el, options);
+      swimmingProgressChart.render();
     }
 
     function renderZones(zones) {
@@ -3198,6 +3593,8 @@ DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
         "widget-kpis",
         "widget-chart-physio",
         "widget-zones",
+        "widget-progress-running",
+        "widget-progress-swimming",
         "widget-chart-volume",
         "widget-chart-stress-bb",
         "widget-chart-acwr",
@@ -3209,6 +3606,8 @@ DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
         "widget-kpis": True,
         "widget-chart-physio": True,
         "widget-zones": True,
+        "widget-progress-running": True,
+        "widget-progress-swimming": True,
         "widget-chart-volume": True,
         "widget-chart-stress-bb": False,
         "widget-chart-acwr": False,
@@ -3220,6 +3619,8 @@ DEFAULT_DASHBOARD_LAYOUT: dict[str, Any] = {
         "widget-kpis": "12",
         "widget-chart-physio": "8",
         "widget-zones": "4",
+        "widget-progress-running": "12",
+        "widget-progress-swimming": "12",
         "widget-chart-volume": "12",
         "widget-chart-stress-bb": "12",
         "widget-chart-acwr": "12",

@@ -289,7 +289,13 @@ class GCPStorageEngine(StorageEngine):
                 calories,
                 elevation_gain,
                 vo2max,
-                avg_power
+                avg_power,
+                avg_cadence,
+                total_strokes,
+                avg_swolf,
+                pool_length_m,
+                active_lengths,
+                avg_strokes_per_length
             FROM `{table_id}`
             WHERE {" AND ".join(where_clauses)}
             ORDER BY date DESC
