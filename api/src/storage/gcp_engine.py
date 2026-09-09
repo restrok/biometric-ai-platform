@@ -57,7 +57,11 @@ class GCPStorageEngine(StorageEngine):
     def update_user_profile(self, user_id: str, data: dict[str, Any]) -> None:
         self._users_cache = None
         doc_ref = self.db.collection("user_profiles").document(user_id)
-        doc_ref.set(data, merge=True)
+        doc = doc_ref.get()
+        if getattr(doc, "exists", False):
+            doc_ref.update(data)
+        else:
+            doc_ref.set(data, merge=True)
         log.info(f"✅ GCPStorageEngine: Updated Firestore profile for {user_id}")
 
     # --- Goals ---

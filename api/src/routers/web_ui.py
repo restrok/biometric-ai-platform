@@ -1181,7 +1181,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       <!-- WIDGET 2: 14-Day Physiology Chart (Default 2/3 = 8 cols) -->
-      <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget relative col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
+      <div id="widget-chart-physio" data-widget-id="widget-chart-physio" class="dashboard-widget relative col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 transition-all">
         <div class="widget-header flex items-center justify-between border-b border-slate-800/70 pb-3">
           <div class="flex items-center space-x-2">
             <span class="drag-handle hidden cursor-grab active:cursor-grabbing text-slate-500 hover:text-sky-400 p-1 rounded-lg hover:bg-slate-800 select-none text-base transition" title="Arrastrar para ordenar">⠿</span>
@@ -1648,13 +1648,17 @@ async function loadAthleteLayout(userId) {
         layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
       }
 
-      // Backward compatibility: migrate widget-chart to widget-chart-physio
+      // Backward compatibility: migrate widget-chart to widget-chart-physio only if not already present
       if (layout.visible && 'widget-chart' in layout.visible) {
-        layout.visible['widget-chart-physio'] = layout.visible['widget-chart'];
+        if (!('widget-chart-physio' in layout.visible)) {
+          layout.visible['widget-chart-physio'] = layout.visible['widget-chart'];
+        }
         delete layout.visible['widget-chart'];
       }
       if (layout.sizes && 'widget-chart' in layout.sizes) {
-        layout.sizes['widget-chart-physio'] = layout.sizes['widget-chart'];
+        if (!('widget-chart-physio' in layout.sizes)) {
+          layout.sizes['widget-chart-physio'] = layout.sizes['widget-chart'];
+        }
         delete layout.sizes['widget-chart'];
       }
       if (layout.order) {
@@ -1691,6 +1695,12 @@ async function loadAthleteLayout(userId) {
         layout.active_kpis = DEFAULT_KPIS.slice();
       }
 
+      if (layout.visible && 'widget-chart' in layout.visible) {
+        delete layout.visible['widget-chart'];
+      }
+      if (layout.sizes && 'widget-chart' in layout.sizes) {
+        delete layout.sizes['widget-chart'];
+      }
       currentLayout = layout;
       localStorage.setItem(getStorageKey(currentUserId), JSON.stringify(layout));
 
@@ -1762,151 +1772,7 @@ async function loadAthleteLayout(userId) {
       persistLayout(currentLayout);
     }
 
-    function initResizeHandles() {
-      const container = document.getElementById('dashboard-widgets-container');
-      if (!container || container.dataset.resizeInitialized) return;
-      container.dataset.resizeInitialized = 'true';
 
-      let activeWidget = null;
-      let activeWidgetId = null;
-      let startX = 0;
-      let startY = 0;
-      let initialWidth = 0;
-      let containerWidth = 0;
-      let currentPreviewedSize = null;
-      let badgeEl = null;
-
-      function onStart(e) {
-        const handle = e.target.closest('.resize-handle');
-        if (!handle) return;
-
-        const widget = handle.closest('.dashboard-widget');
-        if (!widget) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        activeWidget = widget;
-        activeWidgetId = widget.getAttribute('data-widget-id');
-        startX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-        startY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
-
-        const widgetRect = widget.getBoundingClientRect();
-        initialWidth = widgetRect.width;
-        containerWidth = container.getBoundingClientRect().width;
-
-        const currentSize = (currentLayout && currentLayout.sizes && currentLayout.sizes[activeWidgetId]) || DEFAULT_LAYOUT.sizes[activeWidgetId] || '12';
-        currentPreviewedSize = currentSize;
-
-        // Visual feedback on widget
-        widget.classList.add('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
-        document.body.style.cursor = 'se-resize';
-        document.body.style.userSelect = 'none';
-
-        // Create floating preview badge near cursor
-        badgeEl = document.createElement('div');
-        badgeEl.id = 'resize-drag-badge';
-        badgeEl.className = 'fixed pointer-events-none z-50 bg-sky-500 text-slate-950 font-bold text-xs px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1.5';
-        const initialDesc = currentSize === '12' ? '100% (Ancho Completo)' : (currentSize === '8' ? '2/3 (66%)' : (currentSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
-        badgeEl.innerHTML = '<span>\u2194</span> <span>' + initialDesc + '</span>';
-        badgeEl.style.left = (startX + 15) + 'px';
-        badgeEl.style.top = (startY - 30) + 'px';
-        document.body.appendChild(badgeEl);
-
-        window.addEventListener('mousemove', onMove, { passive: false });
-        window.addEventListener('touchmove', onMove, { passive: false });
-        window.addEventListener('mouseup', onEnd);
-        window.addEventListener('touchend', onEnd);
-      }
-
-      function onMove(e) {
-        if (!activeWidget) return;
-        e.preventDefault();
-
-        const curX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
-        const curY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
-        const deltaX = curX - startX;
-
-        // Update badge position
-        if (badgeEl) {
-          badgeEl.style.left = (curX + 15) + 'px';
-          badgeEl.style.top = (curY - 30) + 'px';
-        }
-
-        // Calculate fraction of container
-        const projectedWidth = Math.max(100, initialWidth + deltaX);
-        const ratio = projectedWidth / (containerWidth || 1);
-
-        let targetSize = '12';
-        if (ratio < 0.42) {
-          targetSize = '4';       // 1/3 (33%)
-        } else if (ratio < 0.58) {
-          targetSize = '6';       // 1/2 (50%)
-        } else if (ratio < 0.83) {
-          targetSize = '8';       // 2/3 (66%)
-        } else {
-          targetSize = '12';      // 100%
-        }
-
-        if (targetSize !== currentPreviewedSize) {
-          currentPreviewedSize = targetSize;
-
-          // Apply classes live
-          activeWidget.classList.remove('col-span-12', 'lg:col-span-8', 'lg:col-span-6', 'lg:col-span-4');
-          const classes = SIZE_CLASSES[targetSize] || SIZE_CLASSES['12'];
-          classes.forEach(c => activeWidget.classList.add(c));
-
-          // Update widget button label
-          const labelEl = document.getElementById('size-label-' + activeWidgetId);
-          if (labelEl) {
-            labelEl.innerText = SIZE_LABELS[targetSize] || '100%';
-          }
-
-          // Update badge text
-          if (badgeEl) {
-            const desc = targetSize === '12' ? '100% (Ancho Completo)' : (targetSize === '8' ? '2/3 (66%)' : (targetSize === '6' ? '1/2 (50%)' : '1/3 (33%)'));
-            badgeEl.innerHTML = '<span>\u2194</span> <span>' + desc + '</span>';
-          }
-
-          // Trigger responsive ApexCharts adjustment
-          redrawAllCharts();
-        }
-      }
-
-      function onEnd(e) {
-        if (!activeWidget) return;
-
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('touchmove', onMove);
-        window.removeEventListener('mouseup', onEnd);
-        window.removeEventListener('touchend', onEnd);
-
-        // Remove highlight & styles
-        activeWidget.classList.remove('ring-2', 'ring-sky-400', 'shadow-2xl', 'shadow-sky-500/20', 'z-20');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-
-        if (badgeEl) {
-          badgeEl.remove();
-          badgeEl = null;
-        }
-
-        // Persist new layout
-        if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
-        if (!currentLayout.sizes) currentLayout.sizes = Object.assign({}, DEFAULT_LAYOUT.sizes);
-        currentLayout.sizes[activeWidgetId] = currentPreviewedSize;
-
-        persistLayout(currentLayout);
-        window.dispatchEvent(new Event('resize'));
-        redrawAllCharts();
-
-        activeWidget = null;
-        activeWidgetId = null;
-      }
-
-      container.addEventListener('mousedown', onStart);
-      container.addEventListener('touchstart', onStart, { passive: false });
-    }
 
     function setWidgetSize(widgetId, newSize) {
       if (!currentLayout) currentLayout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
@@ -3384,11 +3250,15 @@ async def get_athlete_dashboard_layout(user_id: str):
         merged_visible = {**DEFAULT_DASHBOARD_LAYOUT["visible"], **saved_layout.get("visible", {})}
         merged_sizes = {**DEFAULT_DASHBOARD_LAYOUT["sizes"], **saved_layout.get("sizes", {})}
 
-        # Backward compatibility: migrate widget-chart to widget-chart-physio
+        # Backward compatibility: migrate widget-chart to widget-chart-physio without overwriting valid values
         if "widget-chart" in merged_visible:
-            merged_visible["widget-chart-physio"] = merged_visible.pop("widget-chart")
+            val = merged_visible.pop("widget-chart")
+            if "widget-chart-physio" not in saved_layout.get("visible", {}):
+                merged_visible["widget-chart-physio"] = val
         if "widget-chart" in merged_sizes:
-            merged_sizes["widget-chart-physio"] = merged_sizes.pop("widget-chart")
+            val = merged_sizes.pop("widget-chart")
+            if "widget-chart-physio" not in saved_layout.get("sizes", {}):
+                merged_sizes["widget-chart-physio"] = val
 
         order = list(saved_layout.get("order", DEFAULT_DASHBOARD_LAYOUT["order"]))
         if "widget-chart" in order:
@@ -3415,11 +3285,16 @@ async def get_athlete_dashboard_layout(user_id: str):
 async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
     """Persists a personalized dashboard widget layout for a specific athlete."""
     engine = get_storage_engine()
-    order = payload.get("order", DEFAULT_DASHBOARD_LAYOUT["order"])
-    visible = payload.get("visible", DEFAULT_DASHBOARD_LAYOUT["visible"])
-    sizes = payload.get("sizes", DEFAULT_DASHBOARD_LAYOUT["sizes"])
+    raw_order = payload.get("order", DEFAULT_DASHBOARD_LAYOUT["order"])
+    raw_visible = payload.get("visible", DEFAULT_DASHBOARD_LAYOUT["visible"])
+    raw_sizes = payload.get("sizes", DEFAULT_DASHBOARD_LAYOUT["sizes"])
     active_kpis = payload.get("active_kpis", DEFAULT_DASHBOARD_LAYOUT["active_kpis"])
-    clean_layout = {"order": order, "visible": visible, "sizes": sizes, "active_kpis": active_kpis}
+
+    # Clean legacy keys so they are never persisted or merged back
+    clean_visible = {k: v for k, v in raw_visible.items() if k != "widget-chart"}
+    clean_sizes = {k: v for k, v in raw_sizes.items() if k != "widget-chart"}
+    clean_order = ["widget-chart-physio" if x == "widget-chart" else x for x in raw_order]
+    clean_layout = {"order": clean_order, "visible": clean_visible, "sizes": clean_sizes, "active_kpis": active_kpis}
 
     engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
     log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")
