@@ -108,17 +108,35 @@ def main():
         default=DEFAULT_REDIRECT_URI,
         help=f"Redirect URI registered in Google Cloud Console (default: {DEFAULT_REDIRECT_URI})",
     )
+    parser.add_argument(
+        "--url-only",
+        action="store_true",
+        help="Print authorization URL and exit without waiting for code",
+    )
+    parser.add_argument(
+        "--code",
+        default=None,
+        help="Authorization code or full callback URL to exchange directly without waiting for input",
+    )
+    parser.add_argument(
+        "--vault-dir",
+        default=os.getenv("VAULT_DIR") or os.getenv("BIOMETRIC_DATA_DIR"),
+        help="Custom vault or data directory path (defaults to host homelab dev vault or local vault)",
+    )
     args = parser.parse_args()
 
     client_id = args.client_id or get_default_client_id()
     client_secret = args.client_secret or get_default_client_secret()
 
-    if not client_id:
+    if not client_id and not args.url_only:
         client_id = input("Enter Google OAuth Client ID: ").strip()
-    if not client_secret:
+    if not client_secret and not args.url_only:
         client_secret = input("Enter Google OAuth Client Secret: ").strip()
 
-    if not client_id or not client_secret:
+    if not client_id:
+        print("❌ Error: Client ID is required.")
+        sys.exit(1)
+    if not client_secret and not args.url_only:
         print("❌ Error: Both Client ID and Client Secret are required.")
         sys.exit(1)
 
@@ -128,13 +146,6 @@ def main():
         scopes.append(CALENDAR_READONLY_SCOPE)
     if args.service in ("gmail", "both"):
         scopes.append(GMAIL_READONLY_SCOPE)
-
-    oauth_client = GoogleOAuthClient(
-        client_id=client_id,
-        client_secret=client_secret,
-        redirect_uri=args.redirect_uri,
-        scopes=scopes,
-    )
 
     masked_id = f"{client_id[:12]}...{client_id[-12:]}" if len(client_id) > 24 else client_id
 
@@ -148,23 +159,57 @@ def main():
     print(f"• Scopes:        {', '.join(scopes)}")
     print("-" * 70)
 
-    auth_url, verifier, state = oauth_client.get_authorization_url()
+    # Handle --url-only mode (non-blocking for mobile/remote manual flow)
+    if args.url_only:
+        params = {
+            "client_id": client_id,
+            "redirect_uri": args.redirect_uri,
+            "response_type": "code",
+            "scope": " ".join(scopes),
+            "access_type": "offline",
+            "prompt": "consent",
+        }
+        direct_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+        print("\nURL de autorización (abrir en navegador móvil/escritorio):\n")
+        print(direct_url)
+        print("\n" + "-" * 70)
+        print("INSTRUCCIONES:")
+        print("1. Abrí la URL en el navegador de tu celular.")
+        print("2. Aceptá el consentimiento con tu cuenta de Google.")
+        print(f"3. El celular intentará redirigir a {args.redirect_uri}?code=... (la página no cargará).")
+        print("4. Copiá la URL completa de la barra de direcciones del navegador del celular.")
+        print("5. Canjeá el código ejecutando:")
+        print('   python scripts/auth_google_calendar_gmail_cli.py --code "<URL_O_CODIGO>"\n')
+        return
 
-    print("\nPASO 1: Abrí la siguiente URL de autorización en tu navegador:\n")
-    print(auth_url)
-    print("\n" + "-" * 70)
-    print("PASO 2: Iniciá sesión con tu cuenta de Google y aceptá los permisos requeridos.")
-    print("Al finalizar el consentimiento, el navegador redirigirá a:")
-    print(f"  {args.redirect_uri}?code=4/0A...&state={state}")
-    print("-" * 70)
-    print("PASO 3: Copiá la URL completa de la barra de direcciones (o únicamente el código '4/0A...'):")
+    oauth_client = GoogleOAuthClient(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=args.redirect_uri,
+        scopes=scopes,
+    )
 
-    user_input = input("\nPegá la URL o el código aquí: ").strip()
-    if not user_input:
-        print("❌ Operación cancelada: no se ingresó el código de autorización.")
-        sys.exit(1)
+    verifier = None
+    if args.code:
+        code = parse_code_from_input(args.code)
+    else:
+        auth_url, verifier, state = oauth_client.get_authorization_url()
 
-    code = parse_code_from_input(user_input)
+        print("\nPASO 1: Abrí la siguiente URL de autorización en tu navegador:\n")
+        print(auth_url)
+        print("\n" + "-" * 70)
+        print("PASO 2: Iniciá sesión con tu cuenta de Google y aceptá los permisos requeridos.")
+        print("Al finalizar el consentimiento, el navegador redirigirá a:")
+        print(f"  {args.redirect_uri}?code=4/0A...&state={state}")
+        print("-" * 70)
+        print("PASO 3: Copiá la URL completa de la barra de direcciones (o únicamente el código '4/0A...'):")
+
+        user_input = input("\nPegá la URL o el código aquí: ").strip()
+        if not user_input:
+            print("❌ Operación cancelada: no se ingresó el código de autorización.")
+            sys.exit(1)
+
+        code = parse_code_from_input(user_input)
 
     print("\n🔄 Canjeando código de autorización por tokens con Google...")
     try:
@@ -172,7 +217,7 @@ def main():
         print("✅ ¡Tokens obtenidos exitosamente desde Google OAuth!")
 
         # Enforce least privilege token separation
-        local_vault = LocalSecureVault()
+        local_vault = LocalSecureVault(vault_dir=args.vault_dir)
         saved_files = []
 
         if args.service in ("calendar", "both"):
@@ -190,11 +235,15 @@ def main():
         print("=" * 70)
         for f in saved_files:
             print(f"  ✓ Archivo cifrado con Fernet: {f}")
-        print(f"  ✓ Ubicación: {local_vault.vault_dir}")
+        print(f"  ✓ Ubicación principal: {local_vault.vault_dir}")
 
         homelab_dev_vault = Path("/home/fsirio/homelab/biometric-coach-dev/data/vault")
-        if homelab_dev_vault.exists():
+        if homelab_dev_vault.exists() and local_vault.vault_dir.resolve() != homelab_dev_vault.resolve():
             print(f"  ✓ Sincronizado en contenedor dev: {homelab_dev_vault}")
+
+        homelab_prod_vault = Path("/home/fsirio/homelab/biometric-coach/data/vault")
+        if homelab_prod_vault.exists() and local_vault.vault_dir.resolve() != homelab_prod_vault.resolve():
+            print(f"  ✓ Sincronizado en contenedor prod: {homelab_prod_vault}")
 
         print("=" * 70)
         print("🎉 Integración configurada correctamente con permisos de solo lectura.\n")

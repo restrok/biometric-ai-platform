@@ -434,3 +434,24 @@ def test_cli_parse_code_from_input():
     # URL with whitespace
     url_spaces = "  http://localhost:8002/auth/google/callback?code=4/0A_test&scope=read  "
     assert parse_code_from_input(url_spaces) == "4/0A_test"
+
+
+def test_vault_path_resolution_container_fallback(tmp_path, monkeypatch):
+    """Verifies that if LOCAL_STORAGE_DIR is set to /app/data on host, it falls back without Errno 13."""
+    monkeypatch.setenv("LOCAL_STORAGE_DIR", "/app/data")
+    monkeypatch.setenv("HOST_DATA_DIR", str(tmp_path / "host_data"))
+    vault = LocalSecureVault()
+    assert vault.vault_dir == tmp_path / "host_data" / "vault"
+    assert vault.key_file == tmp_path / "host_data" / ".vault_key"
+    assert vault.vault_dir.exists()
+
+
+def test_vault_path_resolution_vault_dir_env(tmp_path, monkeypatch):
+    """Verifies that VAULT_DIR pointing directly to a vault folder is handled correctly."""
+    custom_vault = tmp_path / "custom" / "vault"
+    monkeypatch.setenv("VAULT_DIR", str(custom_vault))
+    vault = LocalSecureVault()
+    assert vault.vault_dir == custom_vault
+    assert vault.key_file == tmp_path / "custom" / ".vault_key"
+    assert vault.vault_dir.exists()
+

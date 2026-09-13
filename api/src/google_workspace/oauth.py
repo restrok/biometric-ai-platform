@@ -195,16 +195,27 @@ def save_tokens_to_vault(
     v = vault or get_vault()
     saved_path = v.store_tokens(provider=provider, user_id=user_id, tokens=tokens)
 
-    # Optionally synchronize with runtime homelab dev container vault if directory exists
+    # Optionally synchronize with runtime homelab vaults (dev & prod) if directory exists
     if sync_homelab_dev:
         homelab_dev_vault = Path("/home/fsirio/homelab/biometric-coach-dev/data")
         if homelab_dev_vault.exists() and homelab_dev_vault.is_dir():
             try:
-                v_dev = LocalSecureVault(vault_dir=homelab_dev_vault)
-                v_dev.store_tokens(provider=provider, user_id=user_id, tokens=tokens)
-                log.info(f"🔄 Synchronized encrypted tokens to homelab dev container vault for {provider}:{user_id}")
+                if v.vault_dir.resolve() != (homelab_dev_vault / "vault").resolve():
+                    v_dev = LocalSecureVault(vault_dir=homelab_dev_vault)
+                    v_dev.store_tokens(provider=provider, user_id=user_id, tokens=tokens)
+                    log.info(f"🔄 Synchronized encrypted tokens to homelab dev container vault for {provider}:{user_id}")
             except Exception as e:
                 log.warning(f"Could not synchronize token to homelab dev vault: {e}")
+
+        homelab_prod_vault = Path("/home/fsirio/homelab/biometric-coach/data")
+        if homelab_prod_vault.exists() and homelab_prod_vault.is_dir():
+            try:
+                if v.vault_dir.resolve() != (homelab_prod_vault / "vault").resolve():
+                    v_prod = LocalSecureVault(vault_dir=homelab_prod_vault)
+                    v_prod.store_tokens(provider=provider, user_id=user_id, tokens=tokens)
+                    log.info(f"🔄 Synchronized encrypted tokens to homelab prod container vault for {provider}:{user_id}")
+            except Exception as e:
+                log.warning(f"Could not synchronize token to homelab prod vault: {e}")
 
     return saved_path
 
@@ -221,8 +232,22 @@ def load_tokens_from_vault(
         # Fallback check in homelab dev vault
         dev_vault = Path("/home/fsirio/homelab/biometric-coach-dev/data")
         if dev_vault.exists():
-            with_dev = LocalSecureVault(vault_dir=dev_vault)
-            tokens = with_dev.retrieve_tokens(provider=provider, user_id=user_id)
+            try:
+                if v.vault_dir.resolve() != (dev_vault / "vault").resolve():
+                    with_dev = LocalSecureVault(vault_dir=dev_vault)
+                    tokens = with_dev.retrieve_tokens(provider=provider, user_id=user_id)
+            except Exception as e:
+                log.debug(f"Could not check homelab dev vault: {e}")
+    if not tokens:
+        # Fallback check in homelab prod vault
+        prod_vault = Path("/home/fsirio/homelab/biometric-coach/data")
+        if prod_vault.exists():
+            try:
+                if v.vault_dir.resolve() != (prod_vault / "vault").resolve():
+                    with_prod = LocalSecureVault(vault_dir=prod_vault)
+                    tokens = with_prod.retrieve_tokens(provider=provider, user_id=user_id)
+            except Exception as e:
+                log.debug(f"Could not check homelab prod vault: {e}")
     return tokens
 
 

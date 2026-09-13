@@ -22,21 +22,52 @@ class LocalSecureVault:
     """Manages encrypted storage of user credentials and API tokens with zero plaintext on disk."""
 
     def __init__(self, vault_dir: Path | str | None = None, secret_key: str | None = None):
-        raw_base = vault_dir or os.getenv("LOCAL_STORAGE_DIR") or os.getenv("BIOMETRIC_DATA_DIR")
+        raw_base = vault_dir or os.getenv("VAULT_DIR") or os.getenv("BIOMETRIC_DATA_DIR") or os.getenv("LOCAL_STORAGE_DIR")
+        is_in_container = Path("/.dockerenv").exists() or (Path("/app").exists() and os.access("/app", os.W_OK))
+
         if raw_base:
-            storage_base = Path(raw_base)
-        elif Path("/app/data").exists() and os.access("/app/data", os.W_OK):
+            p = Path(raw_base)
+            # If path points to container /app/... but running on host:
+            if (str(p).startswith("/app") or str(p) == "/app") and not is_in_container:
+                if os.getenv("HOST_DATA_DIR"):
+                    storage_base = Path(os.getenv("HOST_DATA_DIR"))
+                elif os.getenv("HOST_VAULT_DIR"):
+                    storage_base = Path(os.getenv("HOST_VAULT_DIR"))
+                elif Path("/home/fsirio/homelab/biometric-coach-dev/data").exists():
+                    storage_base = Path("/home/fsirio/homelab/biometric-coach-dev/data")
+                elif Path("/home/fsirio/homelab/biometric-coach/data").exists():
+                    storage_base = Path("/home/fsirio/homelab/biometric-coach/data")
+                else:
+                    storage_base = Path(__file__).resolve().parent.parent.parent / "data"
+            else:
+                storage_base = p
+        elif is_in_container and Path("/app/data").exists() and os.access("/app/data", os.W_OK):
             storage_base = Path("/app/data")
+        elif Path("/home/fsirio/homelab/biometric-coach-dev/data").exists():
+            storage_base = Path("/home/fsirio/homelab/biometric-coach-dev/data")
+        elif Path("/home/fsirio/homelab/biometric-coach/data").exists():
+            storage_base = Path("/home/fsirio/homelab/biometric-coach/data")
         else:
             storage_base = Path(__file__).resolve().parent.parent.parent / "data"
 
-        storage_base.mkdir(parents=True, exist_ok=True)
+        # If pointing directly to a directory named "vault", adjust key_file to parent
+        if storage_base.name == "vault":
+            self.vault_dir = storage_base
+            self.key_file = storage_base.parent / ".vault_key"
+            storage_base = storage_base.parent
+        else:
+            self.vault_dir = storage_base / "vault"
+            self.key_file = storage_base / ".vault_key"
 
-        self.vault_dir = storage_base / "vault"
-        self.vault_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            storage_base.mkdir(parents=True, exist_ok=True)
+            self.vault_dir.mkdir(parents=True, exist_ok=True)
+        except PermissionError as pe:
+            raise PermissionError(
+                f"Permission denied accessing/creating vault directory at '{self.vault_dir}'. "
+                f"Ensure file permissions allow write access for current user: {pe}"
+            ) from pe
 
-        # Primary master key file located directly at .vault_key
-        self.key_file = storage_base / ".vault_key"
         self._fernet = self._init_fernet(secret_key)
 
     def _init_fernet(self, secret_key: str | None) -> Fernet:
@@ -56,7 +87,13 @@ class LocalSecureVault:
                 log.warning(f"Could not initialize Fernet from VAULT_SECRET_KEY: {e}")
 
         if self.key_file.exists():
-            key = self.key_file.read_bytes().strip()
+            try:
+                key = self.key_file.read_bytes().strip()
+            except PermissionError as pe:
+                raise PermissionError(
+                    f"Permission denied reading vault key file at '{self.key_file}'. "
+                    f"Check file permissions (e.g. sudo chown $USER:$USER {self.key_file}): {pe}"
+                ) from pe
         else:
             key = Fernet.generate_key()
             self.key_file.write_bytes(key)
