@@ -1831,13 +1831,29 @@ async def google_auth_callback(
 
     session_data = _oauth_sessions.pop(state, None)
     if not session_data:
+        # User might have initiated OAuth via CLI script or session was in another process.
+        # Render a friendly helper page allowing the user to copy their code for the CLI.
         return HTMLResponse(
-            "<html><body style='background:#0f172a;color:#ef4444;font-family:sans-serif;padding:40px;text-align:center;'>"
-            "<h2>OAuth Session Expired</h2>"
-            "<p>The state parameter is invalid or the session has timed out. Please try again from the Setup Wizard.</p>"
-            "<a href='/setup' style='color:#38bdf8;text-decoration:underline;'>Return to Setup Wizard</a>"
-            "</body></html>",
-            status_code=400,
+            f"<html><body style='background:#0f172a;color:#f8fafc;font-family:system-ui,sans-serif;padding:40px;max-width:640px;margin:0 auto;'>"
+            f"<div style='background:#1e293b;border:1px solid #334155;border-radius:12px;padding:32px;'>"
+            f"<div style='display:flex;align-items:center;gap:12px;margin-bottom:16px;'>"
+            f"<span style='font-size:32px;'>🔐</span>"
+            f"<h2 style='margin:0;font-size:22px;color:#38bdf8;'>Google Authorization Code Received</h2>"
+            f"</div>"
+            f"<p style='color:#94a3b8;font-size:14px;line-height:1.5;'>"
+            f"Google has successfully issued an authorization code. If you are running the authorization CLI script, "
+            f"copy the code below (or the complete URL from your browser's address bar) and paste it into your terminal prompt:"
+            f"</p>"
+            f"<div style='background:#0f172a;border:1px solid #475569;border-radius:8px;padding:12px;margin:20px 0;word-break:break-all;font-family:monospace;color:#a5f3fc;font-size:14px;'>"
+            f"{code}"
+            f"</div>"
+            f"<div style='display:flex;gap:12px;align-items:center;'>"
+            f"<button onclick='navigator.clipboard.writeText(\"{code}\");this.innerText=\"✓ Copied!\";' style='background:#0284c7;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-weight:600;cursor:pointer;'>Copy Code</button>"
+            f"<a href='/setup' style='color:#94a3b8;font-size:14px;text-decoration:underline;'>Return to Setup</a>"
+            f"</div>"
+            f"</div>"
+            f"</body></html>",
+            status_code=200,
         )
 
     user_id = session_data["user_id"]

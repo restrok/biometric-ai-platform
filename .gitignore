@@ -68,3 +68,10 @@ api/data/
 *.sqlite
 *.duckdb
 *.duckdb.wal
+
+# Tokens, Credentials & Secrets
+token.json
+credentials.json
+*.enc
+secrets/
+
