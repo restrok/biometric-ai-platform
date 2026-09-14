@@ -177,6 +177,13 @@ def test_dashboard_page(client: TestClient):
     assert response.status_code == 200
     assert "Biometric AI Coach - Dashboard" in response.text
     assert "test_athlete_onboarding" in response.text
+    assert "widget-chart-physio" in response.text
+    assert "widget-chart-volume" in response.text
+    assert "kpi-customizer-modal" in response.text
+    assert "kpis-dynamic-container" in response.text
+    assert "resize-handle" in response.text
+    assert "initResizeHandles" in response.text
+    assert "resize-drag-badge" in response.text
 
 
 def test_dashboard_data(client: TestClient):
@@ -187,6 +194,9 @@ def test_dashboard_data(client: TestClient):
     assert "profile" in data
     assert "goals" in data
     assert "activities" in data
+    assert "macro_load" in data
+    assert "acwr" in data
+    assert "weekly_km" in data
 
 
 def test_dashboard_users(client: TestClient):
@@ -348,3 +358,78 @@ def test_athlete_status_endpoint(client: TestClient):
     assert "google_health_connected" in data
     assert "google_client_id" in data
     assert "fitbit_client_id" in data
+
+
+def test_athlete_dashboard_layout_persistence(client: TestClient):
+    """Tests retrieving and persisting per-athlete custom dashboard layouts with active KPIs."""
+    user_id = "test_custom_layout_user"
+    # 1. Default layout
+    res_get = client.get(f"/athletes/{user_id}/dashboard-layout")
+    assert res_get.status_code == 200
+    data = res_get.json()
+    assert data["user_id"] == user_id
+    assert "widget-kpis" in data["layout"]["order"]
+    assert "widget-chart-physio" in data["layout"]["order"]
+    assert "active_kpis" in data["layout"]
+    assert "rhr" in data["layout"]["active_kpis"]
+
+    # 2. Save custom layout with tailored KPIs and predefined charts
+    custom_order = [
+        "widget-chart-physio",
+        "widget-kpis",
+        "widget-zones",
+        "widget-chart-volume",
+        "widget-goals",
+        "widget-activities",
+        "widget-coach",
+    ]
+    custom_visible = {
+        "widget-kpis": True,
+        "widget-chart-physio": True,
+        "widget-zones": True,
+        "widget-chart-volume": True,
+        "widget-goals": True,
+        "widget-activities": True,
+        "widget-coach": False,
+    }
+    custom_kpis = ["rhr", "hrv", "sleep", "acwr", "weekly_km"]
+    res_post = client.post(
+        f"/athletes/{user_id}/dashboard-layout",
+        json={"order": custom_order, "visible": custom_visible, "active_kpis": custom_kpis},
+    )
+    assert res_post.status_code == 200
+    post_data = res_post.json()
+    assert post_data["status"] == "ok"
+    assert post_data["layout"]["order"] == custom_order
+    assert post_data["layout"]["visible"]["widget-coach"] is False
+    assert post_data["layout"]["active_kpis"] == custom_kpis
+
+    # 3. Retrieve and verify persisted custom layout
+    res_get_updated = client.get(f"/athletes/{user_id}/dashboard-layout")
+    assert res_get_updated.status_code == 200
+    updated_data = res_get_updated.json()
+    assert updated_data["layout"]["order"][0] == "widget-chart-physio"
+    assert updated_data["layout"]["visible"]["widget-coach"] is False
+    assert updated_data["layout"]["active_kpis"] == custom_kpis
+
+
+def test_athlete_dashboard_layout_backward_compatibility(client: TestClient):
+    """Tests backward-compatible migration of legacy widget-chart to widget-chart-physio."""
+    user_id = "test_legacy_layout_user"
+    legacy_payload = {
+        "order": ["widget-chart", "widget-kpis", "widget-zones"],
+        "visible": {"widget-chart": True, "widget-kpis": True, "widget-zones": False},
+        "sizes": {"widget-chart": "8", "widget-kpis": "12", "widget-zones": "4"},
+    }
+    res_post = client.post(f"/athletes/{user_id}/dashboard-layout", json=legacy_payload)
+    assert res_post.status_code == 200
+
+    # Retrieve: must map widget-chart -> widget-chart-physio
+    res_get = client.get(f"/athletes/{user_id}/dashboard-layout")
+    assert res_get.status_code == 200
+    layout = res_get.json()["layout"]
+    assert "widget-chart-physio" in layout["order"]
+    assert "widget-chart" not in layout.get("visible", {})
+    assert layout["visible"]["widget-chart-physio"] is True
+    assert layout["sizes"]["widget-chart-physio"] == "8"
+    assert "active_kpis" in layout

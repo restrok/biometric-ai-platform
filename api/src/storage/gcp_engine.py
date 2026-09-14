@@ -1,4 +1,5 @@
 import os
+import time
 
 """GCP Cloud-Native Storage Engine implementing Firestore (OLTP) and BigQuery (OLAP + Vector)."""
 
@@ -30,6 +31,7 @@ class GCPStorageEngine(StorageEngine):
 
         self._db: firestore.Client | None = None
         self._bq: bigquery.Client | None = None
+        self._users_cache: tuple[float, list[str]] | None = None
         log.info(f"☁️ GCPStorageEngine initialized for project: {self.project_id}, dataset: {self.dataset_id}")
 
     @property
@@ -53,14 +55,42 @@ class GCPStorageEngine(StorageEngine):
         return {}
 
     def update_user_profile(self, user_id: str, data: dict[str, Any]) -> None:
+        self._users_cache = None
         doc_ref = self.db.collection("user_profiles").document(user_id)
-        doc_ref.set(data, merge=True)
+        doc = doc_ref.get()
+        if getattr(doc, "exists", False):
+            doc_ref.update(data)
+        else:
+            doc_ref.set(data, merge=True)
         log.info(f"✅ GCPStorageEngine: Updated Firestore profile for {user_id}")
 
     # --- Goals ---
     def get_user_goals(self, user_id: str) -> list[dict[str, Any]]:
         docs = self.db.collection("user_goals").where("user_id", "==", user_id).where("status", "==", "active").stream()
-        return [{"goal_id": d.id, **dict(d.to_dict() or {})} for d in docs]
+        goals = [{"goal_id": d.id, **dict(d.to_dict() or {})} for d in docs]
+        if goals:
+            return goals
+
+        # Fallback: Check active_goals or goals list inside user_profiles/{user_id}
+        profile = self.get_user_profile(user_id)
+        raw_goals = profile.get("active_goals") or profile.get("goals") or []
+        fallback_goals = []
+        for g in raw_goals:
+            if isinstance(g, dict):
+                st = str(g.get("status") or "active").lower()
+                if st == "active":
+                    goal_entry = {
+                        "goal_id": str(g.get("goal_id") or g.get("id") or uuid.uuid4()),
+                        "user_id": user_id,
+                        **g,
+                    }
+                    fallback_goals.append(goal_entry)
+                    try:
+                        self.save_user_goal(user_id, goal_entry)
+                    except Exception as err:
+                        log.debug(f"Could not mirror profile goal to user_goals: {err}")
+
+        return fallback_goals
 
     def save_user_goal(self, user_id: str, goal: dict[str, Any]) -> str:
         goal_id = str(goal.get("goal_id") or uuid.uuid4())
@@ -259,7 +289,13 @@ class GCPStorageEngine(StorageEngine):
                 calories,
                 elevation_gain,
                 vo2max,
-                avg_power
+                avg_power,
+                avg_cadence,
+                total_strokes,
+                avg_swolf,
+                pool_length_m,
+                active_lengths,
+                avg_strokes_per_length
             FROM `{table_id}`
             WHERE {" AND ".join(where_clauses)}
             ORDER BY date DESC
@@ -401,8 +437,14 @@ class GCPStorageEngine(StorageEngine):
         )
         return len(list(docs)) > 0
 
-    def list_users(self) -> list[str]:
-        """Retrieves list of active athlete/user IDs from Firestore and BigQuery."""
+    def list_users(self, force_refresh: bool = False) -> list[str]:
+        """Retrieves list of active athlete/user IDs from Firestore, caching results for 5 mins."""
+        now = time.time()
+        if not force_refresh and self._users_cache:
+            cache_time, cached_users = self._users_cache
+            if now - cache_time < 300:
+                return cached_users
+
         users = set()
         try:
             for doc in self.db.collection("user_profiles").stream():
@@ -411,27 +453,31 @@ class GCPStorageEngine(StorageEngine):
         except Exception as e:
             log.warning(f"Could not list users from Firestore: {e}")
 
-        try:
-            table_id = f"{self.project_id}.{self.dataset_id}.recent_activities"
-            query = f"SELECT DISTINCT user_id FROM `{table_id}`"
-            df = self.bq.query(query).to_dataframe()
-            for u in df["user_id"].dropna():
-                users.add(str(u))
-        except Exception as e:
-            log.warning(f"Could not list users from recent_activities: {e}")
+        # Only query BigQuery as a fallback if Firestore returned nothing
+        if not users:
+            try:
+                table_id = f"{self.project_id}.{self.dataset_id}.recent_activities"
+                query = f"SELECT DISTINCT user_id FROM `{table_id}`"
+                df = self.bq.query(query).to_dataframe()
+                for u in df["user_id"].dropna():
+                    users.add(str(u))
+            except Exception as e:
+                log.warning(f"Could not list users from recent_activities: {e}")
 
-        try:
-            table_id = f"{self.project_id}.{self.dataset_id}.daily_physiology"
-            query = f"SELECT DISTINCT user_id FROM `{table_id}`"
-            df = self.bq.query(query).to_dataframe()
-            for u in df["user_id"].dropna():
-                users.add(str(u))
-        except Exception as e:
-            log.warning(f"Could not list users from daily_physiology: {e}")
+            try:
+                table_id = f"{self.project_id}.{self.dataset_id}.daily_physiology"
+                query = f"SELECT DISTINCT user_id FROM `{table_id}`"
+                df = self.bq.query(query).to_dataframe()
+                for u in df["user_id"].dropna():
+                    users.add(str(u))
+            except Exception as e:
+                log.warning(f"Could not list users from daily_physiology: {e}")
 
         if not users:
             users.add(os.getenv("DEFAULT_USER_ID", "default_user"))
-        return sorted(users)
+        result = sorted(users)
+        self._users_cache = (now, result)
+        return result
 
     def delete_user_data(self, user_id: str) -> dict[str, Any]:
         """Stubs delete_user_data for GCPStorageEngine."""
