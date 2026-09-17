@@ -66,6 +66,7 @@ def get_active_core_model() -> str:
 
 
 DS_MODEL_NAME = os.getenv("DS_MODEL_NAME", "gemini-pro")
+DS_MAX_LOOPS = int(os.getenv("DS_MAX_LOOPS", "4"))
 
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
@@ -84,6 +85,7 @@ class AgentState(TypedDict):
     usage_stats: dict[str, Any]  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
     loop_count: int  # Prevent infinite self-healing
+    ds_loop_count: int  # Isolated counter for data scientist iterations
     user_id: str | None
 
 
@@ -209,6 +211,7 @@ def node_router(state: AgentState) -> dict[str, Any]:
         return {
             "intent": "sync",
             "loop_count": 0,
+            "ds_loop_count": 0,
             "usage_stats": {"router_rationale": f"Hardcoded override for {last_msg_str}"},
         }
 
@@ -268,7 +271,12 @@ def node_router(state: AgentState) -> dict[str, Any]:
     log.info(f"🔍 Intent Classified: {intent.upper()} | Rationale: {rationale}")
 
     # Store the rationale in metadata for the analyzer
-    return {"intent": intent, "loop_count": 0, "usage_stats": {"router_rationale": rationale}}
+    return {
+        "intent": intent,
+        "loop_count": 0,
+        "ds_loop_count": 0,
+        "usage_stats": {"router_rationale": rationale},
+    }
 
 
 def node_retrieve_context(state: AgentState) -> dict[str, Any]:
@@ -787,9 +795,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     llm_with_tools = llm.bind_tools(active_ds_tools)
 
     # Context preparation
-    loop_count = state.get("loop_count", 0)
+    ds_loop_count = state.get("ds_loop_count", 0)
     strict_instruction = ""
-    if loop_count > 1:
+    if ds_loop_count >= (DS_MAX_LOOPS - 1):
         strict_instruction = "\n\n### ⚠️ STRICT LOOP CONTROL\nYou have already attempted discovery. You MUST NOT call any more tools. You MUST synthesize your final findings and provide the DataScientistOutput now."
     elif bq_schema:
         strict_instruction = "\n\n### 🛡️ SCHEMA ALREADY PROVIDED\nThe BigQuery schema is included below. DO NOT call `get_bigquery_schema`. Proceed directly to formulating your hypothesis and then use the dry-run tool."
@@ -817,18 +825,22 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
 
     # Initial call to formulate hypothesis and potentially call tools
     # LOOP BREAKER: If we are already at the limit, do not allow more tool calls
-    if loop_count >= 2:
-        log.warning("⚠️ Loop limit reached in node_data_scientist. Forcing structured output pass.")
+    if ds_loop_count >= DS_MAX_LOOPS:
+        log.warning(
+            f"⚠️ Loop limit reached in node_data_scientist ({ds_loop_count}/{DS_MAX_LOOPS}). Forcing structured output pass."
+        )
         response = HumanMessage(content="Loop limit reached. Synthesize findings now.")
     else:
         response = llm_with_tools.invoke(messages)
 
     # If the DS wants to use tools, we return them to the 'tools' node
     if hasattr(response, "tool_calls") and response.tool_calls:
-        log.info(f"🧪 DataScientist calling {len(response.tool_calls)} tools for discovery.")
+        log.info(
+            f"🧪 DataScientist calling {len(response.tool_calls)} tools for discovery (Iter {ds_loop_count + 1}/{DS_MAX_LOOPS})."
+        )
         # Mark this AI message to identify its tools in the router
         response.additional_kwargs["is_ds_call"] = True
-        return {"messages": [response], "loop_count": loop_count + 1}
+        return {"messages": [response], "ds_loop_count": ds_loop_count + 1}
 
     # Once tools are done (or if no tools needed), force a structured output
     provider = os.getenv("LLM_PROVIDER", "google").lower()
@@ -847,10 +859,10 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
             additional_kwargs={"is_ds_report": True},
         )
         log.info("🧪 DataScientist generated structured report.")
-        return {"messages": [findings_msg], "loop_count": loop_count + 1}
+        return {"messages": [findings_msg], "ds_loop_count": ds_loop_count + 1}
     except Exception as e:
         log.error(f"❌ DataScientist failed to generate structured report: {e}")
-        return {"messages": [response], "loop_count": loop_count + 1}
+        return {"messages": [response], "ds_loop_count": ds_loop_count + 1}
 
 
 def node_validator(state: AgentState) -> dict[str, Any]:
@@ -1090,11 +1102,13 @@ def route_after_tools(state: AgentState):
     # If the tools were triggered by data_scientist, go back to it to synthesize results
     if trigger_msg.additional_kwargs.get("is_ds_call"):
         # LOOP BREAKER: Prevent infinite DS tool loops
-        loop_count = state.get("loop_count", 0)
-        if loop_count >= 2:
-            log.warning(f"⚠️ DataScientist loop limit reached ({loop_count}). Forcing to analyzer.")
+        ds_loop_count = state.get("ds_loop_count", 0)
+        if ds_loop_count >= DS_MAX_LOOPS:
+            log.warning(f"⚠️ DataScientist loop limit reached ({ds_loop_count}/{DS_MAX_LOOPS}). Forcing to analyzer.")
             return "analyzer"
-        log.info(f"🧪 Tools were from data_scientist (Iteration {loop_count}). Back-rooting to DS node.")
+        log.info(
+            f"🧪 Tools were from data_scientist (Iteration {ds_loop_count}/{DS_MAX_LOOPS}). Back-rooting to DS node."
+        )
         return "data_scientist"
 
     # Otherwise, back to analyzer for recursion
