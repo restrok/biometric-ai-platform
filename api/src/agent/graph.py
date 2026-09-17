@@ -259,8 +259,13 @@ def node_router(state: AgentState) -> dict[str, Any]:
             intent = "full"
             rationale = "Fallback to full"
 
-        # Explicit override if the LLM missed it but the rationale mentions it
-        if "cross-user" in rationale.lower() or "security" in rationale.lower():
+        # Explicit override only if a cross-user violation or security alert was detected
+        rat_lower = rationale.lower()
+        if (
+            "cross-user query detected" in rat_lower
+            or "security: cross-user" in rat_lower
+            or "security violation" in rat_lower
+        ):
             intent = "none"
 
     except Exception as e:
@@ -821,7 +826,16 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         )
     ]
     messages.append(HumanMessage(content=f"Biometric Context (Filtered): {context_str}"))
-    messages.append(state["messages"][-1])
+    # Sanitize the incoming trigger message: if it came from analyzer with tool_calls, extract content as user context
+    last_trigger = state["messages"][-1]
+    if hasattr(last_trigger, "tool_calls") and last_trigger.tool_calls:
+        trigger_context = HumanMessage(
+            content=f"Discovery Goal: {last_trigger.content or 'Perform discovery analysis on recent biometric data'}"
+        )
+    else:
+        trigger_context = last_trigger
+
+    messages.append(trigger_context)
 
     # Initial call to formulate hypothesis and potentially call tools
     # LOOP BREAKER: If we are already at the limit, do not allow more tool calls
@@ -849,7 +863,11 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     else:
         structured_llm = llm.with_structured_output(DataScientistOutput)
     try:
-        raw_output = structured_llm.invoke(messages + [response])
+        # Pass a clean sequence without unresponded tool calls for structured output synthesis
+        synth_messages = [m for m in messages if not (hasattr(m, "tool_calls") and m.tool_calls)]
+        if response and not (hasattr(response, "tool_calls") and response.tool_calls):
+            synth_messages.append(response)
+        raw_output = structured_llm.invoke(synth_messages)
         if not raw_output:
             raise ValueError("No output from Data Scientist LLM")
 
