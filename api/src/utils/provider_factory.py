@@ -1,7 +1,6 @@
-import contextlib
-
 """Biometric provider factory utility supporting Garmin and Fitbit."""
 
+import contextlib
 import json
 import logging
 import os
@@ -18,6 +17,16 @@ log = logging.getLogger(__name__)
 _providers: dict[str, Any] = {}
 
 
+def invalidate_provider_cache(user_id: str | None = None) -> None:
+    """Invalidates the in-memory provider cache for a user, or all users if None."""
+    global _providers
+    if user_id:
+        _providers.pop(user_id, None)
+    else:
+        _providers.clear()
+    log.debug(f"Invalidated provider cache for: {user_id or 'all'}")
+
+
 def get_provider(
     user_id: str | None = None,
     force_reload: bool = False,
@@ -29,13 +38,16 @@ def get_provider(
     """
     global _providers
 
+    if refresh:
+        force_reload = True
+
     cache_key = user_id or "default"
     if cache_key in _providers and not force_reload:
         return _providers[cache_key]
 
     # Determine watch provider preference
     provider: Any = None
-    target_user: str = str(user_id or os.getenv("DEFAULT_USER_ID") or "default_user")
+    target_user = user_id or os.getenv("DEFAULT_USER_ID", "default_user")
     watch_provider = os.getenv("WATCH_PROVIDER", "garmin")
     try:
         from src.storage.factory import get_storage_engine

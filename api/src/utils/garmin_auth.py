@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import os
@@ -187,15 +188,25 @@ def refresh_user_token(user_id: str) -> bool:
             else:
                 log.info(f"✨ Repaired/Updated Secret Manager for {user_id}")
 
-        # C. Update legacy file ONLY if it originally came from an unencrypted file and not strictly local mode
-        if working_source_path and os.getenv("STORAGE_MODE") != "local":
-            try:
-                working_source_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(working_source_path, "w") as f:
-                    json.dump(refreshed_tokens, f, indent=4)
-                log.debug(f"Updated legacy file for {user_id}: {working_source_path}")
-            except Exception as e:
-                log.warning(f"Failed to update legacy file for {user_id}: {e}")
+        # C. Update legacy file if present, or write to standard .garminconnect path
+        target_file = working_source_path or (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json")
+        try:
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(target_file, "w") as f:
+                json.dump(refreshed_tokens, f, indent=4)
+            with contextlib.suppress(Exception):
+                os.chmod(target_file, 0o600)
+            log.debug(f"Updated token file for {user_id}: {target_file}")
+        except Exception as e:
+            log.warning(f"Failed to update token file for {user_id}: {e}")
+
+        # D. Invalidate provider in-memory cache so stale sessions are never used
+        try:
+            from src.utils.provider_factory import invalidate_provider_cache
+
+            invalidate_provider_cache(user_id)
+        except Exception as e:
+            log.debug(f"Could not invalidate provider cache for {user_id}: {e}")
 
         return True
 
