@@ -58,7 +58,7 @@ class SetupConfigPayload(BaseModel):
 class SystemConfigPayload(BaseModel):
     storage_mode: str = "local"
     llm_provider: str = "ollama"
-    llm_model: str = "deepseek-v4-flash:0731"
+    llm_model: str = "deepseek-v4.1-flash"
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     embeddings_provider: str = "fastembed"
@@ -475,9 +475,9 @@ SETUP_HTML = """<!DOCTYPE html>
             </div>
             <div class="space-y-1.5">
               <label class="block text-xs font-semibold text-slate-300">Modelo LLM Principal (CORE_MODEL_NAME)</label>
-              <input type="text" id="system_llm_model" value="deepseek-v4-flash:0731" required
+              <input type="text" id="system_llm_model" value="deepseek-v4.1-flash" required
                      class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
-              <p id="system_llm_model_hint" class="text-[10px] text-slate-400">Ej: deepseek-v4-flash:0731, llama3.2, qwen2.5:7b</p>
+              <p id="system_llm_model_hint" class="text-[10px] text-slate-400">Ej: deepseek-v4.1-flash, llama3.2, qwen2.5:7b</p>
             </div>
           </div>
 
@@ -772,23 +772,23 @@ SETUP_HTML = """<!DOCTYPE html>
         lblUrl.innerText = 'Ollama Base URL';
         inputUrl.placeholder = 'https://ollama.com/v1 o http://localhost:11434/v1';
         lblKey.innerText = 'Ollama API Key (Opcional si es local)';
-        hintModel.innerText = 'Ej: deepseek-v4-flash:0731, llama3.2, qwen2.5:7b';
+        hintModel.innerText = 'Ej: deepseek-v4.1-flash, llama3.2, qwen2.5:7b';
         if (!inputModel.value || inputModel.value === 'gpt-4o-mini' || inputModel.value.startsWith('gemini')) {
-          inputModel.value = 'deepseek-v4-flash:0731';
+          inputModel.value = 'deepseek-v4.1-flash';
         }
       } else if (provider === 'openai') {
         lblUrl.innerText = 'OpenAI Base URL / Endpoint (v1)';
         inputUrl.placeholder = 'https://api.openai.com/v1 o https://openrouter.ai/api/v1';
         lblKey.innerText = 'API Key (Bearer Token)';
         hintModel.innerText = 'Ej: gpt-4o-mini, deepseek/deepseek-chat, claude-3-5-haiku';
-        if (!inputModel.value || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value.startsWith('gemini')) {
+        if (!inputModel.value || inputModel.value === 'deepseek-v4.1-flash' || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value.startsWith('gemini')) {
           inputModel.value = 'gpt-4o-mini';
         }
       } else if (provider === 'google') {
         boxUrl.classList.add('hidden');
         lblKey.innerText = 'Google AI Studio API Key (GOOGLE_API_KEY)';
         hintModel.innerText = 'Ej: gemini-2.5-flash, gemini-1.5-flash, gemini-2.0-flash';
-        if (!inputModel.value || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value === 'gpt-4o-mini') {
+        if (!inputModel.value || inputModel.value === 'deepseek-v4.1-flash' || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value === 'gpt-4o-mini') {
           inputModel.value = 'gemini-2.5-flash';
         }
       } else if (provider === 'lmstudio') {
@@ -882,7 +882,7 @@ SETUP_HTML = """<!DOCTYPE html>
       const payload = {
         storage_mode: document.querySelector('input[name="system_storage_mode"]:checked').value,
         llm_provider: document.getElementById('system_llm_provider').value,
-        llm_model: document.getElementById('system_llm_model').value.trim() || 'deepseek-v4-flash:0731',
+        llm_model: document.getElementById('system_llm_model').value.trim() || 'deepseek-v4.1-flash',
         llm_base_url: document.getElementById('system_llm_base_url').value.trim() || null,
         llm_api_key: document.getElementById('system_llm_api_key').value.trim() || null,
         embeddings_provider: document.getElementById('system_embeddings_provider').value,
@@ -3048,7 +3048,7 @@ async def save_setup(payload: SetupConfigPayload):
 async def get_system_setup():
     """Returns current active system configuration."""
     provider = os.getenv("LLM_PROVIDER", "ollama")
-    model = os.getenv("CORE_MODEL_NAME") or os.getenv("LLM_MODEL", "deepseek-v4-flash:0731")
+    model = os.getenv("CORE_MODEL_NAME") or os.getenv("LLM_MODEL", "deepseek-v4.1-flash")
     base_url = (
         os.getenv("OLLAMA_BASE_URL")
         if provider == "ollama"
