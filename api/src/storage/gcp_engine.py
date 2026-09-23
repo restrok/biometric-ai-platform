@@ -483,3 +483,84 @@ class GCPStorageEngine(StorageEngine):
         """Stubs delete_user_data for GCPStorageEngine."""
         log.warning(f"delete_user_data called on GCP engine for {user_id}")
         return {"status": "gcp_deletion_not_implemented", "user_id": user_id}
+
+    # --- Proactive Alert Dispatch Log ---
+    def is_alert_dispatched(self, alert_key: str, data_date: Any = None) -> bool:
+        """Checks if an alert has already been dispatched with this idempotency key.
+        Always filters by data_date to leverage BigQuery partition pruning (Free-tier restriction).
+        """
+        table_id = f"{self.project_id}.{self.dataset_id}.alert_dispatch_log"
+        if data_date is not None:
+            date_str = str(data_date)[:10]
+            query = f"""
+                SELECT 1
+                FROM `{table_id}`
+                WHERE data_date = @data_date AND alert_key = @alert_key
+                LIMIT 1
+            """
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("data_date", "DATE", date_str),
+                    bigquery.ScalarQueryParameter("alert_key", "STRING", alert_key),
+                ]
+            )
+        else:
+            query = f"""
+                SELECT 1
+                FROM `{table_id}`
+                WHERE data_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) AND alert_key = @alert_key
+                LIMIT 1
+            """
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("alert_key", "STRING", alert_key),
+                ]
+            )
+        try:
+            results = list(self.bq.query(query, job_config=job_config).result())
+            return len(results) > 0
+        except Exception as e:
+            log.warning(f"Failed to check alert dispatch in BigQuery: {e}")
+            return False
+
+    def record_alert_dispatch(
+        self,
+        alert_key: str,
+        alert_type: str,
+        data_date: Any,
+        payload_hash: str,
+        channel: str,
+        user_id: str,
+        sent_at: Any = None,
+    ) -> None:
+        """Records a dispatched alert into alert_dispatch_log using DML INSERT (free tier compliant)."""
+        table_id = f"{self.project_id}.{self.dataset_id}.alert_dispatch_log"
+        date_str = str(data_date)[:10]
+        if sent_at is None:
+            ts_str: str = datetime.now(UTC).isoformat()
+        elif hasattr(sent_at, "isoformat"):
+            ts_str = str(sent_at.isoformat())
+        else:
+            ts_str = str(sent_at)
+
+        query = f"""
+            INSERT INTO `{table_id}` (alert_key, alert_type, data_date, payload_hash, sent_at, channel, user_id)
+            VALUES (@alert_key, @alert_type, @data_date, @payload_hash, @sent_at, @channel, @user_id)
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("alert_key", "STRING", alert_key),
+                bigquery.ScalarQueryParameter("alert_type", "STRING", alert_type),
+                bigquery.ScalarQueryParameter("data_date", "DATE", date_str),
+                bigquery.ScalarQueryParameter("payload_hash", "STRING", payload_hash),
+                bigquery.ScalarQueryParameter("sent_at", "TIMESTAMP", ts_str),
+                bigquery.ScalarQueryParameter("channel", "STRING", channel),
+                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            ]
+        )
+        try:
+            self.bq.query(query, job_config=job_config).result()
+            log.info(f"✅ Recorded alert dispatch: {alert_key} ({alert_type}) for user {user_id} on {date_str}")
+        except Exception as e:
+            log.error(f"❌ Failed to record alert dispatch in BigQuery: {e}")
+            raise

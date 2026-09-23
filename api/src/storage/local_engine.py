@@ -108,6 +108,16 @@ class LocalStorageEngine(StorageEngine):
                     is_active INTEGER DEFAULT 1,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS alert_dispatch_log (
+                    alert_key TEXT PRIMARY KEY,
+                    alert_type TEXT NOT NULL,
+                    data_date TEXT NOT NULL,
+                    payload_hash TEXT NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    channel TEXT NOT NULL,
+                    user_id TEXT NOT NULL
+                );
             """)
 
     def _init_duckdb(self) -> None:
@@ -154,7 +164,16 @@ class LocalStorageEngine(StorageEngine):
                     stress_avg INTEGER,
                     sleep_duration_seconds DOUBLE,
                     sleep_score INTEGER,
+                    body_battery_charged_sleep INTEGER,
                     PRIMARY KEY (user_id, date)
+                );
+
+                CREATE TABLE IF NOT EXISTS hrv_readings_history (
+                    date VARCHAR,
+                    timestamp_ms BIGINT,
+                    hrv_value DOUBLE,
+                    user_id VARCHAR,
+                    PRIMARY KEY (user_id, timestamp_ms)
                 );
 
                 CREATE TABLE IF NOT EXISTS knowledge_vectors (
@@ -659,3 +678,42 @@ class LocalStorageEngine(StorageEngine):
 
         log.info(f"🗑️ Completely deleted athlete '{user_id}': {counts}")
         return counts
+
+    # --- Proactive Alert Dispatch Log ---
+    def is_alert_dispatched(self, alert_key: str, data_date: Any = None) -> bool:
+        with self._get_sqlite_conn() as conn:
+            if data_date is not None:
+                date_str = str(data_date)[:10]
+                row = conn.execute(
+                    "SELECT 1 FROM alert_dispatch_log WHERE alert_key = ? AND data_date = ?",
+                    (alert_key, date_str),
+                ).fetchone()
+            else:
+                row = conn.execute("SELECT 1 FROM alert_dispatch_log WHERE alert_key = ?", (alert_key,)).fetchone()
+            return row is not None
+
+    def record_alert_dispatch(
+        self,
+        alert_key: str,
+        alert_type: str,
+        data_date: Any,
+        payload_hash: str,
+        channel: str,
+        user_id: str,
+        sent_at: Any = None,
+    ) -> None:
+        ts = (
+            (sent_at or datetime.now(UTC)).isoformat()
+            if hasattr(sent_at, "isoformat")
+            else str(sent_at or datetime.now(UTC).isoformat())
+        )
+        date_str = str(data_date)[:10]
+        with self._get_sqlite_conn() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO alert_dispatch_log
+                (alert_key, alert_type, data_date, payload_hash, sent_at, channel, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (alert_key, alert_type, date_str, payload_hash, ts, channel, user_id),
+            )
