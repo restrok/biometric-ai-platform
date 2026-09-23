@@ -203,7 +203,9 @@ def save_tokens_to_vault(
                 if v.vault_dir.resolve() != (homelab_dev_vault / "vault").resolve():
                     v_dev = LocalSecureVault(vault_dir=homelab_dev_vault)
                     v_dev.store_tokens(provider=provider, user_id=user_id, tokens=tokens)
-                    log.info(f"🔄 Synchronized encrypted tokens to homelab dev container vault for {provider}:{user_id}")
+                    log.info(
+                        f"🔄 Synchronized encrypted tokens to homelab dev container vault for {provider}:{user_id}"
+                    )
             except Exception as e:
                 log.warning(f"Could not synchronize token to homelab dev vault: {e}")
 
@@ -213,7 +215,9 @@ def save_tokens_to_vault(
                 if v.vault_dir.resolve() != (homelab_prod_vault / "vault").resolve():
                     v_prod = LocalSecureVault(vault_dir=homelab_prod_vault)
                     v_prod.store_tokens(provider=provider, user_id=user_id, tokens=tokens)
-                    log.info(f"🔄 Synchronized encrypted tokens to homelab prod container vault for {provider}:{user_id}")
+                    log.info(
+                        f"🔄 Synchronized encrypted tokens to homelab prod container vault for {provider}:{user_id}"
+                    )
             except Exception as e:
                 log.warning(f"Could not synchronize token to homelab prod vault: {e}")
 

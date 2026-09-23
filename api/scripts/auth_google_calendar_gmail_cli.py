@@ -39,15 +39,15 @@ from src.google_workspace.oauth import (
 from src.utils.config import setup_environment
 from src.utils.vault import LocalSecureVault
 
-# Load environment (.env)
-setup_environment()
 
-# Also load from homelab dev container .env if running on homelab host and not found
-dev_env = Path("/home/fsirio/homelab/biometric-coach-dev/.env")
-if dev_env.exists():
-    from dotenv import load_dotenv
+def init_env() -> None:
+    """Load environment variables for CLI execution."""
+    setup_environment()
+    dev_env = Path("/home/fsirio/homelab/biometric-coach-dev/.env")
+    if dev_env.exists():
+        from dotenv import load_dotenv
 
-    load_dotenv(dev_env)
+        load_dotenv(dev_env)
 
 
 def get_default_client_id() -> str:
@@ -79,6 +79,7 @@ def parse_code_from_input(raw_input: str) -> str:
 
 
 def main():
+    init_env()
     parser = argparse.ArgumentParser(
         description="Authorize Google Calendar & Gmail in Read-Only mode and store encrypted tokens."
     )
