@@ -47,7 +47,7 @@ def get_provider(
 
     # Determine watch provider preference
     provider: Any = None
-    target_user = user_id or os.getenv("DEFAULT_USER_ID", "default_user")
+    target_user: str = user_id or os.getenv("DEFAULT_USER_ID") or "default_user"
     watch_provider = os.getenv("WATCH_PROVIDER", "garmin")
     try:
         from src.storage.factory import get_storage_engine

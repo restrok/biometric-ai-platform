@@ -11,7 +11,7 @@ import logging
 import os
 import time
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal, NotRequired, cast
 
 from langchain_core.messages import (
     BaseMessage,
@@ -85,7 +85,7 @@ class AgentState(TypedDict):
     usage_stats: dict[str, Any]  # Track cumulative tokens/calls
     intent: str  # 'full', 'profile_only', 'none'
     loop_count: int  # Prevent infinite self-healing
-    ds_loop_count: int  # Isolated counter for data scientist iterations
+    ds_loop_count: NotRequired[int]  # Isolated counter for data scientist iterations
     user_id: str | None
 
 
@@ -828,6 +828,7 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     messages.append(HumanMessage(content=f"Biometric Context (Filtered): {context_str}"))
     # Sanitize the incoming trigger message: if it came from analyzer with tool_calls, extract content as user context
     last_trigger = state["messages"][-1]
+    trigger_context: BaseMessage
     if hasattr(last_trigger, "tool_calls") and last_trigger.tool_calls:
         trigger_context = HumanMessage(
             content=f"Discovery Goal: {last_trigger.content or 'Perform discovery analysis on recent biometric data'}"

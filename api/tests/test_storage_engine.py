@@ -140,3 +140,61 @@ def test_api_keys_security(temp_storage: LocalStorageEngine):
     assert temp_storage.validate_api_key(api_key, user_id) is True
     assert temp_storage.validate_api_key("invalid_key", user_id) is False
     assert temp_storage.validate_api_key(api_key, "another_athlete") is False
+
+
+def test_alert_dispatch_log_local(temp_storage: LocalStorageEngine):
+    alert_key = "test_key_123"
+    assert temp_storage.is_alert_dispatched(alert_key, data_date="2026-09-23") is False
+
+    temp_storage.record_alert_dispatch(
+        alert_key=alert_key,
+        alert_type="immune_radar",
+        data_date="2026-09-23",
+        payload_hash="hash123",
+        channel="telegram",
+        user_id="test_athlete",
+    )
+
+    assert temp_storage.is_alert_dispatched(alert_key, data_date="2026-09-23") is True
+    assert temp_storage.is_alert_dispatched(alert_key) is True
+    assert temp_storage.is_alert_dispatched("non_existent_key") is False
+
+
+def test_alert_dispatch_log_gcp():
+    from unittest.mock import MagicMock, patch
+
+    from src.storage.gcp_engine import GCPStorageEngine
+
+    with (
+        patch("src.storage.gcp_engine.bigquery.Client") as mock_bq_cls,
+        patch("src.storage.gcp_engine.firestore.Client"),
+    ):
+        mock_bq = MagicMock()
+        mock_bq_cls.return_value = mock_bq
+
+        engine = GCPStorageEngine(project_id="test-proj", dataset_id="test-ds")
+
+        # Test is_alert_dispatched returns False when no rows
+        mock_job = MagicMock()
+        mock_job.result.return_value = []
+        mock_bq.query.return_value = mock_job
+
+        assert engine.is_alert_dispatched("gcp_key", data_date="2026-09-23") is False
+
+        # Verify query used data_date filter (partition pruning)
+        call_args = mock_bq.query.call_args
+        sql = call_args[0][0]
+        assert "WHERE data_date = @data_date AND alert_key = @alert_key" in sql
+
+        # Test record_alert_dispatch uses DML INSERT
+        engine.record_alert_dispatch(
+            alert_key="gcp_key",
+            alert_type="immune_radar",
+            data_date="2026-09-23",
+            payload_hash="gcp_hash",
+            channel="telegram",
+            user_id="test_athlete",
+        )
+        insert_args = mock_bq.query.call_args
+        insert_sql = insert_args[0][0]
+        assert "INSERT INTO `test-proj.test-ds.alert_dispatch_log`" in insert_sql

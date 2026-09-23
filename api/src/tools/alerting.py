@@ -1,12 +1,15 @@
+import hashlib
 import json
 import logging
 import os
 import statistics
+from datetime import date
 
 from google.cloud import bigquery
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+from src.storage.factory import get_storage_engine
 from src.utils.config import get_config
 from src.utils.notifications import send_proactive_notification
 
@@ -25,12 +28,10 @@ def check_proactive_alerts(user_id: str) -> str:
     Evaluates physiological telemetry against Proactive Alerting hooks:
     1. Immune Radar: Triggers alert if HRV Z-Score < -1.5 AND RHR Z-Score > 1.5.
     2. Workload ACWR: Triggers alert if Acute:Chronic Workload Ratio > 1.35.
-    Dispatches proactive notifications if thresholds are exceeded.
+    Dispatches proactive notifications if thresholds are exceeded (with idempotency dedup).
     """
     if os.getenv("STORAGE_MODE") == "local":
         try:
-            from src.storage.factory import get_storage_engine
-
             engine = get_storage_engine(mode="local")
             physio = engine.get_daily_physiology(user_id=user_id, days=21)
             hrv_vals = [p["hrv_rmssd"] for p in physio if p.get("hrv_rmssd")]
@@ -48,7 +49,28 @@ def check_proactive_alerts(user_id: str) -> str:
                 rhr_z = round((today_rhr - statistics.mean(base_rhr)) / std_rhr, 2) if std_rhr > 0 else 0.0
 
                 if hrv_z < -1.5 and rhr_z > 1.5:
-                    alerts_triggered.append(f"⚠️ Alerta radar inmune para {user_id}: HRV Z {hrv_z}, RHR Z +{rhr_z}.")
+                    immune_msg = f"⚠️ Alerta radar inmune para {user_id}: HRV Z {hrv_z}, RHR Z +{rhr_z}."
+                    alerts_triggered.append(immune_msg)
+
+                    data_date = str(physio[0].get("date") or date.today())[:10]
+                    alert_type = "immune_radar"
+                    payload_hash = hashlib.sha256(f"{user_id}:{hrv_z}:{rhr_z}".encode()).hexdigest()
+                    alert_key = hashlib.sha256(
+                        f"{user_id}|{alert_type}|{data_date}|{payload_hash}".encode()
+                    ).hexdigest()
+
+                    if not engine.is_alert_dispatched(alert_key, data_date=data_date):
+                        if send_proactive_notification(user_id, immune_msg):
+                            engine.record_alert_dispatch(
+                                alert_key=alert_key,
+                                alert_type=alert_type,
+                                data_date=data_date,
+                                payload_hash=payload_hash,
+                                channel="telegram",
+                                user_id=user_id,
+                            )
+                    else:
+                        log.info(f"Skipping dispatch: {alert_type} for {user_id} on {data_date} already dispatched.")
 
             return json.dumps(
                 {
@@ -69,6 +91,7 @@ def check_proactive_alerts(user_id: str) -> str:
     config = get_config()
     pid = config["project_id"]
     ds = config["dataset_id"]
+    storage_engine = get_storage_engine()
     alerts_triggered = []
     hrv_z = 0.0
     rhr_z = 0.0
@@ -78,20 +101,24 @@ def check_proactive_alerts(user_id: str) -> str:
         client = bigquery.Client(project=pid)
         # 1. Immune Radar (HRV Z & RHR Z)
         query_hrv = f"""
-            SELECT avg_hrv
+            SELECT date, avg_hrv
             FROM `{pid}.{ds}.hrv_history`
             WHERE user_id = '{user_id}' AND avg_hrv IS NOT NULL
             ORDER BY date DESC LIMIT 21
         """
-        hrv_rows = [r.avg_hrv for r in client.query(query_hrv).result()]
+        hrv_res = list(client.query(query_hrv).result())
+        hrv_rows: list[float] = [float(r.avg_hrv) for r in hrv_res if getattr(r, "avg_hrv", None) is not None]
 
         query_rhr = f"""
-            SELECT resting_heart_rate
+            SELECT date, resting_heart_rate
             FROM `{pid}.{ds}.daily_physiology`
             WHERE user_id = '{user_id}' AND resting_heart_rate IS NOT NULL
             ORDER BY date DESC LIMIT 21
         """
-        rhr_rows = [r.resting_heart_rate for r in client.query(query_rhr).result()]
+        rhr_res = list(client.query(query_rhr).result())
+        rhr_rows: list[float] = [
+            float(r.resting_heart_rate) for r in rhr_res if getattr(r, "resting_heart_rate", None) is not None
+        ]
 
         if len(hrv_rows) >= 5 and len(rhr_rows) >= 5:
             today_hrv, baseline_hrv = hrv_rows[0], hrv_rows[1:]
@@ -109,11 +136,29 @@ def check_proactive_alerts(user_id: str) -> str:
                     f"Elevated risk of illness or autonomic fatigue. Recommend Zone 1 recovery or rest."
                 )
                 alerts_triggered.append(immune_msg)
-                send_proactive_notification(user_id, immune_msg)
+
+                raw_date = getattr(hrv_res[0], "date", None)
+                data_date = str(raw_date)[:10] if raw_date else str(date.today())[:10]
+                alert_type = "immune_radar"
+                payload_hash = hashlib.sha256(f"{user_id}:{hrv_z}:{rhr_z}".encode()).hexdigest()
+                alert_key = hashlib.sha256(f"{user_id}|{alert_type}|{data_date}|{payload_hash}".encode()).hexdigest()
+
+                if not storage_engine.is_alert_dispatched(alert_key, data_date=data_date):
+                    if send_proactive_notification(user_id, immune_msg):
+                        storage_engine.record_alert_dispatch(
+                            alert_key=alert_key,
+                            alert_type=alert_type,
+                            data_date=data_date,
+                            payload_hash=payload_hash,
+                            channel="telegram",
+                            user_id=user_id,
+                        )
+                else:
+                    log.info(f"Skipping dispatch: {alert_type} for {user_id} on {data_date} already dispatched.")
 
         # 2. ACWR Workload Check
         query_acwr = f"""
-            SELECT ac_ratio
+            SELECT date, ac_ratio
             FROM `{pid}.{ds}.view_calculated_training_status`
             WHERE user_id = '{user_id}' AND ac_ratio IS NOT NULL
             ORDER BY date DESC LIMIT 1
@@ -128,7 +173,27 @@ def check_proactive_alerts(user_id: str) -> str:
                     f"Recommend deload or low-intensity session."
                 )
                 alerts_triggered.append(acwr_msg)
-                send_proactive_notification(user_id, acwr_msg)
+
+                raw_acwr_date = getattr(acwr_rows[0], "date", None)
+                acwr_date_str = str(raw_acwr_date)[:10] if raw_acwr_date else str(date.today())[:10]
+                alert_type = "acwr_workload"
+                payload_hash = hashlib.sha256(f"{user_id}:{ac_ratio}".encode()).hexdigest()
+                alert_key = hashlib.sha256(
+                    f"{user_id}|{alert_type}|{acwr_date_str}|{payload_hash}".encode()
+                ).hexdigest()
+
+                if not storage_engine.is_alert_dispatched(alert_key, data_date=acwr_date_str):
+                    if send_proactive_notification(user_id, acwr_msg):
+                        storage_engine.record_alert_dispatch(
+                            alert_key=alert_key,
+                            alert_type=alert_type,
+                            data_date=acwr_date_str,
+                            payload_hash=payload_hash,
+                            channel="telegram",
+                            user_id=user_id,
+                        )
+                else:
+                    log.info(f"Skipping dispatch: {alert_type} for {user_id} on {acwr_date_str} already dispatched.")
 
         result = {
             "user_id": user_id,

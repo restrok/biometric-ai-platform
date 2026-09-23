@@ -169,6 +169,7 @@ def test_vault_encrypted_storage_and_separation(temp_vault):
     retrieved_cal = load_tokens_from_vault("google_calendar", user_id, vault=temp_vault)
     retrieved_gmail = load_tokens_from_vault("google_gmail", user_id, vault=temp_vault)
 
+    assert retrieved_cal is not None and retrieved_gmail is not None
     assert retrieved_cal["access_token"] == "cal-access"
     assert retrieved_gmail["access_token"] == "gmail-access"
 
@@ -454,4 +455,3 @@ def test_vault_path_resolution_vault_dir_env(tmp_path, monkeypatch):
     assert vault.vault_dir == custom_vault
     assert vault.key_file == tmp_path / "custom" / ".vault_key"
     assert vault.vault_dir.exists()
-

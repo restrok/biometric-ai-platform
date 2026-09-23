@@ -149,3 +149,23 @@ class StorageEngine(ABC):
     def delete_user_data(self, user_id: str) -> dict[str, Any]:
         """Deletes all records, profiles, activities, and credentials for a given user."""
         pass
+
+    # --- Proactive Alert Dispatch Log ---
+    @abstractmethod
+    def is_alert_dispatched(self, alert_key: str, data_date: Any = None) -> bool:
+        """Checks if an alert has already been dispatched with this idempotency key."""
+        pass
+
+    @abstractmethod
+    def record_alert_dispatch(
+        self,
+        alert_key: str,
+        alert_type: str,
+        data_date: Any,
+        payload_hash: str,
+        channel: str,
+        user_id: str,
+        sent_at: Any = None,
+    ) -> None:
+        """Records a dispatched alert into alert_dispatch_log."""
+        pass

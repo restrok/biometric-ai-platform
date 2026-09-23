@@ -22,17 +22,19 @@ class LocalSecureVault:
     """Manages encrypted storage of user credentials and API tokens with zero plaintext on disk."""
 
     def __init__(self, vault_dir: Path | str | None = None, secret_key: str | None = None):
-        raw_base = vault_dir or os.getenv("VAULT_DIR") or os.getenv("BIOMETRIC_DATA_DIR") or os.getenv("LOCAL_STORAGE_DIR")
+        raw_base = (
+            vault_dir or os.getenv("VAULT_DIR") or os.getenv("BIOMETRIC_DATA_DIR") or os.getenv("LOCAL_STORAGE_DIR")
+        )
         is_in_container = Path("/.dockerenv").exists() or (Path("/app").exists() and os.access("/app", os.W_OK))
 
         if raw_base:
             p = Path(raw_base)
             # If path points to container /app/... but running on host:
             if (str(p).startswith("/app") or str(p) == "/app") and not is_in_container:
-                if os.getenv("HOST_DATA_DIR"):
-                    storage_base = Path(os.getenv("HOST_DATA_DIR"))
-                elif os.getenv("HOST_VAULT_DIR"):
-                    storage_base = Path(os.getenv("HOST_VAULT_DIR"))
+                if host_data := os.getenv("HOST_DATA_DIR"):
+                    storage_base = Path(host_data)
+                elif host_vault := os.getenv("HOST_VAULT_DIR"):
+                    storage_base = Path(host_vault)
                 elif Path("/home/fsirio/homelab/biometric-coach-dev/data").exists():
                     storage_base = Path("/home/fsirio/homelab/biometric-coach-dev/data")
                 elif Path("/home/fsirio/homelab/biometric-coach/data").exists():
