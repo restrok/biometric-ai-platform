@@ -272,4 +272,3 @@ def test_hrv_readings_gcp():
         assert len(rows) == 1
         assert rows[0]["user_id"] == "test_athlete"
         assert rows[0]["hrv_value"] == 62.5
-

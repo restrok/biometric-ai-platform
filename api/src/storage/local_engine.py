@@ -494,7 +494,6 @@ class LocalStorageEngine(StorageEngine):
         finally:
             conn.close()
 
-
     def get_recent_activities(
         self,
         user_id: str,

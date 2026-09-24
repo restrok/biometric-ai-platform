@@ -267,7 +267,6 @@ class GCPStorageEngine(StorageEngine):
         except Exception as e:
             log.warning(f"⚠️ BigQuery hrv readings insert failed: {e}")
 
-
     def get_recent_activities(
         self,
         user_id: str,
