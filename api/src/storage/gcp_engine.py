@@ -255,6 +255,19 @@ class GCPStorageEngine(StorageEngine):
         except Exception as e:
             log.warning(f"⚠️ BigQuery daily physiology insert failed: {e}")
 
+    def insert_hrv_readings(self, user_id: str, readings: list[dict[str, Any]]) -> None:
+        if not readings:
+            return
+        table_id = f"{self.project_id}.{self.dataset_id}.hrv_readings_history"
+        rows = [{**r, "user_id": user_id} for r in readings]
+        try:
+            errors = self.bq.insert_rows_json(table_id, rows)
+            if errors:
+                log.error(f"❌ Error inserting hrv readings to BigQuery: {errors}")
+        except Exception as e:
+            log.warning(f"⚠️ BigQuery hrv readings insert failed: {e}")
+
+
     def get_recent_activities(
         self,
         user_id: str,

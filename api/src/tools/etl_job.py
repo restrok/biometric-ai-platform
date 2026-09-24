@@ -39,17 +39,12 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
     if os.getenv("STORAGE_MODE") == "local":
         try:
             from src.storage.factory import get_storage_engine
-
             engine = get_storage_engine(mode="local")
             duckdb_path = getattr(engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb"))
             import duckdb
-
             conn = duckdb.connect(duckdb_path)
             try:
-                row = conn.execute(
-                    "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
-                ).fetchone()
-                exists = bool(row and row[0] > 0)
+                exists = conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]).fetchone()[0] > 0
                 if exists:
                     cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
                     date_col = "date" if "date" in cols else ("start_time" if "start_time" in cols else None)
@@ -113,10 +108,7 @@ def _upsert_to_local_storage(
     conn = duckdb.connect(duckdb_path)
     try:
         conn.register("_temp_incoming", df)
-        row = conn.execute(
-            "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
-        ).fetchone()
-        exists = bool(row and row[0] > 0)
+        exists = conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]).fetchone()[0] > 0
         if not exists:
             conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _temp_incoming")
             log.info(f"Created local DuckDB table '{table_name}' with {len(df)} rows.")
@@ -167,22 +159,12 @@ def _upsert_to_local_storage(
                     "activity_name": str(row.get("name") or row.get("activity_name") or "Activity"),
                     "activity_type": str(row.get("type") or row.get("activity_type") or "running"),
                     "start_time": str(row.get("date") or row.get("start_time") or datetime.now(UTC).isoformat()),
-                    "duration_seconds": float(
-                        row.get("moving_duration_sec") or row.get("duration_sec") or row.get("duration_seconds") or 0.0
-                    ),
+                    "duration_seconds": float(row.get("moving_duration_sec") or row.get("duration_sec") or row.get("duration_seconds") or 0.0),
                     "distance_meters": float(row.get("distance_m") or row.get("distance_meters") or 0.0),
-                    "avg_heart_rate": float(row.get("avg_hr") or row.get("avg_heart_rate") or 0.0)
-                    if pd.notna(row.get("avg_hr") or row.get("avg_heart_rate"))
-                    else None,
-                    "max_heart_rate": float(row.get("max_hr") or row.get("max_heart_rate") or 0.0)
-                    if pd.notna(row.get("max_hr") or row.get("max_heart_rate"))
-                    else None,
-                    "aerobic_training_effect": float(row.get("aerobic_training_effect") or 0.0)
-                    if pd.notna(row.get("aerobic_training_effect"))
-                    else None,
-                    "anaerobic_training_effect": float(row.get("anaerobic_training_effect") or 0.0)
-                    if pd.notna(row.get("anaerobic_training_effect"))
-                    else None,
+                    "avg_heart_rate": float(row.get("avg_hr") or row.get("avg_heart_rate") or 0.0) if pd.notna(row.get("avg_hr") or row.get("avg_heart_rate")) else None,
+                    "max_heart_rate": float(row.get("max_hr") or row.get("max_heart_rate") or 0.0) if pd.notna(row.get("max_hr") or row.get("max_heart_rate")) else None,
+                    "aerobic_training_effect": float(row.get("aerobic_training_effect") or 0.0) if pd.notna(row.get("aerobic_training_effect")) else None,
+                    "anaerobic_training_effect": float(row.get("anaerobic_training_effect") or 0.0) if pd.notna(row.get("anaerobic_training_effect")) else None,
                     "trimp": float(row.get("trimp") or 0.0) if pd.notna(row.get("trimp")) else None,
                     "summary": row.get("summary") or {},
                 }
@@ -197,26 +179,15 @@ def _upsert_to_local_storage(
                 d_str = str(row.get("date"))[:10]
                 rec = {
                     "date": d_str,
-                    "resting_heart_rate": int(row["resting_heart_rate"])
-                    if "resting_heart_rate" in row and pd.notna(row["resting_heart_rate"])
-                    else None,
+                    "resting_heart_rate": int(row["resting_heart_rate"]) if "resting_heart_rate" in row and pd.notna(row["resting_heart_rate"]) else None,
                     "hrv_sdnn": float(row["hrv_sdnn"]) if "hrv_sdnn" in row and pd.notna(row["hrv_sdnn"]) else None,
-                    "hrv_rmssd": float(row["hrv_rmssd"])
-                    if "hrv_rmssd" in row and pd.notna(row["hrv_rmssd"])
-                    else (float(row["avg_hrv"]) if "avg_hrv" in row and pd.notna(row["avg_hrv"]) else None),
-                    "body_battery_max": int(row["body_battery_max"])
-                    if "body_battery_max" in row and pd.notna(row["body_battery_max"])
-                    else None,
-                    "body_battery_min": int(row["body_battery_min"])
-                    if "body_battery_min" in row and pd.notna(row["body_battery_min"])
-                    else None,
-                    "stress_avg": int(row["stress_avg"])
-                    if "stress_avg" in row and pd.notna(row["stress_avg"])
-                    else None,
-                    "sleep_duration_seconds": float(row["duration_sec"])
-                    if "duration_sec" in row and pd.notna(row["duration_sec"])
-                    else None,
+                    "hrv_rmssd": float(row["hrv_rmssd"]) if "hrv_rmssd" in row and pd.notna(row["hrv_rmssd"]) else (float(row["avg_hrv"]) if "avg_hrv" in row and pd.notna(row["avg_hrv"]) else None),
+                    "body_battery_max": int(row["body_battery_max"]) if "body_battery_max" in row and pd.notna(row["body_battery_max"]) else None,
+                    "body_battery_min": int(row["body_battery_min"]) if "body_battery_min" in row and pd.notna(row["body_battery_min"]) else None,
+                    "stress_avg": int(row["stress_avg"]) if "stress_avg" in row and pd.notna(row["stress_avg"]) else None,
+                    "sleep_duration_seconds": float(row["duration_sec"]) if "duration_sec" in row and pd.notna(row["duration_sec"]) else None,
                     "sleep_score": int(row["quality"]) if "quality" in row and pd.notna(row["quality"]) else None,
+                    "body_battery_charged_sleep": int(row["body_battery_charged_sleep"]) if "body_battery_charged_sleep" in row and pd.notna(row["body_battery_charged_sleep"]) else None,
                 }
                 phys_records.append(rec)
             if phys_records:
@@ -224,7 +195,6 @@ def _upsert_to_local_storage(
                 log.info(f"✅ Synced {len(phys_records)} {table_name} records into LocalStorageEngine.")
     except Exception as e:
         log.warning(f"Could not map {table_name} to LocalStorageEngine canonical tables: {e}")
-
 
 def upsert_to_bq(
     df: pd.DataFrame,
@@ -434,7 +404,6 @@ def get_current_user_metrics(user_id: str | None = None) -> tuple[int | None, in
     if os.getenv("STORAGE_MODE") == "local" or not PROJECT_ID:
         try:
             from src.storage.factory import get_storage_engine
-
             p = get_storage_engine(mode="local").get_user_profile(user_id or "default_user")
             return p.get("max_hr"), p.get("resting_hr")
         except Exception:
@@ -748,13 +717,81 @@ def run_etl(
     # --- 3. Incremental Sleep ---
     last_sleep_date = get_last_sync_date("sleep_history", user_id=user_id)
     start_sleep = (last_sleep_date - timedelta(days=3)) if last_sleep_date else (final_end - timedelta(days=7))
+    intra_sleep_hrv_by_date = {}
 
     if start_sleep.date() <= final_end.date():
         log.info(f"Syncing Sleep from {start_sleep.date()} to {final_end.date()} (user: {user_id})...")
         sleep_data = provider.get_sleep_history(start_sleep.date(), final_end.date())
         log.info(f"Retrieved {len(sleep_data)} sleep records from Provider.")
         if sleep_data:
-            df_sleep = pd.DataFrame([s.model_dump() for s in sleep_data])
+            # 1. Prepare sleep_history records
+            sleep_records = []
+            hrv_readings_all = []
+
+            for s in sleep_data:
+                s_dict = s.model_dump()
+                # Pop nested non-scalar fields not belonging to sleep_history table
+                hrv_readings = s_dict.pop("hrv_readings", [])
+                bb_change = s_dict.pop("body_battery_change", None)
+                s_dict.pop("avg_overnight_hrv", None)
+
+                sleep_records.append(s_dict)
+
+                # Process 5-minute raw HRV readings if available
+                if hrv_readings:
+                    s_date = str(s.date)[:10]
+                    vals = []
+                    for ts_ms, hrv_val in hrv_readings:
+                        hrv_readings_all.append(
+                            {
+                                "date": s_date,
+                                "timestamp_ms": int(ts_ms),
+                                "hrv_value": float(hrv_val),
+                            }
+                        )
+                        vals.append(float(hrv_val))
+
+                    if len(vals) >= 2:
+                        half_idx = len(vals) // 2
+                        first_half = vals[:half_idx]
+                        second_half = vals[half_idx:]
+                        avg_first = sum(first_half) / len(first_half) if first_half else None
+                        avg_second = sum(second_half) / len(second_half) if second_half else None
+
+                        # Simple linear regression slope: y = mx + c where x is reading index 0..N-1
+                        n = len(vals)
+                        x_mean = (n - 1) / 2.0
+                        y_mean = sum(vals) / n
+                        numerator = sum((i - x_mean) * (vals[i] - y_mean) for i in range(n))
+                        denominator = sum((i - x_mean) ** 2 for i in range(n))
+                        slope = (numerator / denominator) if denominator != 0 else 0.0
+
+                        intra_sleep_hrv_by_date[s_date] = {
+                            "hrv_first_half_avg": avg_first,
+                            "hrv_second_half_avg": avg_second,
+                            "hrv_decay_slope": slope,
+                        }
+
+                # Update body_battery_charged_sleep in daily_physiology if present
+                if bb_change is not None:
+                    try:
+                        df_bb = pd.DataFrame([{"date": str(s.date)[:10], "body_battery_charged_sleep": int(bb_change)}])
+                        upsert_to_bq(df_bb, "daily_physiology", unique_key="date", user_id=user_id)
+                    except Exception as bb_err:
+                        log.debug(f"Could not persist body_battery_charged_sleep for {s.date}: {bb_err}")
+
+            # Persist raw 5-minute HRV readings into hrv_readings_history
+            if hrv_readings_all:
+                try:
+                    from src.storage.factory import get_storage_engine
+
+                    storage_engine = get_storage_engine()
+                    storage_engine.insert_hrv_readings(user_id or "default_user", hrv_readings_all)
+                    log.info(f"✅ Ingested {len(hrv_readings_all)} 5-min epoch readings into hrv_readings_history.")
+                except Exception as hrv_err:
+                    log.warning(f"Failed to insert hrv_readings_history: {hrv_err}")
+
+            df_sleep = pd.DataFrame(sleep_records)
             try:
                 int_cols = [
                     "start",
@@ -765,6 +802,7 @@ def run_etl(
                     "rem_sec",
                     "awake_sec",
                     "quality",
+                    "restless_moments",
                 ]
                 for col in int_cols:
                     if col in df_sleep.columns:
@@ -787,6 +825,21 @@ def run_etl(
             # The SDK was updated to use 'last_night_avg', but our BigQuery schema expects 'avg_hrv'
             if "last_night_avg" in df_hrv.columns:
                 df_hrv.rename(columns={"last_night_avg": "avg_hrv"}, inplace=True)
+
+            # Enrich with intra-sleep metrics calculated from 5-min sleep readings
+            if intra_sleep_hrv_by_date:
+                for col in ["hrv_first_half_avg", "hrv_second_half_avg", "hrv_decay_slope"]:
+                    if col not in df_hrv.columns:
+                        df_hrv[col] = None
+
+                for idx, row in df_hrv.iterrows():
+                    d_key = str(row["date"])[:10]
+                    if d_key in intra_sleep_hrv_by_date:
+                        metrics = intra_sleep_hrv_by_date[d_key]
+                        df_hrv.at[idx, "hrv_first_half_avg"] = metrics.get("hrv_first_half_avg")
+                        df_hrv.at[idx, "hrv_second_half_avg"] = metrics.get("hrv_second_half_avg")
+                        df_hrv.at[idx, "hrv_decay_slope"] = metrics.get("hrv_decay_slope")
+
             try:
                 upsert_to_bq(df_hrv, "hrv_history", unique_key="date", user_id=user_id)
             except Exception as e:

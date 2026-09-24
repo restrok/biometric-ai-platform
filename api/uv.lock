@@ -140,7 +140,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.0" },
     { name = "fastembed", specifier = ">=0.8.0" },
     { name = "fitbit-training-toolkit-sdk", git = "https://github.com/restrok/fitbit-training-toolkit-sdk.git?rev=v0.2.0" },
-    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.8.0" },
+    { name = "garmin-training-toolkit-sdk", git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=48f79f157af3de51a163980496dd586f436eee74" },
     { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "google-cloud-bigquery-storage", specifier = ">=2.27.0" },
     { name = "google-cloud-firestore", specifier = ">=2.21.0" },
@@ -577,7 +577,7 @@ http = [
 [[package]]
 name = "garmin-training-toolkit-sdk"
 version = "0.8.0"
-source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=v0.8.0#e900211202bbfedd65f022b8a8f660d67afaa444" }
+source = { git = "https://github.com/restrok/garmin-training-toolkit-sdk.git?subdirectory=garmin_toolkit&rev=48f79f157af3de51a163980496dd586f436eee74#48f79f157af3de51a163980496dd586f436eee74" }
 dependencies = [
     { name = "garminconnect" },
     { name = "playwright" },
