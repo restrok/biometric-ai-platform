@@ -99,7 +99,9 @@ class IntentClassifier(BaseModel):
         description="The type of biometric data needed to answer the query. "
         "Use 'sync' for commands like /garmin_sync. "
         "Use 'planning' for workout management or training plan uploads. "
-        "Use 'discovery' for deep analysis, correlations, or custom SQL queries. "
+        "Use 'sleep' for sleep quality, sleep stages, restlessness, or nighttime Body Battery recovery. "
+        "Use 'hrv' for heart rate variability, autonomic balance, overnight HRV decay or trends. "
+        "Use 'discovery' ONLY for explicit BigQuery/SQL exploratory queries, hypothesis testing, or multi-month statistical correlation audits. "
         "Use 'profile' for settings, goals, or wellness logging. "
         "Use 'none' if the query is general chitchat.",
     )
@@ -244,7 +246,10 @@ def node_router(state: AgentState) -> dict[str, Any]:
             "and state 'Security: Cross-user query detected' in the rationale.\n"
             "3. SCOPE CHECK: Is the query related to running, exercise physiology, health, or biometric data? "
             "If it's about coding (e.g., Python, Javascript), general world knowledge, math, or anything unrelated "
-            "to being a professional running coach, classify intent as 'none' and state 'Scope: Out-of-scope request' in the rationale."
+            "to being a professional running coach, classify intent as 'none' and state 'Scope: Out-of-scope request' in the rationale.\n"
+            "4. SLEEP & HRV ROUTING: Questions about last night's sleep, sleep score, restless moments, Body Battery recharge, "
+            "or overnight HRV slopes/averages MUST be classified as 'sleep' or 'hrv' (or 'full'). "
+            "NEVER classify them as 'discovery' unless the user explicitly requests custom BigQuery/SQL exploration."
         )
 
         classification = structured_llm.invoke(prompt)
@@ -840,6 +845,7 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
 
     # Initial call to formulate hypothesis and potentially call tools
     # LOOP BREAKER: If we are already at the limit, do not allow more tool calls
+    response: BaseMessage
     if ds_loop_count >= DS_MAX_LOOPS:
         log.warning(
             f"⚠️ Loop limit reached in node_data_scientist ({ds_loop_count}/{DS_MAX_LOOPS}). Forcing structured output pass."
@@ -1135,8 +1141,22 @@ def route_after_tools(state: AgentState):
     return "analyzer"
 
 
+def route_after_data_scientist(state: AgentState):
+    """Routes to tools if the data scientist emitted tool calls, or back to analyzer for coaching synthesis."""
+    last_msg = state["messages"][-1]
+    if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+        log.info("🧪 DataScientist emitted tool calls. Routing to tools.")
+        return "tools"
+    log.info("🧪 DataScientist completed findings. Routing to analyzer (Head Coach) for synthesis.")
+    return "analyzer"
+
+
 workflow.add_conditional_edges("tools", route_after_tools)
-workflow.add_edge("data_scientist", "tools")
+workflow.add_conditional_edges(
+    "data_scientist",
+    route_after_data_scientist,
+    {"tools": "tools", "analyzer": "analyzer"},
+)
 
 # Compile
 graph = workflow.compile(checkpointer=memory)

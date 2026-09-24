@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biometric AI Platform - Setup Wizard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+  <div class="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 space-y-6">
+    <!-- Header with Back to Dashboard button -->
+    <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+      <div class="flex items-center space-x-3">
+        <span class="text-3xl">🏃‍♂️</span>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-white">Biometric AI Platform</h1>
+          <p class="text-xs text-slate-400">Local-First (Offline) & Multi-Cloud Autonomous Coaching Assistant</p>
+        </div>
+      </div>
+      <a href="/dashboard" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3.5 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+        <span>←</span> Volver al Dashboard
+      </a>
+    </div>
+
+    <!-- Tab Navigation: Athlete Config vs System Config -->
+    <div class="flex border-b border-slate-800 gap-2">
+      <button type="button" id="tab-btn-athlete" onclick="switchTab('athlete')" class="pb-2.5 px-4 text-sm font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2">
+        <span>🏃‍♂️</span> Configuración del Atleta
+      </button>
+      <button type="button" id="tab-btn-system" onclick="switchTab('system')" class="pb-2.5 px-4 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2">
+        <span>⚙️</span> Sistema e Infraestructura (LLM / Storage)
+      </button>
+    </div>
+
+    <!-- TAB 1: Configuración del Atleta (Per-Athlete) -->
+    <div id="tab-athlete" class="space-y-6">
+      <form id="athlete-form" class="space-y-6" onsubmit="saveAthleteSetup(event)">
+        <!-- Athlete Selector & Creator -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">1. Seleccionar Atleta</label>
+            <select id="user_id_select" onchange="onAthleteSelectChange(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+              <option value="new">+ Nuevo Atleta...</option>
+            </select>
+          </div>
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-300">Tenant / Athlete ID</label>
+            <input type="text" id="user_id" value="athlete_1" required
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono">
+          </div>
+        </div>
+
+        <!-- Biometric Tracker Selection -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-slate-300">2. Dispositivo / Tracker Biométrico</label>
+            <div class="flex items-center gap-2">
+              <span id="tracker-status-pill" class="text-[11px] font-mono text-slate-400">Consultando estado...</span>
+              <button type="button" id="btn-sync-now" onclick="triggerSyncNow()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2.5 py-1 rounded-lg border border-emerald-500/50 shadow transition flex items-center gap-1.5">
+                <span>⚡</span> Sincronizar Ahora
+              </button>
+            </div>
+          </div>
+          <select id="watch_provider" onchange="toggleTrackerOptions(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+            <option value="garmin">Garmin Connect Integration (FIT / Telemetry)</option>
+            <option value="fitbit">Fitbit Web API (OAuth2 PKCE)</option>
+            <option value="google_health">Google Health & Fitbit Air (OAuth 2.0 PKCE)</option>
+          </select>
+        </div>
+
+        <!-- Garmin Connect Configuration Section -->
+        <div id="garmin-config-section" class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Garmin Connect Integration</span>
+              <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-mono">SSO / FIT</span>
+            </div>
+            <span id="garmin-badge-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded">⚪ No conectado</span>
+          </div>
+
+          <!-- Mode 1: Simulated Garmin Device -->
+          <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+            <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="use_mock_garmin" checked class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700 focus:ring-blue-500">
+              <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Garmin (Demo Offline)</span>
+            </label>
+            <p class="text-[11px] text-slate-400 pl-6.5">Cero credenciales requeridas. Genera 14 días de fisiología (HRV, sueño, Body Battery) y actividades con Running Dynamics.</p>
+          </div>
+
+          <!-- Mode 2: Real Garmin Connection via SSO Ticket -->
+          <div class="space-y-3 pt-2 border-t border-slate-700/50">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-sky-400">🔗 Conexión Real con tu Reloj Garmin</span>
+              <a href="https://sso.garmin.com/sso/embed?id=gauth-widget&embedWidget=true&gauthHost=https://sso.garmin.com/sso&clientId=GarminConnect&locale=en_US&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed&service=https://sso.garmin.com/sso/embed"
+                 target="_blank" rel="noopener noreferrer"
+                 class="inline-flex items-center space-x-1.5 bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm">
+                <span>1. Abrir Garmin SSO Login ↗</span>
+              </a>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">2. Pegar URL con Ticket de Garmin o JSON de Sesión</label>
+              <textarea id="garmin_sso_tokens" rows="2"
+                        placeholder="https://sso.garmin.com/sso/embed?ticket=ST-XXXXX... o JSON con di_token"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-white focus:outline-none focus:border-blue-500"></textarea>
+            </div>
+            <button type="button" onclick="exchangeGarminTicket()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg font-semibold transition">
+              🔄 Canjear Ticket de Garmin
+            </button>
+            <div id="garmin-exchange-msg" class="hidden text-xs p-2 rounded"></div>
+          </div>
+        </div>
+
+        <!-- Fitbit Configuration Section -->
+        <div id="fitbit-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Fitbit Web API</span>
+              <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+            </div>
+            <span id="fitbit-badge-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded">⚪ No conectado</span>
+          </div>
+
+          <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+            <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="use_mock_fitbit" class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700">
+              <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Fitbit</span>
+            </label>
+          </div>
+
+          <div class="space-y-3 pt-2 border-t border-slate-700/50">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Fitbit OAuth Client ID (dev.fitbit.com)</label>
+              <input type="text" id="fitbit_client_id" placeholder="23BXYZ"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-slate-400">Callback: /auth/fitbit/callback</span>
+              <button type="button" onclick="connectFitbitOAuth()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow">
+                <span>Conectar con Fitbit OAuth</span> <span>↗</span>
+              </button>
+            </div>
+
+            <!-- Manual Token JSON Paste for Fitbit -->
+            <details class="text-xs text-slate-400 cursor-pointer pt-1 border-t border-slate-700/40">
+              <summary class="hover:text-white font-medium text-slate-300">O pegar JSON con tokens OAuth (CLI / Directo)</summary>
+              <textarea id="fitbit_token_json" rows="2" placeholder='{"access_token": "...", "refresh_token": "..."}'
+                        class="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg p-2 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500"></textarea>
+            </details>
+          </div>
+        </div>
+
+        <!-- Google Health Configuration Section -->
+        <div id="google-health-config-section" class="hidden bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Google Health & Fitbit Air (Fitbit Air 2026)</span>
+              <span class="bg-blue-500/20 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">OAuth 2.0 PKCE</span>
+            </div>
+            <span id="google-badge-status" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded">⚪ No conectado</span>
+          </div>
+
+          <div class="bg-slate-900/60 border border-slate-700/50 rounded-lg p-3 space-y-1.5">
+            <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="use_mock_google" class="w-4 h-4 text-blue-600 rounded bg-slate-800 border-slate-700">
+              <span class="text-xs font-semibold text-slate-200">🧪 Habilitar Dispositivo Simulado Fitbit Air</span>
+            </label>
+          </div>
+
+          <div class="space-y-3 pt-2 border-t border-slate-700/50">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Google OAuth Client ID</label>
+              <input type="text" id="google_client_id"
+                     value="188311881874-03v3k6i5svn4n1804alg6nv75pq1otc7.apps.googleusercontent.com"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+              <p class="text-[10px] text-slate-400">Generado en Google Cloud Console &gt; APIs &amp; Services &gt; Credentials (Web Application).</p>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Google Client Secret (Opcional si es PKCE público)</label>
+              <input type="password" id="google_client_secret" placeholder="Client secret..."
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500">
+            </div>
+
+            <div class="flex items-center justify-between pt-1">
+              <span class="text-[11px] text-slate-400">Callback: /auth/google/callback</span>
+              <button type="button" onclick="connectGoogleOAuth()" class="bg-white hover:bg-slate-100 text-slate-900 px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+                <span>Conectar con Google</span> <span>↗</span>
+              </button>
+            </div>
+
+            <!-- Manual Token JSON Paste for Google Health -->
+            <details class="text-xs text-slate-400 cursor-pointer pt-1 border-t border-slate-700/40">
+              <summary class="hover:text-white font-medium text-slate-300">O pegar JSON con tokens OAuth (CLI / Script de autenticación)</summary>
+              <textarea id="google_token_json" rows="2" placeholder='{"access_token": "ya29...", "refresh_token": "1//..."}'
+                        class="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg p-2 font-mono text-[11px] text-white focus:outline-none focus:border-blue-500"></textarea>
+            </details>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800 flex justify-between items-center">
+          <span class="text-xs text-slate-500">Los tokens se guardan cifrados en LocalSecureVault.</span>
+          <button type="submit" id="athlete-submit-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2 rounded-xl shadow-lg transition">
+            Guardar Atleta
+          </button>
+        </div>
+      </form>
+
+      <!-- MCP API Key Section for this Athlete -->
+      <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">🔑 Servidor MCP & API Key (Model Context Protocol)</span>
+          </div>
+          <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">SSE Endpoint: /mcp/sse</span>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Cada atleta tiene su clave API para interactuar con agentes IA (Antigravity, Claude Desktop, Cursor) a través del protocolo MCP.
+        </p>
+
+        <div class="flex items-center gap-3">
+          <button type="button" onclick="generateMcpApiKey()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+            <span>🔑</span> Generar / Ver API Key
+          </button>
+        </div>
+
+        <div id="mcp-key-box" class="hidden space-y-3 bg-slate-900/80 border border-slate-700 rounded-lg p-3.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-emerald-400">API Key Generada:</span>
+            <button onclick="copyApiKey()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded transition">
+              📋 Copiar Clave
+            </button>
+          </div>
+          <code id="mcp-key-val" class="block font-mono text-xs text-white bg-slate-950 p-2 rounded border border-slate-800 select-all overflow-x-auto"></code>
+
+          <div class="text-xs text-slate-400 space-y-1">
+            <span class="font-semibold text-slate-300">Configuración para Claude Desktop / Antigravity:</span>
+            <pre id="mcp-snippet" class="bg-slate-950 p-2.5 rounded border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto select-all"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Athlete (Danger Zone) -->
+      <div class="bg-rose-950/20 border border-rose-900/40 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-rose-400 uppercase tracking-wider">🗑️ Zona de Peligro: Eliminar Atleta</span>
+        </div>
+        <p class="text-xs text-slate-400">
+          Elimina de forma permanente este atleta, sus actividades en DuckDB, perfiles en SQLite y tokens de credenciales cifrados en Vault.
+        </p>
+        <button type="button" onclick="deleteAthleteFromSetup()" class="bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700 text-xs font-semibold px-4 py-2 rounded-lg transition">
+          🗑️ Eliminar Atleta y todos sus datos
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB 2: Infraestructura del Sistema (Global) -->
+    <div id="tab-system" class="hidden space-y-6">
+      <form id="system-form" class="space-y-6" onsubmit="saveSystemSetup(event)">
+        <!-- Storage Architecture -->
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-slate-300">1. Arquitectura de Almacenamiento</label>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="cursor-pointer border border-slate-700 rounded-xl p-4 flex flex-col items-start bg-slate-800/50 hover:border-blue-500 transition">
+              <input type="radio" name="system_storage_mode" value="local" checked class="text-blue-600 mb-2">
+              <span class="font-bold text-white">Local-First (Offline)</span>
+              <span class="text-xs text-slate-400 mt-1">100% privado. DuckDB + SQLite + Vault. Cero costo GCP.</span>
+            </label>
+            <label class="cursor-pointer border border-slate-700 rounded-xl p-4 flex flex-col items-start bg-slate-800/50 hover:border-blue-500 transition">
+              <input type="radio" name="system_storage_mode" value="gcp" class="text-blue-600 mb-2">
+              <span class="font-bold text-white">Google Cloud (GCP)</span>
+              <span class="text-xs text-slate-400 mt-1">Data lake empresarial con BigQuery y Secret Manager.</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 2. Motor de Inferencia LLM -->
+        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-slate-200">2. Motor de Inferencia LLM</label>
+            <span id="badge-llm-provider" class="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/80 px-2 py-0.5 rounded">Ollama</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Proveedor</label>
+              <select id="system_llm_provider" onchange="onLlmProviderChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                <option value="ollama">Ollama (Local / Cloud)</option>
+                <option value="openai">OpenAI Compatible (OpenRouter, DeepSeek, vLLM, OpenAI)</option>
+                <option value="google">Google Gemini (Google AI Studio)</option>
+                <option value="lmstudio">LM Studio (Servidor Local)</option>
+              </select>
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Modelo LLM Principal (CORE_MODEL_NAME)</label>
+              <input type="text" id="system_llm_model" value="deepseek-v4.1-flash" required
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+              <p id="system_llm_model_hint" class="text-[10px] text-slate-400">Ej: deepseek-v4.1-flash, llama3.2, qwen2.5:7b</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+            <div id="box_llm_base_url" class="space-y-1.5">
+              <label id="lbl_llm_base_url" class="block text-xs font-semibold text-slate-300">Ollama Base URL</label>
+              <input type="text" id="system_llm_base_url" value="https://ollama.com/v1"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            </div>
+            <div id="box_llm_api_key" class="space-y-1.5">
+              <label id="lbl_llm_api_key" class="block text-xs font-semibold text-slate-300">Ollama API Key (Opcional)</label>
+              <input type="password" id="system_llm_api_key" placeholder="Bearer key..."
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Motor de Embeddings -->
+        <div class="bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-slate-200">3. Motor de Embeddings (Memoria Semántica & Vectores)</label>
+            <span id="badge-emb-provider" class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">FastEmbed</span>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-semibold text-slate-300">Proveedor</label>
+            <select id="system_embeddings_provider" onchange="onEmbeddingsProviderChange(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+              <option value="fastembed">FastEmbed (ONNX Local ARM/CPU, 0 GPU) [Recomendado]</option>
+              <option value="ollama">Ollama Embeddings (nomic-embed-text / bge-m3)</option>
+              <option value="openai">OpenAI Compatible Embeddings</option>
+              <option value="google">Google Gemini Embeddings</option>
+            </select>
+          </div>
+
+          <!-- FastEmbed Info Banner -->
+          <div id="box_fastembed_info" class="p-3 bg-emerald-950/30 border border-emerald-800/60 rounded-lg text-xs text-emerald-300 space-y-1">
+            <p class="font-semibold">⚡ 100% Local y Embebido:</p>
+            <p class="text-slate-300 text-[11px]">Ejecuta embeddings densos directamente en la CPU ARM mediante ONNX Runtime. Cero GPU, sin servidores adicionales ni latencia de red. Modelo: <code class="font-mono text-white">BAAI/bge-small-en-v1.5</code> (384-dim).</p>
+          </div>
+
+          <!-- Custom Embeddings Inputs -->
+          <div id="box_custom_embeddings" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div id="box_embedding_base_url" class="space-y-1.5">
+              <label id="lbl_embedding_base_url" class="block text-xs font-semibold text-slate-300">Embeddings Base URL</label>
+              <input type="text" id="system_embedding_base_url" placeholder="http://192.168.89.32:11434/v1"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            </div>
+            <div id="box_embedding_model" class="space-y-1.5">
+              <label id="lbl_embedding_model" class="block text-xs font-semibold text-slate-300">Modelo de Embeddings</label>
+              <input type="text" id="system_embedding_model" placeholder="nomic-embed-text"
+                     class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800 flex justify-end">
+          <button type="submit" id="system-submit-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg transition">
+            Guardar Configuración del Sistema
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div id="status-msg" class="hidden p-4 rounded-xl text-sm"></div>
+  </div>
+
+  <script>
+    let activeAthletes = [];
+
+    function switchTab(tab) {
+      if (tab === 'athlete') {
+        document.getElementById('tab-athlete').classList.remove('hidden');
+        document.getElementById('tab-system').classList.add('hidden');
+        document.getElementById('tab-btn-athlete').className = 'pb-2.5 px-4 text-sm font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2';
+        document.getElementById('tab-btn-system').className = 'pb-2.5 px-4 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
+      } else {
+        document.getElementById('tab-athlete').classList.add('hidden');
+        document.getElementById('tab-system').classList.remove('hidden');
+        document.getElementById('tab-btn-athlete').className = 'pb-2.5 px-4 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2';
+        document.getElementById('tab-btn-system').className = 'pb-2.5 px-4 text-sm font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2';
+      }
+    }
+
+    async function loadAthletesList() {
+      try {
+        const res = await fetch('/dashboard/users');
+        const data = await res.json();
+        activeAthletes = data.users || [];
+        const sel = document.getElementById('user_id_select');
+        sel.innerHTML = '';
+        activeAthletes.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u;
+          opt.innerText = u;
+          sel.appendChild(opt);
+        });
+        const newOpt = document.createElement('option');
+        newOpt.value = 'new';
+        newOpt.innerText = '➕ Nuevo Atleta...';
+        sel.appendChild(newOpt);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentParam = urlParams.get('user_id');
+        if (currentParam && activeAthletes.includes(currentParam)) {
+          sel.value = currentParam;
+          document.getElementById('user_id').value = currentParam;
+        } else if (activeAthletes.length > 0) {
+          sel.value = activeAthletes[0];
+          document.getElementById('user_id').value = activeAthletes[0];
+          checkAthleteStatus(activeAthletes[0]);
+        }
+      } catch (err) {
+        console.error('Error loading athletes:', err);
+      }
+    }
+
+
+    async function triggerSyncNow() {
+      const athleteSelect = document.getElementById('user_id_select');
+      const inputId = document.getElementById('user_id');
+      const userId = (athleteSelect && athleteSelect.value !== 'new' ? athleteSelect.value : (inputId ? inputId.value : '')).trim();
+      if (!userId) {
+        alert('Por favor selecciona o ingresa un User ID de atleta primero.');
+        return;
+      }
+      const btn = document.getElementById('btn-sync-now');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Sincronizando...';
+      try {
+        const res = await fetch('/athletes/' + encodeURIComponent(userId) + '/sync?days_back=7', { method: 'POST' });
+        const data = await res.json();
+        alert('✅ ' + data.message + ' En ~30 segundos tus actividades y biometría estarán disponibles en el Dashboard.');
+      } catch (e) {
+        alert('⚠️ Error al iniciar sincronización: ' + e);
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }, 3000);
+      }
+    }
+
+    async function checkAthleteStatus(userId) {
+      if (!userId || userId === 'new') return;
+      try {
+        const res = await fetch(`/athletes/${encodeURIComponent(userId)}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update badges
+        const gBadge = document.getElementById('garmin-badge-status');
+        const fbBadge = document.getElementById('fitbit-badge-status');
+        const ghBadge = document.getElementById('google-badge-status');
+        const pill = document.getElementById('tracker-status-pill');
+
+        if (gBadge) {
+          gBadge.className = data.garmin_connected ? 'text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded' : 'text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded';
+          gBadge.innerText = data.garmin_connected ? '🟢 Conectado en Vault' : '⚪ No conectado';
+        }
+        if (fbBadge) {
+          fbBadge.className = data.fitbit_connected ? 'text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded' : 'text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded';
+          fbBadge.innerText = data.fitbit_connected ? '🟢 Conectado en Vault' : '⚪ No conectado';
+        }
+        if (ghBadge) {
+          ghBadge.className = data.google_health_connected ? 'text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded' : 'text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded';
+          ghBadge.innerText = data.google_health_connected ? '🟢 Conectado en Vault' : '⚪ No conectado';
+        }
+
+        if (data.google_client_id && document.getElementById('google_client_id')) {
+          document.getElementById('google_client_id').value = data.google_client_id;
+        }
+        if (data.fitbit_client_id && document.getElementById('fitbit_client_id') && !document.getElementById('fitbit_client_id').value) {
+          document.getElementById('fitbit_client_id').value = data.fitbit_client_id;
+        }
+
+        if (data.watch_provider && document.getElementById('watch_provider')) {
+          document.getElementById('watch_provider').value = data.watch_provider;
+          toggleTrackerOptions(data.watch_provider);
+        }
+
+        const activeConn = data.google_health_connected ? 'Google Health' : (data.garmin_connected ? 'Garmin' : (data.fitbit_connected ? 'Fitbit' : 'Sin conexión'));
+        if (pill) {
+          pill.innerText = 'Estado: ' + activeConn;
+          pill.className = activeConn !== 'Sin conexión' ? 'text-[11px] font-mono text-emerald-400 font-bold' : 'text-[11px] font-mono text-slate-400';
+        }
+      } catch (err) {
+        console.error('Error fetching athlete status:', err);
+      }
+    }
+
+    function onAthleteSelectChange(val) {
+      const input = document.getElementById('user_id');
+      if (val === 'new') {
+        input.value = '';
+        input.focus();
+        document.getElementById('tracker-status-pill').innerText = 'Nuevo atleta';
+      } else {
+        input.value = val;
+        checkAthleteStatus(val);
+      }
+      document.getElementById('mcp-key-box').classList.add('hidden');
+    }
+
+    function toggleTrackerOptions(provider) {
+      document.getElementById('garmin-config-section').classList.add('hidden');
+      document.getElementById('fitbit-config-section').classList.add('hidden');
+      document.getElementById('google-health-config-section').classList.add('hidden');
+
+      if (provider === 'garmin') document.getElementById('garmin-config-section').classList.remove('hidden');
+      if (provider === 'fitbit') document.getElementById('fitbit-config-section').classList.remove('hidden');
+      if (provider === 'google_health') document.getElementById('google-health-config-section').classList.remove('hidden');
+    }
+
+    async function saveAthleteSetup(e) {
+      e.preventDefault();
+      const btn = document.getElementById('athlete-submit-btn');
+      btn.disabled = true;
+      btn.innerText = 'Guardando...';
+
+      const provider = document.getElementById('watch_provider').value;
+      let useMock = false;
+      if (provider === 'garmin') useMock = document.getElementById('use_mock_garmin')?.checked ?? false;
+      else if (provider === 'fitbit') useMock = document.getElementById('use_mock_fitbit')?.checked ?? false;
+      else if (provider === 'google_health') useMock = document.getElementById('use_mock_google')?.checked ?? false;
+
+      const userId = document.getElementById('user_id').value.trim();
+      if (!userId) {
+        alert('Ingresa un Tenant / Athlete ID válido.');
+        btn.disabled = false;
+        btn.innerText = 'Guardar Atleta';
+        return;
+      }
+
+      const payload = {
+        storage_mode: 'local',
+        user_id: userId,
+        watch_provider: provider,
+        garmin_sso_tokens: document.getElementById('garmin_sso_tokens')?.value || null,
+        google_client_id: document.getElementById('google_client_id')?.value.trim() || null,
+        google_client_secret: document.getElementById('google_client_secret')?.value.trim() || null,
+        google_token_json: document.getElementById('google_token_json')?.value.trim() || null,
+        fitbit_client_id: document.getElementById('fitbit_client_id')?.value.trim() || null,
+        fitbit_token_json: document.getElementById('fitbit_token_json')?.value.trim() || null,
+        use_mock_data: useMock,
+        generate_key: true
+      };
+
+      try {
+        const res = await fetch('/setup/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const msg = document.getElementById('status-msg');
+          msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300 space-y-2';
+          msg.innerHTML = '<p class="font-bold">✅ Atleta Guardado Correctamente!</p>' +
+            '<p class="text-xs text-slate-300">Atleta: <span class="text-white font-bold">' + data.user_id + '</span></p>' +
+            '<a href="/dashboard?user_id=' + encodeURIComponent(data.user_id) + '" class="inline-block mt-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded transition">Ir al Dashboard →</a>';
+          msg.classList.remove('hidden');
+          btn.innerText = '✅ Guardado';
+          await loadAthletesList();
+        } else {
+          throw new Error(data.detail || 'Error al guardar');
+        }
+      } catch (err) {
+        const msg = document.getElementById('status-msg');
+        msg.className = 'p-4 rounded-xl text-sm bg-rose-950/80 border border-rose-800 text-rose-300';
+        msg.innerText = '❌ Error: ' + err.message;
+        msg.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerText = 'Reintentar';
+      }
+    }
+
+    function onLlmProviderChange(provider) {
+      document.getElementById('badge-llm-provider').innerText = provider;
+      const boxUrl = document.getElementById('box_llm_base_url');
+      const boxKey = document.getElementById('box_llm_api_key');
+      const lblUrl = document.getElementById('lbl_llm_base_url');
+      const inputUrl = document.getElementById('system_llm_base_url');
+      const lblKey = document.getElementById('lbl_llm_api_key');
+      const inputModel = document.getElementById('system_llm_model');
+      const hintModel = document.getElementById('system_llm_model_hint');
+
+      boxUrl.classList.remove('hidden');
+      boxKey.classList.remove('hidden');
+
+      if (provider === 'ollama') {
+        lblUrl.innerText = 'Ollama Base URL';
+        inputUrl.placeholder = 'https://ollama.com/v1 o http://localhost:11434/v1';
+        lblKey.innerText = 'Ollama API Key (Opcional si es local)';
+        hintModel.innerText = 'Ej: deepseek-v4.1-flash, llama3.2, qwen2.5:7b';
+        if (!inputModel.value || inputModel.value === 'gpt-4o-mini' || inputModel.value.startsWith('gemini')) {
+          inputModel.value = 'deepseek-v4.1-flash';
+        }
+      } else if (provider === 'openai') {
+        lblUrl.innerText = 'OpenAI Base URL / Endpoint (v1)';
+        inputUrl.placeholder = 'https://api.openai.com/v1 o https://openrouter.ai/api/v1';
+        lblKey.innerText = 'API Key (Bearer Token)';
+        hintModel.innerText = 'Ej: gpt-4o-mini, deepseek/deepseek-chat, claude-3-5-haiku';
+        if (!inputModel.value || inputModel.value === 'deepseek-v4.1-flash' || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value.startsWith('gemini')) {
+          inputModel.value = 'gpt-4o-mini';
+        }
+      } else if (provider === 'google') {
+        boxUrl.classList.add('hidden');
+        lblKey.innerText = 'Google AI Studio API Key (GOOGLE_API_KEY)';
+        hintModel.innerText = 'Ej: gemini-2.5-flash, gemini-1.5-flash, gemini-2.0-flash';
+        if (!inputModel.value || inputModel.value === 'deepseek-v4.1-flash' || inputModel.value === 'deepseek-v4-flash:0731' || inputModel.value === 'gpt-4o-mini') {
+          inputModel.value = 'gemini-2.5-flash';
+        }
+      } else if (provider === 'lmstudio') {
+        lblUrl.innerText = 'LM Studio Base URL';
+        inputUrl.placeholder = 'http://localhost:1234/v1';
+        boxKey.classList.add('hidden');
+        hintModel.innerText = 'Ej: local-model, meta-llama-3.1-8b-instruct';
+      }
+    }
+
+    function onEmbeddingsProviderChange(provider) {
+      document.getElementById('badge-emb-provider').innerText = provider;
+      const boxFastembed = document.getElementById('box_fastembed_info');
+      const boxCustom = document.getElementById('box_custom_embeddings');
+      const boxUrl = document.getElementById('box_embedding_base_url');
+      const inputUrl = document.getElementById('system_embedding_base_url');
+      const inputModel = document.getElementById('system_embedding_model');
+
+      if (provider === 'fastembed') {
+        boxFastembed.classList.remove('hidden');
+        boxCustom.classList.add('hidden');
+      } else {
+        boxFastembed.classList.add('hidden');
+        boxCustom.classList.remove('hidden');
+
+        if (provider === 'ollama') {
+          boxUrl.classList.remove('hidden');
+          inputUrl.placeholder = 'http://192.168.89.32:11434/v1 (ThinkCentre) o local';
+          inputModel.placeholder = 'nomic-embed-text';
+        } else if (provider === 'openai') {
+          boxUrl.classList.remove('hidden');
+          inputUrl.placeholder = 'https://api.openai.com/v1';
+          inputModel.placeholder = 'text-embedding-3-small';
+        } else if (provider === 'google') {
+          boxUrl.classList.add('hidden');
+          inputModel.placeholder = 'models/gemini-embedding-001';
+        }
+      }
+    }
+
+    async function loadSystemConfig() {
+      try {
+        const res = await fetch('/setup/system');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Storage mode radio
+        const radios = document.querySelectorAll('input[name="system_storage_mode"]');
+        radios.forEach(r => {
+          if (r.value === data.storage_mode) r.checked = true;
+        });
+
+        // LLM
+        if (data.llm_provider) {
+          document.getElementById('system_llm_provider').value = data.llm_provider;
+        }
+        if (data.llm_model) {
+          document.getElementById('system_llm_model').value = data.llm_model;
+        }
+        if (data.llm_base_url) {
+          document.getElementById('system_llm_base_url').value = data.llm_base_url;
+        }
+        if (data.llm_has_api_key) {
+          document.getElementById('system_llm_api_key').placeholder = '•••••••• (Clave configurada en el servidor)';
+        }
+
+        // Embeddings
+        if (data.embeddings_provider) {
+          document.getElementById('system_embeddings_provider').value = data.embeddings_provider;
+        }
+        if (data.embedding_base_url) {
+          document.getElementById('system_embedding_base_url').value = data.embedding_base_url;
+        }
+        if (data.embedding_model) {
+          document.getElementById('system_embedding_model').value = data.embedding_model;
+        }
+
+        onLlmProviderChange(data.llm_provider || 'ollama');
+        onEmbeddingsProviderChange(data.embeddings_provider || 'fastembed');
+      } catch (err) {
+        console.error('Failed to load system config:', err);
+      }
+    }
+
+    async function saveSystemSetup(e) {
+      e.preventDefault();
+      const btn = document.getElementById('system-submit-btn');
+      btn.disabled = true;
+      btn.innerText = 'Guardando...';
+
+      const payload = {
+        storage_mode: document.querySelector('input[name="system_storage_mode"]:checked').value,
+        llm_provider: document.getElementById('system_llm_provider').value,
+        llm_model: document.getElementById('system_llm_model').value.trim() || 'deepseek-v4.1-flash',
+        llm_base_url: document.getElementById('system_llm_base_url').value.trim() || null,
+        llm_api_key: document.getElementById('system_llm_api_key').value.trim() || null,
+        embeddings_provider: document.getElementById('system_embeddings_provider').value,
+        embedding_base_url: document.getElementById('system_embedding_base_url')?.value.trim() || null,
+        embedding_model: document.getElementById('system_embedding_model')?.value.trim() || null,
+      };
+
+      try {
+        const res = await fetch('/setup/system/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          const msg = document.getElementById('status-msg');
+          msg.className = 'p-4 rounded-xl text-sm bg-emerald-950/80 border border-emerald-800 text-emerald-300';
+          msg.innerText = '✅ Configuración del sistema guardada con éxito (LLM: ' + data.llm_model + ' / ' + data.llm_provider + ').';
+          msg.classList.remove('hidden');
+          btn.innerText = '✅ Guardado';
+          setTimeout(() => { btn.disabled = false; btn.innerText = 'Guardar Configuración del Sistema'; }, 2000);
+        } else {
+          throw new Error(data.detail || 'Error al guardar sistema');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.innerText = 'Reintentar';
+      }
+    }
+
+    async function generateMcpApiKey() {
+      const userId = document.getElementById('user_id').value.trim();
+      if (!userId) {
+        alert('Selecciona o ingresa un Athlete ID primero.');
+        return;
+      }
+      try {
+        const res = await fetch('/setup/api-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, name: 'mcp_agent' })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('mcp-key-val').innerText = data.api_key;
+          const host = window.location.host;
+          const configSnippet = {
+            "mcpServers": {
+              "biometric-ai": {
+                "url": `http://${host}/mcp/sse`,
+                "headers": {
+                  "X-API-Key": data.api_key
+                }
+              }
+            }
+          };
+          document.getElementById('mcp-snippet').innerText = JSON.stringify(configSnippet, null, 2);
+          document.getElementById('mcp-key-box').classList.remove('hidden');
+        } else {
+          alert('Error generando API Key: ' + (data.detail || 'Desconocido'));
+        }
+      } catch (err) {
+        alert('Error de red al generar API Key: ' + err.message);
+      }
+    }
+
+    function copyApiKey() {
+      const key = document.getElementById('mcp-key-val').innerText;
+      navigator.clipboard.writeText(key).then(() => {
+        alert('API Key copiada al portapapeles!');
+      });
+    }
+
+    async function deleteAthleteFromSetup() {
+      const userId = document.getElementById('user_id').value.trim();
+      if (!userId) return;
+      if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente al atleta "${userId}" y todos sus datos biométricos de DuckDB, SQLite y Vault?\n\nEsta acción es irreversible.`)) {
+        return;
+      }
+      try {
+        const res = await fetch('/athletes/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`Atleta ${userId} eliminado correctamente.`);
+          await loadAthletesList();
+          document.getElementById('mcp-key-box').classList.add('hidden');
+        } else {
+          alert('Error al eliminar: ' + (data.detail || 'Desconocido'));
+        }
+      } catch (err) {
+        alert('Error de red al eliminar: ' + err.message);
+      }
+    }
+
+    async function exchangeGarminTicket() {
+      const raw = document.getElementById('garmin_sso_tokens').value.trim();
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      const msg = document.getElementById('garmin-exchange-msg');
+      if (!raw) {
+        alert('Pegá la URL del ticket de Garmin primero.');
+        return;
+      }
+      msg.className = 'text-xs p-2 rounded bg-blue-950/60 text-blue-300 border border-blue-800';
+      msg.innerText = '⏳ Canjeando ticket con Garmin...';
+      msg.classList.remove('hidden');
+      try {
+        const res = await fetch('/auth/garmin/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket_or_url: raw, user_id: userId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.className = 'text-xs p-2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-800';
+          msg.innerText = data.message;
+        } else {
+          throw new Error(data.detail || 'Error al canjear ticket');
+        }
+      } catch (err) {
+        msg.className = 'text-xs p-2 rounded bg-rose-950/80 text-rose-300 border border-rose-800';
+        msg.innerText = '❌ ' + err.message;
+      }
+    }
+
+    function connectGoogleOAuth() {
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      const clientId = document.getElementById('google_client_id')?.value.trim() || '';
+      let url = `/auth/google/login?user_id=${encodeURIComponent(userId)}`;
+      if (clientId) {
+        url += `&client_id=${encodeURIComponent(clientId)}`;
+      }
+      window.location.href = url;
+    }
+
+    function connectFitbitOAuth() {
+      const userId = document.getElementById('user_id').value.trim() || 'athlete_1';
+      const clientId = document.getElementById('fitbit_client_id')?.value.trim() || '';
+      let url = `/auth/fitbit/login?user_id=${encodeURIComponent(userId)}`;
+      if (clientId) {
+        url += `&client_id=${encodeURIComponent(clientId)}`;
+      }
+      window.location.href = url;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadAthletesList();
+      loadSystemConfig();
+    });
+  </script>
+</body>
+</html>
