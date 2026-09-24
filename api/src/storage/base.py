@@ -93,6 +93,11 @@ class StorageEngine(ABC):
         pass
 
     @abstractmethod
+    def insert_hrv_readings(self, user_id: str, readings: list[dict[str, Any]]) -> None:
+        """Inserts raw 5-minute epoch HRV readings into hrv_readings_history."""
+        pass
+
+    @abstractmethod
     def get_recent_activities(
         self,
         user_id: str,

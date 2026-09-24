@@ -198,3 +198,77 @@ def test_alert_dispatch_log_gcp():
         insert_args = mock_bq.query.call_args
         insert_sql = insert_args[0][0]
         assert "INSERT INTO `test-proj.test-ds.alert_dispatch_log`" in insert_sql
+
+
+def test_daily_physiology_and_hrv_readings_local(temp_storage: LocalStorageEngine):
+    user_id = "test_athlete"
+
+    # 1. Insert daily physiology with body_battery_charged_sleep
+    temp_storage.insert_daily_physiology(
+        user_id,
+        [
+            {
+                "date": "2026-09-22",
+                "resting_heart_rate": 48,
+                "hrv_rmssd": 65.0,
+                "body_battery_max": 95,
+                "body_battery_min": 25,
+                "stress_avg": 22,
+                "sleep_duration_seconds": 28800.0,
+                "sleep_score": 88,
+                "body_battery_charged_sleep": 45,
+            }
+        ],
+    )
+
+    phys = temp_storage.get_daily_physiology(user_id, days=5)
+    assert len(phys) == 1
+    assert phys[0]["body_battery_charged_sleep"] == 45
+    assert phys[0]["resting_heart_rate"] == 48
+
+    # 2. Insert raw 5-minute HRV readings
+    readings = [
+        {"date": "2026-09-22", "timestamp_ms": 1790123456000, "hrv_value": 62.5},
+        {"date": "2026-09-22", "timestamp_ms": 1790123756000, "hrv_value": 67.0},
+    ]
+    temp_storage.insert_hrv_readings(user_id, readings)
+
+    # Verify DuckDB table contents
+    conn = temp_storage._get_duckdb_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM hrv_readings_history WHERE user_id = ? ORDER BY timestamp_ms ASC",
+            [user_id],
+        ).fetchall()
+        assert len(rows) == 2
+        assert any(1790123456000 in r for r in rows)
+    finally:
+        conn.close()
+
+
+def test_hrv_readings_gcp():
+    from unittest.mock import MagicMock, patch
+
+    from src.storage.gcp_engine import GCPStorageEngine
+
+    with (
+        patch("src.storage.gcp_engine.bigquery.Client") as mock_bq_cls,
+        patch("src.storage.gcp_engine.firestore.Client"),
+    ):
+        mock_bq = MagicMock()
+        mock_bq_cls.return_value = mock_bq
+
+        engine = GCPStorageEngine(project_id="test-proj", dataset_id="test-ds")
+        readings = [
+            {"date": "2026-09-22", "timestamp_ms": 1790123456000, "hrv_value": 62.5},
+        ]
+        engine.insert_hrv_readings("test_athlete", readings)
+
+        mock_bq.insert_rows_json.assert_called_once()
+        call_args = mock_bq.insert_rows_json.call_args
+        table_id = call_args[0][0]
+        rows = call_args[0][1]
+        assert table_id == "test-proj.test-ds.hrv_readings_history"
+        assert len(rows) == 1
+        assert rows[0]["user_id"] == "test_athlete"
+        assert rows[0]["hrv_value"] == 62.5

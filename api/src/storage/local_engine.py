@@ -452,8 +452,8 @@ class LocalStorageEngine(StorageEngine):
                     INSERT OR REPLACE INTO daily_physiology (
                         user_id, date, resting_heart_rate, hrv_sdnn, hrv_rmssd,
                         body_battery_max, body_battery_min, stress_avg,
-                        sleep_duration_seconds, sleep_score
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        sleep_duration_seconds, sleep_score, body_battery_charged_sleep
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         user_id,
@@ -466,6 +466,29 @@ class LocalStorageEngine(StorageEngine):
                         rec.get("stress_avg"),
                         rec.get("sleep_duration_seconds"),
                         rec.get("sleep_score"),
+                        rec.get("body_battery_charged_sleep"),
+                    ],
+                )
+        finally:
+            conn.close()
+
+    def insert_hrv_readings(self, user_id: str, readings: list[dict[str, Any]]) -> None:
+        if not readings:
+            return
+        conn = self._get_duckdb_conn()
+        try:
+            for r in readings:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO hrv_readings_history (
+                        user_id, date, timestamp_ms, hrv_value
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    [
+                        user_id,
+                        r.get("date"),
+                        r.get("timestamp_ms"),
+                        r.get("hrv_value"),
                     ],
                 )
         finally:

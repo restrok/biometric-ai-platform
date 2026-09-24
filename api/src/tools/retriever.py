@@ -223,6 +223,8 @@ def _retrieve_biometric_data_local(
             "light_sec": s.get("light_sleep_seconds"),
             "rem_sec": s.get("rem_sleep_seconds"),
             "awake_sec": s.get("awake_seconds"),
+            "restless_moments": s.get("restless_moments"),
+            "body_battery_charged_sleep": s.get("body_battery_charged_sleep"),
         }
 
     return {
@@ -399,7 +401,7 @@ def _retrieve_biometric_data_cached(
             t0 = time.time()
             query_sleep = f"""
                 SELECT date, duration_sec, quality, deep_sec, light_sec, 
-                       rem_sec, awake_sec
+                       rem_sec, awake_sec, restless_moments
                 FROM `{project_id}.{dataset}.sleep_history` 
                 {user_where}
                 ORDER BY date DESC LIMIT 1
@@ -415,7 +417,8 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             query_hrv = f"""
-                SELECT date, avg_hrv, min_hrv, max_hrv, status, baseline_low, baseline_high
+                SELECT date, avg_hrv, min_hrv, max_hrv, status, baseline_low, baseline_high,
+                       hrv_first_half_avg, hrv_second_half_avg, hrv_decay_slope
                 FROM `{project_id}.{dataset}.hrv_history` 
                 {user_where}
                 ORDER BY date DESC LIMIT 7
@@ -510,7 +513,7 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             query_daily = f"""
-                SELECT date, resting_heart_rate, all_day_stress_avg, body_battery_end_of_day, total_steps
+                SELECT date, resting_heart_rate, all_day_stress_avg, body_battery_end_of_day, total_steps, body_battery_charged_sleep
                 FROM `{project_id}.{dataset}.daily_physiology` 
                 {user_where}
                 ORDER BY date DESC LIMIT 7
