@@ -46,12 +46,10 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
 
             conn = duckdb.connect(duckdb_path)
             try:
-                exists = (
-                    conn.execute(
-                        "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
-                    ).fetchone()[0]
-                    > 0
-                )
+                row_cnt = conn.execute(
+                    "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
+                ).fetchone()
+                exists = bool(row_cnt and row_cnt[0] > 0)
                 if exists:
                     cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
                     date_col = "date" if "date" in cols else ("start_time" if "start_time" in cols else None)
@@ -115,12 +113,10 @@ def _upsert_to_local_storage(
     conn = duckdb.connect(duckdb_path)
     try:
         conn.register("_temp_incoming", df)
-        exists = (
-            conn.execute(
-                "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
-            ).fetchone()[0]
-            > 0
-        )
+        row_cnt = conn.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
+        ).fetchone()
+        exists = bool(row_cnt and row_cnt[0] > 0)
         if not exists:
             conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _temp_incoming")
             log.info(f"Created local DuckDB table '{table_name}' with {len(df)} rows.")
