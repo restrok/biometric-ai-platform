@@ -165,6 +165,10 @@ class LocalStorageEngine(StorageEngine):
                     sleep_duration_seconds DOUBLE,
                     sleep_score INTEGER,
                     body_battery_charged_sleep INTEGER,
+                    restless_moments INTEGER,
+                    hrv_first_half_avg DOUBLE,
+                    hrv_second_half_avg DOUBLE,
+                    hrv_decay_slope DOUBLE,
                     PRIMARY KEY (user_id, date)
                 );
 
@@ -183,6 +187,22 @@ class LocalStorageEngine(StorageEngine):
                     metadata VARCHAR
                 );
             """)
+
+            # Auto-migrate columns for existing local DuckDB databases
+            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info('daily_physiology')").fetchall()}
+            new_columns = {
+                "restless_moments": "INTEGER",
+                "hrv_first_half_avg": "DOUBLE",
+                "hrv_second_half_avg": "DOUBLE",
+                "hrv_decay_slope": "DOUBLE",
+                "body_battery_charged_sleep": "INTEGER",
+            }
+            for col_name, col_type in new_columns.items():
+                if col_name not in existing_cols:
+                    try:
+                        conn.execute(f"ALTER TABLE daily_physiology ADD COLUMN {col_name} {col_type}")
+                    except Exception as e:
+                        log.debug(f"Column {col_name} might already exist or could not be added: {e}")
         finally:
             conn.close()
 
@@ -452,8 +472,9 @@ class LocalStorageEngine(StorageEngine):
                     INSERT OR REPLACE INTO daily_physiology (
                         user_id, date, resting_heart_rate, hrv_sdnn, hrv_rmssd,
                         body_battery_max, body_battery_min, stress_avg,
-                        sleep_duration_seconds, sleep_score, body_battery_charged_sleep
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        sleep_duration_seconds, sleep_score, body_battery_charged_sleep,
+                        restless_moments, hrv_first_half_avg, hrv_second_half_avg, hrv_decay_slope
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         user_id,
@@ -467,6 +488,10 @@ class LocalStorageEngine(StorageEngine):
                         rec.get("sleep_duration_seconds"),
                         rec.get("sleep_score"),
                         rec.get("body_battery_charged_sleep"),
+                        rec.get("restless_moments"),
+                        rec.get("hrv_first_half_avg"),
+                        rec.get("hrv_second_half_avg"),
+                        rec.get("hrv_decay_slope"),
                     ],
                 )
         finally:
