@@ -18,6 +18,7 @@ from langchain_core.messages import (
     HumanMessage,
     SystemMessage,
 )
+from langchain_core.output_parsers import PydanticOutputParser
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
@@ -71,7 +72,7 @@ DS_MAX_LOOPS = int(os.getenv("DS_MAX_LOOPS", "4"))
 from src.tools.read_report_artifact import read_report_artifact
 from src.tools.research_assistant import search_exercise_science
 from src.tools.retriever import retrieve_biometric_data
-from src.utils.finops import log_llm_call
+from src.utils.finops import extract_token_usage, log_llm_call
 
 # Configure logging
 log = logging.getLogger(__name__)
@@ -353,8 +354,10 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
 def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     """Specialized node for injury risk analysis."""
     log.info("🛡️ Injury Prevention Agent scanning biometrics...")
+    t0 = time.time()
+    active_model = get_active_core_model()
     model = get_chat_model(
-        model_name=get_active_core_model(),
+        model_name=active_model,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -362,21 +365,21 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     context = state.get("biometric_context", {})
     context_str = f"User Biometric Context:\n{json.dumps(context, indent=2)}"
 
-    # Filter state messages to include only standard types that the model supports
-    # and strictly pass them as standard LangChain messages
     input_messages: list[BaseMessage] = [
         SystemMessage(content=INJURY_PREVENTION_PROMPT),
         SystemMessage(content=context_str),
     ]
 
-    # Only pass the last Human message to avoid polluting with previous agent reports
     for m in reversed(state["messages"]):
         if m.type == "human":
             input_messages.append(HumanMessage(content=m.content))
             break
 
     response = model.invoke(input_messages)
-    # Wrap the response as a hidden internal report
+    in_t, out_t = extract_token_usage(response)
+    if in_t or out_t:
+        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="injury_prevention")
+
     report_msg = SystemMessage(
         content=f"--- INTERNAL INJURY RISK REPORT ---\n{response.content}\n----------------------------------"
     )
@@ -387,8 +390,10 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
 def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     """Specialized node for sleep and recovery analysis."""
     log.info("🧬 Sleep & Circadian Agent analyzing recovery...")
+    t0 = time.time()
+    active_model = get_active_core_model()
     model = get_chat_model(
-        model_name=get_active_core_model(),
+        model_name=active_model,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -401,18 +406,16 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
         SystemMessage(content=context_str),
     ]
 
-    # Include the latest reports from other agents if available
-    for m in state["messages"]:
-        if "--- INTERNAL INJURY RISK REPORT ---" in str(m.content):
-            input_messages.append(SystemMessage(content=str(m.content)))
-
-    # Only pass the last Human message
     for m in reversed(state["messages"]):
         if m.type == "human":
             input_messages.append(HumanMessage(content=m.content))
             break
 
     response = model.invoke(input_messages)
+    in_t, out_t = extract_token_usage(response)
+    if in_t or out_t:
+        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="sleep_recovery")
+
     report_msg = SystemMessage(
         content=f"--- INTERNAL SLEEP & RECOVERY REPORT ---\n{response.content}\n----------------------------------"
     )
@@ -423,8 +426,10 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
 def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     """Specialized node for metabolic nutrition analysis."""
     log.info("⚖️ Metabolic Nutrition Agent calculating fueling needs...")
+    t0 = time.time()
+    active_model = get_active_core_model()
     model = get_chat_model(
-        model_name=get_active_core_model(),
+        model_name=active_model,
         temperature=0,
         model_kwargs={"automatic_function_calling": {"disable": True}},
     )
@@ -437,24 +442,16 @@ def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
         SystemMessage(content=context_str),
     ]
 
-    # Include reports from other agents for full context
-    for m in state["messages"]:
-        if any(
-            marker in str(m.content)
-            for marker in [
-                "--- INTERNAL INJURY RISK REPORT ---",
-                "--- INTERNAL SLEEP & RECOVERY REPORT ---",
-            ]
-        ):
-            input_messages.append(SystemMessage(content=str(m.content)))
-
-    # Pass the last Human message
     for m in reversed(state["messages"]):
         if m.type == "human":
             input_messages.append(HumanMessage(content=m.content))
             break
 
     response = model.invoke(input_messages)
+    in_t, out_t = extract_token_usage(response)
+    if in_t or out_t:
+        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="metabolic_nutrition")
+
     report_msg = SystemMessage(
         content=f"--- INTERNAL METABOLIC & FUELING REPORT ---\n{response.content}\n----------------------------------"
     )
@@ -617,17 +614,39 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             else:
                 sync_instruction = "\n\n### ✅ SYNC ALREADY TRIGGERED\n- **INSTRUCTION:** You have already triggered the sync. Provide the final confirmation message now."
 
-    # Filter out system error messages and automated memory extraction messages from history
-    history = [
-        m
-        for m in state["messages"]
-        if "CRITICAL SYSTEM ERROR" not in str(m.content)
-        and not getattr(m, "additional_kwargs", {}).get("is_memory_extraction")
-    ]
+    # Filter out system error messages, automated memory extraction messages, and stale internal reports from previous turns
+    last_human_idx = -1
+    for idx in range(len(state["messages"]) - 1, -1, -1):
+        if state["messages"][idx].type == "human":
+            last_human_idx = idx
+            break
 
-    # Keep at most last 8 messages in conversational history to prevent context explosion
-    if len(history) > 8:
-        history = history[-8:]
+    internal_markers = (
+        "--- INTERNAL INJURY RISK REPORT ---",
+        "--- INTERNAL SLEEP & RECOVERY REPORT ---",
+        "--- INTERNAL METABOLIC & FUELING REPORT ---",
+        "🧪 DATA SCIENTIST REPORT:",
+    )
+
+    history = []
+    for idx, m in enumerate(state["messages"]):
+        content_str = str(m.content)
+        if "CRITICAL SYSTEM ERROR" in content_str:
+            continue
+        if getattr(m, "additional_kwargs", {}).get("is_memory_extraction"):
+            continue
+        # Only keep internal specialist/DS reports that belong to the current turn (after last_human_idx)
+        if idx < last_human_idx and (
+            any(marker in content_str for marker in internal_markers)
+            or getattr(m, "additional_kwargs", {}).get("is_ds_report")
+            or getattr(m, "additional_kwargs", {}).get("is_ds_call")
+        ):
+            continue
+        history.append(m)
+
+    # Keep at most last 10 messages in conversational history to prevent context explosion
+    if len(history) > 10:
+        history = history[-10:]
 
     messages = [
         SystemMessage(content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt + sync_instruction)
@@ -639,29 +658,11 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         log.debug(f"DEBUG: Message {i} ({m.type}): {m.content[:500]}...")
     log.debug("DEBUG: -------------------------------")
 
+    active_core_model = get_active_core_model()
     response = llm_with_tools.invoke(messages, config={"tags": ["analyzer_llm"]})
 
     latency_ms = (time.time() - t0) * 1000
-    # Robust token extraction from response metadata
-    in_t = 0
-    out_t = 0
-    usage_meta = getattr(response, "usage_metadata", None)
-    if usage_meta:
-        if isinstance(usage_meta, dict):
-            in_t = usage_meta.get("input_tokens", 0)
-            out_t = usage_meta.get("output_tokens", 0)
-        else:
-            in_t = getattr(usage_meta, "input_tokens", 0)
-            out_t = getattr(usage_meta, "output_tokens", 0)
-
-    # Fallback to response_metadata (OpenAI-compatible)
-    if not in_t and not out_t:
-        resp_meta = getattr(response, "response_metadata", None)
-        if isinstance(resp_meta, dict):
-            token_usage = resp_meta.get("token_usage")
-            if isinstance(token_usage, dict):
-                in_t = token_usage.get("prompt_tokens", 0)
-                out_t = token_usage.get("completion_tokens", 0)
+    in_t, out_t = extract_token_usage(response)
 
     usage = state.get("usage_stats", {})
     if not isinstance(usage, dict):
@@ -673,7 +674,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     usage.setdefault("total_cost_usd", 0.0)
 
     if in_t or out_t:
-        finops_row = log_llm_call(MODEL_NAME, in_t, out_t, latency_ms, node_name="analyzer")
+        finops_row = log_llm_call(active_core_model, in_t, out_t, latency_ms, node_name="analyzer")
 
         usage["total_tokens"] += in_t + out_t
         usage["total_cost_usd"] += finops_row["cost_usd"]
@@ -779,6 +780,7 @@ class DataScientistOutput(BaseModel):
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
     """Specialized node for autonomous physiological hypothesis testing."""
     log.info("🧪 DataScientist node activated for autonomous discovery...")
+    t0 = time.time()
     user_id = state.get("user_id", "unknown")
 
     # Instantiate specialized LLM for Data Science
@@ -797,8 +799,8 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         log.warning(f"⚠️ Failed to pre-fetch BQ schema: {e}")
         schema_info = ""
 
-    # Bind DS tools - Optimization: remove get_bigquery_schema if we already have it
-    active_ds_tools = [execute_exploratory_query_dry_run, execute_exploratory_query]
+    # Bind DS tools - execute_exploratory_query now includes automatic dry-run cost protection
+    active_ds_tools = [execute_exploratory_query]
     if not bq_schema:
         active_ds_tools.append(get_bigquery_schema)
 
@@ -810,14 +812,22 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     if ds_loop_count >= (DS_MAX_LOOPS - 1):
         strict_instruction = "\n\n### ⚠️ STRICT LOOP CONTROL\nYou have already attempted discovery. You MUST NOT call any more tools. You MUST synthesize your final findings and provide the DataScientistOutput now."
     elif bq_schema:
-        strict_instruction = "\n\n### 🛡️ SCHEMA ALREADY PROVIDED\nThe BigQuery schema is included below. DO NOT call `get_bigquery_schema`. Proceed directly to formulating your hypothesis and then use the dry-run tool."
+        strict_instruction = (
+            f"\n\n### 🛡️ SCHEMA ALREADY PROVIDED\nThe BigQuery schema is included below. DO NOT call `get_bigquery_schema`. "
+            f"Proceed directly to formulating your hypothesis and calling `execute_exploratory_query` with `user_id='{user_id}'`."
+        )
 
     # Context preparation - LEAN CONTEXT for Data Scientist
     raw_context = state.get("biometric_context", {})
+    clean_profile = dict(raw_context.get("user_profile") or {})
+    clean_profile.pop("id", None)
+    clean_profile.pop("user_id", None)
+    clean_profile.pop("dashboard_layout", None)
 
     lean_context = {
+        "authenticated_user_id": user_id,
         "latest_health_status": raw_context.get("latest_health_status"),
-        "user_profile": raw_context.get("user_profile"),
+        "user_profile": clean_profile,
         "daily_physiology_7d": raw_context.get("daily_physiology_7d"),  # Essential Stress/Battery trends
         "training_status": raw_context.get("training_status"),
         "semantic_memories": raw_context.get("semantic_memories"),
@@ -827,39 +837,59 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     context_str = json.dumps(lean_context, default=str)
     messages: list[BaseMessage] = [
         SystemMessage(
-            content=DATA_SCIENTIST_PROMPT + f"\n\n### 🛡️ USER SESSION: {user_id}" + strict_instruction + schema_info
-        )
+            content=DATA_SCIENTIST_PROMPT
+            + f"\n\n### 🛡️ USER SESSION: {user_id} (Always use `WHERE user_id = '{user_id}'` in SQL)"
+            + strict_instruction
+            + schema_info
+        ),
+        HumanMessage(content=f"Biometric Context (Filtered): {context_str}"),
     ]
-    messages.append(HumanMessage(content=f"Biometric Context (Filtered): {context_str}"))
-    # Sanitize the incoming trigger message: if it came from analyzer with tool_calls, extract content as user context
-    last_trigger = state["messages"][-1]
-    trigger_context: BaseMessage
-    if hasattr(last_trigger, "tool_calls") and last_trigger.tool_calls:
-        trigger_context = HumanMessage(
-            content=f"Discovery Goal: {last_trigger.content or 'Perform discovery analysis on recent biometric data'}"
-        )
-    else:
-        trigger_context = last_trigger
 
-    messages.append(trigger_context)
+    # Preserve multi-turn history within the current turn so DS sees its prior SQL calls and ToolMessages
+    last_human_idx = 0
+    for idx in range(len(state["messages"]) - 1, -1, -1):
+        if state["messages"][idx].type == "human":
+            last_human_idx = idx
+            break
 
-    # Initial call to formulate hypothesis and potentially call tools
-    # LOOP BREAKER: If we are already at the limit, do not allow more tool calls
-    response: BaseMessage
-    if ds_loop_count >= DS_MAX_LOOPS:
-        log.warning(
-            f"⚠️ Loop limit reached in node_data_scientist ({ds_loop_count}/{DS_MAX_LOOPS}). Forcing structured output pass."
+    turn_messages = list(state["messages"][last_human_idx:])
+    has_executed_query_result = False
+    for m in turn_messages:
+        if m.type == "human":
+            messages.append(m)
+        elif m.type == "ai":
+            if getattr(m, "additional_kwargs", {}).get("is_ds_call"):
+                messages.append(m)
+            elif hasattr(m, "tool_calls") and m.tool_calls:
+                messages.append(
+                    HumanMessage(
+                        content=f"Discovery Goal: {m.content or 'Perform discovery analysis on recent biometric data'}"
+                    )
+                )
+        elif m.type == "tool":
+            messages.append(m)
+            if getattr(m, "name", "") == "execute_exploratory_query" and not str(m.content).startswith("Error:"):
+                has_executed_query_result = True
+
+    response: BaseMessage | None = None
+    if ds_loop_count >= DS_MAX_LOOPS or has_executed_query_result:
+        log.info(
+            f"🧪 DataScientist ready to synthesize structured report (loop={ds_loop_count}, has_data={has_executed_query_result})."
         )
-        response = HumanMessage(content="Loop limit reached. Synthesize findings now.")
+        response = HumanMessage(
+            content="You have the exploratory query results above. Synthesize your final DataScientistOutput report now."
+        )
     else:
         response = llm_with_tools.invoke(messages)
+        in_t, out_t = extract_token_usage(response)
+        if in_t or out_t:
+            log_llm_call(DS_MODEL_NAME, in_t, out_t, (time.time() - t0) * 1000, node_name="data_scientist")
 
     # If the DS wants to use tools, we return them to the 'tools' node
-    if hasattr(response, "tool_calls") and response.tool_calls:
+    if response and hasattr(response, "tool_calls") and response.tool_calls:
         log.info(
             f"🧪 DataScientist calling {len(response.tool_calls)} tools for discovery (Iter {ds_loop_count + 1}/{DS_MAX_LOOPS})."
         )
-        # Mark this AI message to identify its tools in the router
         response.additional_kwargs["is_ds_call"] = True
         return {"messages": [response], "ds_loop_count": ds_loop_count + 1}
 
@@ -869,11 +899,21 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         structured_llm = llm.with_structured_output(DataScientistOutput, method="function_calling")
     else:
         structured_llm = llm.with_structured_output(DataScientistOutput)
+
+    # Flatten tool call history into clean text so structured_llm doesn't choke on FunctionCall/FunctionResponse pairs
+    synth_messages: list[BaseMessage] = []
+    for m in messages:
+        if hasattr(m, "tool_calls") and m.tool_calls:
+            tc_summary = json.dumps([{"name": tc["name"], "args": tc["args"]} for tc in m.tool_calls], default=str)
+            synth_messages.append(HumanMessage(content=f"Executed SQL Tool Call: {tc_summary}"))
+        elif m.type == "tool":
+            synth_messages.append(HumanMessage(content=f"SQL Query Result ({getattr(m, 'name', 'tool')}): {m.content}"))
+        else:
+            synth_messages.append(m)
+    if response and not (hasattr(response, "tool_calls") and response.tool_calls):
+        synth_messages.append(response)
+
     try:
-        # Pass a clean sequence without unresponded tool calls for structured output synthesis
-        synth_messages = [m for m in messages if not (hasattr(m, "tool_calls") and m.tool_calls)]
-        if response and not (hasattr(response, "tool_calls") and response.tool_calls):
-            synth_messages.append(response)
         raw_output = structured_llm.invoke(synth_messages)
         if not raw_output:
             raise ValueError("No output from Data Scientist LLM")
@@ -886,43 +926,117 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         log.info("🧪 DataScientist generated structured report.")
         return {"messages": [findings_msg], "ds_loop_count": ds_loop_count + 1}
     except Exception as e:
-        log.error(f"❌ DataScientist failed to generate structured report: {e}")
-        return {"messages": [response], "ds_loop_count": ds_loop_count + 1}
+        log.warning(
+            f"⚠️ DataScientist structured_llm failed ({e}). Attempting fallback with explicit JSON schema prompt..."
+        )
+        try:
+            parser = PydanticOutputParser(pydantic_object=DataScientistOutput)
+            fallback_prompt = HumanMessage(
+                content=(
+                    "Synthesize the final Data Scientist findings into a strictly valid JSON object matching this schema:\n"
+                    f"{parser.get_format_instructions()}\n"
+                    "Return ONLY valid JSON matching the schema, with no markdown formatting or commentary."
+                )
+            )
+            fallback_messages = list(synth_messages) + [fallback_prompt]
+            fallback_resp = llm.invoke(fallback_messages)
+            raw_text = fallback_resp.content if hasattr(fallback_resp, "content") else str(fallback_resp)
+            if isinstance(raw_text, list):
+                raw_text = "".join(str(part) for part in raw_text)
+
+            try:
+                final_findings = parser.parse(raw_text)
+            except Exception:
+                cleaned = str(raw_text).strip()
+                if "```json" in cleaned:
+                    cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0].strip()
+                elif "```" in cleaned:
+                    cleaned = cleaned.split("```", 1)[1].split("```", 1)[0].strip()
+                final_findings = DataScientistOutput.model_validate(json.loads(cleaned))
+
+            findings_msg = SystemMessage(
+                content=f"🧪 DATA SCIENTIST REPORT:\n{json.dumps(final_findings.model_dump(), indent=2)}",
+                additional_kwargs={"is_ds_report": True},
+            )
+            log.info("🧪 DataScientist generated structured report via fallback JSON parsing.")
+            return {"messages": [findings_msg], "ds_loop_count": ds_loop_count + 1}
+        except Exception as fallback_err:
+            log.error(f"❌ DataScientist fallback also failed to generate structured report: {fallback_err}")
+            return {"messages": [response], "ds_loop_count": ds_loop_count + 1}
 
 
 def node_validator(state: AgentState) -> dict[str, Any]:
     """Validates the output of the analyzer to ensure physiological accuracy and formatting."""
+    import re
+
     last_msg = state["messages"][-1]
     text = str(last_msg.content).lower()
     log.info("🧐 Validator node reviewing response...")
 
+    # Check if an action tool was already executed in the current turn or if we are at loop cap
+    loop_count = state.get("loop_count", 0)
+    if loop_count >= 3:
+        return {"loop_count": loop_count}
+
+    action_tools = {
+        "upload_training_plan",
+        "clear_calendar",
+        "remove_workout",
+        "batch_remove_workouts",
+        "prune_unused_workouts",
+        "sync_biometric_data",
+    }
+    tool_executed_in_turn = False
+    for m in reversed(state["messages"]):
+        if m.type == "human":
+            break
+        if m.type == "tool" and getattr(m, "name", "") in action_tools:
+            tool_executed_in_turn = True
+            break
+
     # --- 1. Discrepancy Detection (Hallucination Guardrail) ---
-    action_keywords = ["agendado", "subido", "scheduled", "sincronizado", "synced", "borrado", "deleted"]
-    has_action_text = any(kw in text for kw in action_keywords)
+    # Only flag explicit first-person claims of having performed a calendar/sync mutation without a negative prefix
+    claim_patterns = [
+        r"(?<!no\s)(?<!nunca\s)\b(he\s+agendado|he\s+subido|he\s+sincronizado|he\s+borrado|acabo\s+de\s+agendar|acabo\s+de\s+subir)\b",
+        r"(?<!not\s)(?<!never\s)\b(i\s+have\s+scheduled|i\s+scheduled|i\s+have\s+uploaded|i\s+uploaded|i\s+have\s+synced|i\s+have\s+deleted)\b",
+    ]
+    has_action_claim = any(re.search(pat, text) for pat in claim_patterns)
     has_tool_calls = hasattr(last_msg, "tool_calls") and bool(last_msg.tool_calls)
 
-    if has_action_text and not has_tool_calls:
-        log.warning("🚫 DISCREPANCY DETECTED: Agent claimed an action but didn't emit a tool call.")
+    if has_action_claim and not has_tool_calls and not tool_executed_in_turn:
+        log.warning("🚫 DISCREPANCY DETECTED: Agent claimed an action in first person but didn't emit a tool call.")
         error_msg = SystemMessage(
             content="CRITICAL SYSTEM ERROR: You claimed to have performed an action (scheduled/synced/deleted) in your text response, but you DID NOT emit the required tool call. This is a hallucination. You MUST emit the tool call (e.g., upload_training_plan) and DO NOT confirm the action in text until the tool has executed. Please try again."
         )
-        return {"messages": [error_msg], "loop_count": state.get("loop_count", 0) + 1}
+        return {"messages": [error_msg], "loop_count": loop_count + 1}
 
-    # --- 2. Brevity Check ---
-    if len(text) < 100 and "artifact_uri" not in text:
-        log.warning("⚠️ Response seems too brief. Requesting elaboration.")
-
-    return {"loop_count": state.get("loop_count", 0)}
+    return {"loop_count": loop_count}
 
 
 def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     """Dedicated node to extract 'Golden Nuggets' from the interaction."""
     log.info("🧠 Semantic Memory Extractor node activated...")
+    t0 = time.time()
     user_id = state.get("user_id", "unknown")
 
-    # Use a standard config for extraction
+    # Skip memory extraction on autonomous/proactive prompts so we only extract facts from real user messages
+    human_msg = next((m for m in reversed(state["messages"]) if m.type == "human"), None)
+    if human_msg:
+        h_text = str(human_msg.content)
+        if h_text.startswith("SYSTEM INSTRUCTION:") or h_text.startswith("ROLE: Data Scientist"):
+            log.info("🧠 Skipping memory extraction for autonomous proactive/discovery run.")
+            return {
+                "messages": [
+                    SystemMessage(
+                        content="Skipped memory extraction for autonomous run.",
+                        additional_kwargs={"is_memory_extraction": True},
+                    )
+                ]
+            }
+
+    active_model = get_active_core_model()
     llm = get_chat_model(
-        model_name=get_active_core_model(),
+        model_name=active_model,
         temperature=0,
         model_kwargs={
             "automatic_function_calling": {"disable": True},
@@ -947,8 +1061,9 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
         mem_lines = []
         for m in existing_memories:
             if isinstance(m, dict):
+                mem_id = m.get("memory_id") or m.get("id") or ""
                 mem_lines.append(
-                    f"[ID: {m.get('id', '')}] {str(m.get('memory_type', '')).upper()}: {m.get('memory_text', '')}"
+                    f"[ID: {mem_id}] {str(m.get('memory_type', 'fact')).upper()}: {m.get('memory_text', '')}"
                 )
             else:
                 mem_lines.append(str(m))
@@ -956,8 +1071,6 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
         messages.append(SystemMessage(content=f"Existing Semantic Memories:\n{mem_str}"))
 
     # Include ONLY the last Human message and the last AI response (the interaction to analyze)
-    # This reduces noise and helps Gemma focus on the dialogue
-    human_msg = next((m for m in reversed(state["messages"]) if m.type == "human"), None)
     ai_msg = next((m for m in reversed(state["messages"]) if m.type == "ai" and m.content), None)
 
     if human_msg:
@@ -992,13 +1105,12 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
 
         messages.append(SystemMessage(content=f"COACH RESPONDED: {content}"))
 
-    # Debug log the messages
-    log.info(f"🧠 Extractor input messages (Cleaned): {messages}")
-
     # Invoke extractor
     response = llm_with_tools.invoke(messages, config={"tags": ["memory_extractor"]})
+    in_t, out_t = extract_token_usage(response)
+    if in_t or out_t:
+        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="memory_extractor")
 
-    log.info(f"🧠 Extractor raw response: {response}")
     if hasattr(response, "tool_calls") and response.tool_calls:
         log.info(f"🧠 Extractor found {len(response.tool_calls)} nuggets!")
         # Tag the message explicitly to break loops in route_after_tools
@@ -1029,7 +1141,11 @@ def route_after_analysis(state: AgentState):
 def route_after_validation(state: AgentState):
     """Routes to memory_extractor or back to analyzer if validation failed."""
     last_msg = state["messages"][-1]
-    if isinstance(last_msg, SystemMessage) and "CRITICAL SYSTEM ERROR" in str(last_msg.content):
+    if (
+        isinstance(last_msg, SystemMessage)
+        and "CRITICAL SYSTEM ERROR" in str(last_msg.content)
+        and state.get("loop_count", 0) < 3
+    ):
         log.info("🔄 Validation failed. Routing back to analyzer for correction.")
         return "analyzer"
     return "memory_extractor"

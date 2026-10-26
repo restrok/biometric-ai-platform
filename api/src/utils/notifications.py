@@ -16,7 +16,7 @@ def send_proactive_notification(user_id: str, message: str, agent_id: str = "bio
         log.warning("⚠️ ORCHESTRATOR_NOTIFY_URL not set. Notification skipped.")
         return False
 
-    payload = {"user_id": user_id, "agent_id": agent_id, "message": message}
+    payload = {"user_id": user_id, "service": agent_id, "message": message}
 
     try:
         with httpx.Client() as client:

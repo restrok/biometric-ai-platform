@@ -37,6 +37,8 @@ WORKDIR /app
 
 # Copy the application code
 COPY . .
+COPY templates /app/templates
+
 
 # Copy the pre-built virtual environment from the builder stage
 COPY --from=builder /app/.venv /app/.venv

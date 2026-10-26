@@ -33,8 +33,10 @@ def init_otel(app: "FastAPI") -> None:
     via ConsoleSpanExporter, making them visible in the structured-log pipeline.
     Set ENABLE_OTEL=false to completely disable this instrumentation.
     """
-    if os.getenv("ENABLE_OTEL", "true").lower() == "false":
-        log.info("📡 OpenTelemetry: disabled via ENABLE_OTEL=false")
+    import sys
+
+    if os.getenv("ENABLE_OTEL", "true").lower() == "false" or "pytest" in sys.modules:
+        log.info("📡 OpenTelemetry: disabled via ENABLE_OTEL=false or pytest")
         return
 
     try:
@@ -137,6 +139,8 @@ def get_langfuse_callback(
             from langfuse.langchain import CallbackHandler
 
         host = os.getenv("LANGFUSE_HOST") or os.getenv("LANGFUSE_BASE_URL") or "https://cloud.langfuse.com"
+        os.environ.setdefault("OTEL_EXPORTER_OTLP_TIMEOUT", "30000")
+        os.environ.setdefault("LANGFUSE_TIMEOUT", "30")
         try:
             handler = CallbackHandler(
                 public_key=public_key,
@@ -145,6 +149,7 @@ def get_langfuse_callback(
                 session_id=session_id,
                 user_id=user_id,
                 tags=tags or [],
+                timeout=30,
             )
         except TypeError:
             # Langfuse v4+ CallbackHandler reads keys directly from environment variables

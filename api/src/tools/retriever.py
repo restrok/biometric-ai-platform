@@ -182,9 +182,12 @@ def _retrieve_biometric_data_local(
     for m in raw_mems:
         dt = m.get("updated_at") or m.get("created_at") or ""
         date_str = f"[{str(dt)[:10]}] " if dt else ""
+        mem_id = m.get("memory_id") or m.get("id") or ""
+        mem_type = m.get("memory_type") or "fact"
         text = m.get("memory_text", "").strip()
         if text:
-            memories.append(f"{date_str}{text}")
+            id_prefix = f"[ID: {mem_id}] ({mem_type}) " if mem_id else ""
+            memories.append(f"{id_prefix}{date_str}{text}")
 
     calib_markers = engine.get_calibration_markers(user_id) if hasattr(engine, "get_calibration_markers") else []
 
@@ -439,6 +442,7 @@ def _retrieve_biometric_data_cached(
             if profile and isinstance(profile, dict):
                 profile = dict(profile)
                 profile.pop("personal_calibration_profile", None)
+                profile.pop("dashboard_layout", None)
 
                 # Enrich with sport-specific heart rate zones (running & swimming)
                 sport_zones = dict(profile.get("sport_zones") or {})
@@ -566,21 +570,26 @@ def _retrieve_biometric_data_cached(
             return "scheduled_workouts", []
 
     def fetch_semantic_memories() -> tuple[str, list[str]]:
-        """Fetches active semantic memories from Firestore formatted cleanly with date and text."""
+        """Fetches active semantic memories from Firestore formatted cleanly with ID, type, date, and text."""
         try:
             t0 = time.time()
+            from google.cloud.firestore_v1.base_query import FieldFilter
+
             db = get_firestore_client()
             memories_ref = db.collection("user_memories")
-            query = memories_ref.where("user_id", "==", user_id).where("is_active", "==", True)
+            query = memories_ref.where(filter=FieldFilter("user_id", "==", user_id)).where(
+                filter=FieldFilter("is_active", "==", True)
+            )
 
             memories = []
             for doc in query.stream():
-                m = doc.to_dict()
+                m = doc.to_dict() or {}
                 updated_at = m.get("updated_at") or m.get("created_at") or ""
                 date_str = f"[{str(updated_at)[:10]}] " if updated_at else ""
+                mem_type = m.get("memory_type") or "fact"
                 memory_text = m.get("memory_text", "").strip()
                 if memory_text:
-                    memories.append(f"{date_str}{memory_text}")
+                    memories.append(f"[ID: {doc.id}] ({mem_type}) {date_str}{memory_text}")
 
             log.info(
                 f"?????? Firestore: Semantic memories retrieved in {time.time() - t0:.2f}s ({len(memories)} entries)"

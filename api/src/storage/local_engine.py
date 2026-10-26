@@ -593,11 +593,16 @@ class LocalStorageEngine(StorageEngine):
                     coalesce(sum(trimp), 0) AS total_trimp,
                     coalesce(avg(avg_heart_rate), 0) AS avg_hr
                 FROM activities
-                WHERE user_id = ? AND start_time >= CURRENT_DATE - INTERVAL '{limit_months} MONTH'
+                WHERE user_id = ?
+                  AND start_time >= (
+                      SELECT coalesce(max(CAST(start_time AS DATE)), CURRENT_DATE) - INTERVAL '{limit_months} MONTH'
+                      FROM activities
+                      WHERE user_id = ?
+                  )
                 GROUP BY period
                 ORDER BY period ASC
             """
-            df = conn.execute(query, [user_id]).df()
+            df = conn.execute(query, [user_id, user_id]).df()
             return df.to_dict(orient="records")
         finally:
             conn.close()

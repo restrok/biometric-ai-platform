@@ -92,13 +92,30 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         _analyze_hrv_status(user_id)
         _check_health_pre_symptoms(user_id)
 
-        # 3. Discovery Phase (Data Science)
-        # Periodic 'rare' pattern discovery
-        _run_discovery_phase(user_id)
+        # 3. Check telemetry freshness and daily execution gates before invoking heavy LLM pipelines
+        today_str = time.strftime("%Y-%m-%d", time.localtime())
+        data_snapshot = retrieve_biometric_data.invoke({"user_id": user_id})
+        daily_physio = data_snapshot.get("daily_physiology_7d") or []
+        latest_physio_date = str(daily_physio[0].get("date", ""))[:10] if daily_physio else ""
 
-        # 4. Autonomous Planning for Tomorrow
-        # We invoke the LangGraph agent with a specific "Planning Instruction"
-        # This will trigger clear_calendar, prune_workouts, and upload_training_plan
+        has_fresh_data = bool(activities_to_process) or (
+            latest_physio_date and latest_physio_date != profile.get("last_proactive_physio_date")
+        )
+
+        if not has_fresh_data and profile.get("last_proactive_run_date") == today_str:
+            log.info(
+                f"⏭️ Skipping heavy LLM Discovery & Planning for {user_id}: already ran today ({today_str}) and no new telemetry since {latest_physio_date}."
+            )
+            return
+
+        # 3b. Discovery Phase (Data Science) - at most once per day when fresh data is available
+        if has_fresh_data and profile.get("last_discovery_date") != today_str:
+            _run_discovery_phase(user_id)
+            update_user_profile(user_id, {"last_discovery_date": today_str})
+        else:
+            log.info(f"⏭️ Skipping Discovery Phase for {user_id} (already executed on {today_str} or no new data).")
+
+        # 4. Autonomous Planning for Tomorrow (once per day or when new activities arrive)
         from typing import cast
 
         from langchain_core.messages import HumanMessage
@@ -106,23 +123,26 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
 
         from src.agent.graph import AgentState, graph
 
+        current_hour = time.localtime().tm_hour
+        time_context = (
+            "It is morning."
+            if current_hour < 12
+            else ("It is afternoon." if current_hour < 18 else "It is late evening.")
+        )
+
         planning_prompt = (
-            "SYSTEM INSTRUCTION: It is late evening. Analyze the user's data from today and their current recovery state. "
-            "1. Check `scheduled_workouts` for tomorrow. "
+            f"SYSTEM INSTRUCTION: {time_context} Analyze the user's latest biometric data and current recovery state. "
+            "1. Check `scheduled_workouts` for today/tomorrow. "
             "2. If a workout is ALREADY scheduled: "
-            "   - Compare its intensity with the user's current HRV/Sleep status. "
-            "   - If they are compatible, DO NOTHING. "
-            "   - If the biometrics suggest the session is TOO RISKY (e.g., high-intensity planned but HRV is very low): "
+            "   - Compare its intensity with the user's current HRV/Sleep/Stress status. "
+            "   - If they are compatible, respond ONLY with 'NO_ACTION_NEEDED'. "
+            "   - If the biometrics suggest the session is TOO RISKY (e.g., high-intensity planned but HRV is low or injury is active): "
             "     DO NOT clear, replace, or modify the calendar. "
-            "     Instead, SEND A PROACTIVE NOTIFICATION explaining the physiological risk, "
-            "     recommending an alternative, and ASKING for permission to make the change. "
+            "     Provide a concise physiological warning recommending an alternative and asking for permission to make the change. "
             "3. If the calendar is EMPTY for tomorrow: "
             "   - DO NOT schedule anything autonomously. "
-            "   - Instead, analyze the biometrics and recovery state, and SEND A PROACTIVE NOTIFICATION with a recommendation "
-            "     (e.g., 'Your recovery is optimal. I recommend an Interval session today. Should I schedule it for you?'). "
-            "4. IMPORTANT: NEVER schedule, replace, or clear workouts autonomously without explicit user confirmation via chat. "
-            "   Your role is to advise and wait for approval. "
-            "5. Explain your reasoning based on today's telemetry, health status, and existing plans."
+            "   - Provide a concise recommendation based on recovery state and ask if you should schedule it. "
+            "4. IMPORTANT: NEVER schedule, replace, or clear workouts autonomously without explicit user confirmation via chat."
         )
 
         log.info(f"📅 Triggering autonomous planner for {user_id}...")
@@ -137,16 +157,43 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
                 "intent": "full",
             },
         )
-        # Use user_id as thread_id for continuity
-        # Langfuse: tag this run as 'proactive' so it's filterable in the dashboard
+        # Use an isolated thread_id so proactive runs never pollute the user's interactive chat history
+        proactive_thread_id = f"proactive_{user_id}_{int(time.time())}"
         langfuse_cb = get_langfuse_callback(
             session_id=f"{user_id}-proactive",
             user_id=user_id,
             tags=["proactive", "planner"],
         )
         callbacks = [langfuse_cb] if langfuse_cb else []
-        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}, "callbacks": callbacks})
-        graph.invoke(initial_state, config=config)
+        config = cast(RunnableConfig, {"configurable": {"thread_id": proactive_thread_id}, "callbacks": callbacks})
+        result = graph.invoke(initial_state, config=config)
+
+        update_user_profile(
+            user_id,
+            {
+                "last_proactive_run_date": today_str,
+                "last_proactive_physio_date": latest_physio_date,
+            },
+        )
+
+        # Dispatch notification if the planner generated an actionable recommendation
+        ai_reply = ""
+        for msg in reversed(result.get("messages", [])):
+            if msg.type == "ai" and msg.content:
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                    continue
+                ai_reply = str(msg.content).strip()
+                if ai_reply:
+                    break
+
+        if (
+            ai_reply
+            and "NO_ACTION_NEEDED" not in ai_reply
+            and not _has_been_notified(client, dataset, user_id, today_str, "daily_planner")
+        ):
+            if send_proactive_notification(user_id, ai_reply):
+                _log_notification(user_id, today_str, "daily_planner", ai_reply)
+                log.info(f"✅ Daily planner notification sent for {user_id} ({today_str})")
 
     except Exception as e:
         log.error(f"❌ Proactive analysis/planning failed: {e}")
@@ -169,11 +216,10 @@ def _run_discovery_phase(user_id: str):
         discovery_prompt = (
             "ROLE: Data Scientist. "
             "TASK: Perform an autonomous 'Discovery Audit' on the user's data from the last 30-90 days. "
-            "1. **Audit Continuity:** Check `user_calibration_profile` for existing patterns. "
-            "2. **Identify Interventions:** Analyze `semantic_memories` to identify recent lifestyle changes, supplementation (like Centrum), or injuries that could act as variables in your analysis. "
-            "3. **Hypothesis & Exploration:** Formulate a hypothesis based on these interventions (e.g., 'Does the Magnesium in Centrum correlate with higher sleep HRV?') and execute exploratory SQL queries to validate them. "
-            "4. **Persistence:** Use `save_calibration_marker` to update findings or create new ones. "
-            "5. **Notification:** If a significant correlation or shift is found, SEND A PROACTIVE NOTIFICATION explaining the discovery. "
+            "1. **Audit Continuity:** Check `personal_calibration_profile` for existing patterns. "
+            "2. **Identify Interventions:** Analyze `semantic_memories` to identify recent lifestyle changes, supplementation, or injuries that could act as variables in your analysis. "
+            "3. **Hypothesis & Exploration:** Formulate a hypothesis based on these interventions and execute exploratory SQL queries (`execute_exploratory_query`) to validate them. "
+            "4. **Persistence:** Use `save_calibration_marker` only if a new statistically significant pattern (confidence >= 0.75) is discovered. "
             "Total freedom to explore. Be the brain that finds the 'Why' behind the 'What'."
         )
 
@@ -185,18 +231,17 @@ def _run_discovery_phase(user_id: str):
                 "loop_count": 0,
                 "biometric_context": {},
                 "usage_stats": {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0},
-                "intent": "full",
+                "intent": "discovery",
             },
         )
-        # The graph will now route this to the DataScientist node because of the exploratory tool calls
-        # Langfuse: tag this run as 'discovery' for separate analysis in the dashboard
+        discovery_thread_id = f"discovery_{user_id}_{int(time.time())}"
         langfuse_cb = get_langfuse_callback(
             session_id=f"{user_id}-discovery",
             user_id=user_id,
             tags=["proactive", "discovery", "data-scientist"],
         )
         callbacks = [langfuse_cb] if langfuse_cb else []
-        config = cast(RunnableConfig, {"configurable": {"thread_id": user_id}, "callbacks": callbacks})
+        config = cast(RunnableConfig, {"configurable": {"thread_id": discovery_thread_id}, "callbacks": callbacks})
         graph.invoke(initial_state, config=config)
 
     except Exception as e:
@@ -269,12 +314,12 @@ def _check_health_pre_symptoms(user_id):
                     p.get("resting_heart_rate") for p in physiology if p.get("resting_heart_rate") is not None
                 ]
 
+                rhr_z = 0.0
                 if len(rhr_values) >= 5:
                     today_rhr = rhr_values[0]
                     mean_rhr = statistics.mean(rhr_values[1:])
                     std_rhr = statistics.stdev(rhr_values[1:])
-
-                rhr_z = (today_rhr - mean_rhr) / std_rhr if std_rhr > 0 else 0
+                    rhr_z = (today_rhr - mean_rhr) / std_rhr if std_rhr > 0 else 0
 
                 log.info(f"📊 Z-Scores for {user_id}: HRV Z={hrv_z:.2f}, RHR Z={rhr_z:.2f}")
 
