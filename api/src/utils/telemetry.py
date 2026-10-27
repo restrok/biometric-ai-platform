@@ -53,7 +53,7 @@ def init_otel(app: "FastAPI") -> None:
         resource = Resource.create(
             {
                 "service.name": "biometric-ai-api",
-                "service.version": "0.4.2",
+                "service.version": "0.5.1",
                 "deployment.environment": os.getenv("ENV", "development"),
             }
         )
