@@ -140,6 +140,30 @@ def retrieve_biometric_data(
     )
 
 
+def _enrich_health_status(health: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Enriches latest_health_status with elapsed days so the agent never presupposes old symptoms persist today."""
+    if not health or not isinstance(health, dict):
+        return health
+    enriched = dict(health)
+    raw_date = str(enriched.get("date") or "")[:10]
+    today_dt = date.today()
+    if raw_date:
+        try:
+            rep_dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
+            days_ago = (today_dt - rep_dt).days
+            enriched["days_since_reported"] = days_ago
+            enriched["is_historical_report"] = days_ago > 0
+            if days_ago > 0:
+                enriched["temporal_warning"] = (
+                    f"Reported {days_ago} day(s) ago on {raw_date} (today is {today_dt.isoformat()}). "
+                    "Do NOT assume acute symptoms, headaches, fatigue, or pain from this log are still active today. "
+                    "Ask the user how they feel today before assuming persistence."
+                )
+        except ValueError:
+            pass
+    return enriched
+
+
 def _retrieve_biometric_data_local(
     user_id: str,
     limit: int = 5,
@@ -175,7 +199,7 @@ def _retrieve_biometric_data_local(
     recent_acts = engine.get_recent_activities(
         user_id, limit=limit, offset=offset, activity_type=activity_type, start_date=start_date, end_date=end_date
     )
-    health_status = engine.get_health_status(user_id)
+    health_status = _enrich_health_status(engine.get_health_status(user_id))
     goals = engine.get_user_goals(user_id)
     raw_mems = engine.get_semantic_memories(user_id)
     memories = []
@@ -231,6 +255,8 @@ def _retrieve_biometric_data_local(
         }
 
     return {
+        "current_date": date.today().isoformat(),
+        "current_datetime_local": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "recent_activities": recent_acts,
         "training_status": None,
         "sleep": latest_sleep,
@@ -299,7 +325,10 @@ def _retrieve_biometric_data_cached(
         return _get_mock_data()
 
     client = get_bq_client(project_id)
-    context: dict[str, Any] = {}
+    context: dict[str, Any] = {
+        "current_date": date.today().isoformat(),
+        "current_datetime_local": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
     top_3_ids: list[str] = []
 
     # STRICT USER ISOLATION: Ensure user_id is provided
@@ -493,7 +522,7 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             profile = get_user_profile(user_id)
-            health = profile.get("latest_health_status")
+            health = _enrich_health_status(profile.get("latest_health_status"))
             log.info(f"?????? Firestore: Health status retrieved in {time.time() - t0:.2f}s")
             return "latest_health_status", health
         except Exception as e:

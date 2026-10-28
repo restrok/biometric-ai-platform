@@ -218,6 +218,26 @@ def node_router(state: AgentState) -> dict[str, Any]:
             "usage_stats": {"router_rationale": f"Hardcoded override for {last_msg_str}"},
         }
 
+    # Autonomous background runs (Discovery / Proactive Check-In) already specify their exact intent
+    raw_last = str(last_message)
+    if raw_last.startswith("ROLE: Data Scientist"):
+        log.info("🎯 Hardcoded Override: DISCOVERY intent preserved for autonomous Data Scientist audit.")
+        return {
+            "intent": "discovery",
+            "loop_count": 0,
+            "ds_loop_count": 0,
+            "usage_stats": {"router_rationale": "Autonomous discovery audit"},
+        }
+    if raw_last.startswith("SYSTEM INSTRUCTION:"):
+        preset_intent = state.get("intent") or "checkin"
+        log.info(f"🎯 Hardcoded Override: {preset_intent.upper()} intent preserved for autonomous proactive run.")
+        return {
+            "intent": preset_intent,
+            "loop_count": 0,
+            "ds_loop_count": 0,
+            "usage_stats": {"router_rationale": "Autonomous proactive check-in"},
+        }
+
     # Forcefully disable AFC in the SDK to let LangGraph manage tool execution
     model = get_chat_model(
         model_name=get_active_core_model(),
@@ -314,13 +334,18 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
 
     if intent in ["profile", "planning"]:
         log.info(f"⚡ Lightweight retrieval for intent: {intent.upper()}")
+        from datetime import date, datetime
+
+        from src.tools.retriever import _enrich_health_status
         from src.utils.firestore import get_user_profile
 
         try:
             profile = get_user_profile(user_id)
             context = {
+                "current_date": date.today().isoformat(),
+                "current_datetime_local": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "user_profile": profile,
-                "latest_health_status": profile.get("latest_health_status"),
+                "latest_health_status": _enrich_health_status(profile.get("latest_health_status")),
                 "active_goals": profile.get("active_goals", []),
                 "info": f"Lightweight context retrieved for {intent} intent.",
             }
@@ -521,6 +546,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             # 3. First pass for sync (Normal or Full)
             log.info("🔄 Sync command detected. Restricting tools to Sync.")
             tools = [sync_biometric_data]
+    elif intent == "checkin":
+        log.info("☀️ Check-in intent detected. Disabling tool binding for fast, concise check-in generation.")
+        tools = []
     else:
         tools = [
             upload_training_plan,
@@ -559,7 +587,7 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             list_available_models,
         ]
 
-    llm_with_tools = llm.bind_tools(tools)
+    llm_with_tools = llm.bind_tools(tools) if tools else llm
 
     current_context = state.get("biometric_context", {})
 
@@ -1169,7 +1197,7 @@ workflow.add_edge(START, "router")
 workflow.add_edge("router", "retriever")
 
 
-# Conditional fan-out: Short-circuit if intent is NONE, SYNC, PLANNING or PROFILE
+# Conditional fan-out: Short-circuit if intent is NONE, SYNC, PLANNING, PROFILE or CHECKIN
 def route_from_retriever(state: AgentState):
     """Short-circuits specialized agents if no biometric data is needed."""
     intent = state.get("intent", "full")
@@ -1178,7 +1206,7 @@ def route_from_retriever(state: AgentState):
         log.info("🧪 Intent is DISCOVERY. Routing to Data Scientist node.")
         return "data_scientist"
 
-    if intent in ["none", "sync", "planning", "profile"]:
+    if intent in ["none", "sync", "planning", "profile", "checkin"]:
         log.info(f"⏭️ Intent is {intent.upper()}. Short-circuiting specialized agents.")
         return "analyzer"
 

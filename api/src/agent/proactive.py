@@ -94,6 +94,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
 
         # 3. Check telemetry freshness and daily execution gates before invoking heavy LLM pipelines
         today_str = time.strftime("%Y-%m-%d", time.localtime())
+        current_hour = time.localtime().tm_hour
         data_snapshot = retrieve_biometric_data.invoke({"user_id": user_id})
         daily_physio = data_snapshot.get("daily_physiology_7d") or []
         latest_physio_date = str(daily_physio[0].get("date", ""))[:10] if daily_physio else ""
@@ -102,12 +103,6 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             latest_physio_date and latest_physio_date != profile.get("last_proactive_physio_date")
         )
 
-        if not has_fresh_data and profile.get("last_proactive_run_date") == today_str:
-            log.info(
-                f"⏭️ Skipping heavy LLM Discovery & Planning for {user_id}: already ran today ({today_str}) and no new telemetry since {latest_physio_date}."
-            )
-            return
-
         # 3b. Discovery Phase (Data Science) - at most once per day when fresh data is available
         if has_fresh_data and profile.get("last_discovery_date") != today_str:
             _run_discovery_phase(user_id)
@@ -115,7 +110,19 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         else:
             log.info(f"⏭️ Skipping Discovery Phase for {user_id} (already executed on {today_str} or no new data).")
 
-        # 4. Autonomous Planning for Tomorrow (once per day or when new activities arrive)
+        # 4. Concise Morning Check-In (only during waking hours >= 06:00 local, once per day)
+        if current_hour < 6 and not activities_to_process:
+            log.info(
+                f"🌙 Skipping daily check-in for {user_id} at {current_hour:02d}:00 (waiting for morning >= 06:00)."
+            )
+            return
+
+        if not has_fresh_data and profile.get("last_proactive_run_date") == today_str:
+            log.info(
+                f"⏭️ Skipping daily check-in for {user_id}: already ran today ({today_str}) and no new telemetry since {latest_physio_date}."
+            )
+            return
+
         from typing import cast
 
         from langchain_core.messages import HumanMessage
@@ -123,7 +130,6 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
 
         from src.agent.graph import AgentState, graph
 
-        current_hour = time.localtime().tm_hour
         time_context = (
             "It is morning."
             if current_hour < 12
@@ -131,21 +137,17 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         )
 
         planning_prompt = (
-            f"SYSTEM INSTRUCTION: {time_context} Analyze the user's latest biometric data and current recovery state. "
-            "1. Check `scheduled_workouts` for today/tomorrow. "
-            "2. If a workout is ALREADY scheduled: "
-            "   - Compare its intensity with the user's current HRV/Sleep/Stress status. "
-            "   - If they are compatible, respond ONLY with 'NO_ACTION_NEEDED'. "
-            "   - If the biometrics suggest the session is TOO RISKY (e.g., high-intensity planned but HRV is low or injury is active): "
-            "     DO NOT clear, replace, or modify the calendar. "
-            "     Provide a concise physiological warning recommending an alternative and asking for permission to make the change. "
-            "3. If the calendar is EMPTY for tomorrow: "
-            "   - DO NOT schedule anything autonomously. "
-            "   - Provide a concise recommendation based on recovery state and ask if you should schedule it. "
-            "4. IMPORTANT: NEVER schedule, replace, or clear workouts autonomously without explicit user confirmation via chat."
+            f"SYSTEM INSTRUCTION: {time_context} Today's actual date is `{today_str}` (`current_date`). "
+            "Send a VERY SHORT, direct, and friendly daily check-in message in Spanish (MAXIMUM 5-6 lines, under 90 words total). "
+            "STRICT RULES:\n"
+            f"1. **Exact Dates Only:** Today is `{today_str}`. When citing HRV, RHR, Stress, or Body Battery, ALWAYS state the exact date of that metric (e.g., if the latest row is from yesterday, explicitly label it with its date). Never claim yesterday's metric is today's.\n"
+            "2. **Ultra-Concise Summary:** Use at most 2-3 short bullet points for key objective markers (HRV, RHR, Stress) and whether `scheduled_workouts` has anything planned for today/tomorrow.\n"
+            "3. **NO Presuppositions of Past Symptoms/Injuries:** Check `latest_health_status.days_since_reported` and `[YYYY-MM-DD]` in `semantic_memories`. NEVER assume or state as a fact that a headache, fatigue, pain, or acute injury reported on a previous day is still happening today.\n"
+            "4. **Check-In Question First (No Unsolicited Essay):** Do NOT write a multi-section report (`Hechos`, `Interpretación`, `Recomendación`) and do NOT prescribe a full workout yet. Instead, end by asking the user how they feel today (and, if there was a recent health/injury log from previous days, briefly ask how it evolved today) so they can reply before you generate a recommendation or touch the calendar.\n"
+            "5. If a workout is already scheduled and biometrics are completely optimal with no follow-up needed, respond ONLY with 'NO_ACTION_NEEDED'."
         )
 
-        log.info(f"📅 Triggering autonomous planner for {user_id}...")
+        log.info(f"📅 Triggering concise daily check-in for {user_id}...")
         initial_state = cast(
             AgentState,
             {
@@ -154,7 +156,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
                 "loop_count": 0,
                 "biometric_context": {},
                 "usage_stats": {"total_tokens": 0, "calls": 0, "total_cost_usd": 0.0},
-                "intent": "full",
+                "intent": "checkin",
             },
         )
         # Use an isolated thread_id so proactive runs never pollute the user's interactive chat history
