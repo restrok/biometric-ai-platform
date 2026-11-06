@@ -23,9 +23,14 @@ class LocalSecureVault:
 
     def __init__(self, vault_dir: Path | str | None = None, secret_key: str | None = None):
         raw_base = (
-            vault_dir or os.getenv("VAULT_DIR") or os.getenv("BIOMETRIC_DATA_DIR") or os.getenv("LOCAL_STORAGE_DIR")
+            vault_dir
+            or os.getenv("VAULT_DIR")
+            or os.getenv("BIOMETRIC_DATA_DIR")
+            or os.getenv("LOCAL_STORAGE_DIR")
         )
-        is_in_container = Path("/.dockerenv").exists() or (Path("/app").exists() and os.access("/app", os.W_OK))
+        is_in_container = Path("/.dockerenv").exists() or (
+            Path("/app").exists() and os.access("/app", os.W_OK)
+        )
 
         if raw_base:
             p = Path(raw_base)
@@ -125,7 +130,9 @@ class LocalSecureVault:
         with contextlib.suppress(Exception):
             os.chmod(target_file, 0o600)
 
-        log.info(f"🔒 Tokens for '{prov}' user '{user_id}' encrypted and stored in vault at '{target_file.name}'.")
+        log.info(
+            f"🔒 Tokens for '{prov}' user '{user_id}' encrypted and stored in vault at '{target_file.name}'."
+        )
         return target_file
 
     def retrieve_tokens(self, provider: str, user_id: str) -> dict[str, Any] | None:

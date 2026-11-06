@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from google.cloud import bigquery
-
 from src.utils.config import get_config
 
 log = logging.getLogger(__name__)
@@ -64,7 +63,11 @@ def extract_token_usage(response: Any) -> tuple[int, int]:
 
 
 def log_llm_call(
-    model: str, input_tokens: int, output_tokens: int, latency_ms: float, node_name: str = "analyzer"
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    latency_ms: float,
+    node_name: str = "analyzer",
 ) -> dict[str, Any]:
     """Calculates cost and logs LLM usage to BigQuery."""
     total_tokens = input_tokens + output_tokens

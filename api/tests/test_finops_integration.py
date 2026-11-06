@@ -20,13 +20,12 @@ if api_key_raw:
         if decoded_str.startswith("AIza"):
             os.environ["GOOGLE_API_KEY"] = decoded_str
     except Exception:
-        pass
+        os.environ["GOOGLE_API_KEY"] = api_key_raw
 
 import logging
 
 import pytest
 from langchain_core.messages import HumanMessage
-
 from src.agent.graph import graph
 
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +44,9 @@ async def test_finops_integration():
     print("\nInvoking Agent...")
 
     # Run the graph
-    result = await graph.ainvoke(cast(Any, inputs), config={"configurable": {"thread_id": "test_thread"}})
+    result = await graph.ainvoke(
+        cast(Any, inputs), config={"configurable": {"thread_id": "test_thread"}}
+    )
 
     # Verify usage_stats in result
     usage = result.get("usage_stats", {})
@@ -54,7 +55,9 @@ async def test_finops_integration():
     print(f"   - Total Calls:  {usage.get('calls')}")
     print(f"   - Total Cost:   ${usage.get('total_cost_usd', 0):.8f}")
 
-    print("\n🔍 Check your BigQuery table 'biometric_data_dev.finops_logs' to see the persistent entry!")
+    print(
+        "\n🔍 Check your BigQuery table 'biometric_data_dev.finops_logs' to see the persistent entry!"
+    )
 
 
 if __name__ == "__main__":

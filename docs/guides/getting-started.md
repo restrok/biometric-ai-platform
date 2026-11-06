@@ -86,7 +86,7 @@ uv run scripts/upload_knowledge.py --reset
 ## 🔄 Synchronizing Data (Provider to BigQuery)
 
 ### 1. Authenticate with your Provider
-For Garmin, run the browser-based authentication to generate session tokens. 
+For Garmin, run the browser-based authentication to generate session tokens.
 
 **Note for Linux/Raspberry Pi users:** You must first install the browser and its system dependencies:
 ```bash

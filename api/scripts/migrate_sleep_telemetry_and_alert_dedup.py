@@ -34,7 +34,9 @@ def migrate_bigquery_schemas() -> None:
     """Migrates BigQuery schemas for sleep telemetry and alert dispatch log."""
     from google.cloud import bigquery
 
-    log.info(f"🚀 Starting BigQuery schema migration for project {PROJECT_ID}, dataset {DATASET_ID}...")
+    log.info(
+        f"🚀 Starting BigQuery schema migration for project {PROJECT_ID}, dataset {DATASET_ID}..."
+    )
     try:
         client = bigquery.Client(project=PROJECT_ID)
     except Exception as e:
@@ -126,12 +128,21 @@ def migrate_bigquery_schemas() -> None:
     # 4. hrv_readings_history: Create table
     hrv_readings_table_id = f"{PROJECT_ID}.{DATASET_ID}.hrv_readings_history"
     readings_schema = [
-        bigquery.SchemaField("date", "STRING", mode="REQUIRED", description="Calendar date (YYYY-MM-DD)"),
         bigquery.SchemaField(
-            "timestamp_ms", "INT64", mode="REQUIRED", description="Reading epoch timestamp in milliseconds"
+            "date", "STRING", mode="REQUIRED", description="Calendar date (YYYY-MM-DD)"
         ),
-        bigquery.SchemaField("hrv_value", "FLOAT64", mode="REQUIRED", description="5-minute rMSSD HRV reading"),
-        bigquery.SchemaField("user_id", "STRING", mode="REQUIRED", description="Internal user identifier"),
+        bigquery.SchemaField(
+            "timestamp_ms",
+            "INT64",
+            mode="REQUIRED",
+            description="Reading epoch timestamp in milliseconds",
+        ),
+        bigquery.SchemaField(
+            "hrv_value", "FLOAT64", mode="REQUIRED", description="5-minute rMSSD HRV reading"
+        ),
+        bigquery.SchemaField(
+            "user_id", "STRING", mode="REQUIRED", description="Internal user identifier"
+        ),
     ]
     readings_table = bigquery.Table(hrv_readings_table_id, schema=readings_schema)
     try:
@@ -144,20 +155,38 @@ def migrate_bigquery_schemas() -> None:
     alert_log_table_id = f"{PROJECT_ID}.{DATASET_ID}.alert_dispatch_log"
     alert_schema = [
         bigquery.SchemaField(
-            "alert_key", "STRING", mode="REQUIRED", description="sha256(alert_type|data_date|payload_hash)"
+            "alert_key",
+            "STRING",
+            mode="REQUIRED",
+            description="sha256(alert_type|data_date|payload_hash)",
         ),
         bigquery.SchemaField(
-            "alert_type", "STRING", mode="REQUIRED", description="Type of alert e.g. immune_radar, acwr_workload"
+            "alert_type",
+            "STRING",
+            mode="REQUIRED",
+            description="Type of alert e.g. immune_radar, acwr_workload",
         ),
         bigquery.SchemaField(
-            "data_date", "DATE", mode="REQUIRED", description="Date of the biometric data triggering the alert"
+            "data_date",
+            "DATE",
+            mode="REQUIRED",
+            description="Date of the biometric data triggering the alert",
         ),
         bigquery.SchemaField(
-            "payload_hash", "STRING", mode="REQUIRED", description="sha256 hash of triggering payload values"
+            "payload_hash",
+            "STRING",
+            mode="REQUIRED",
+            description="sha256 hash of triggering payload values",
         ),
-        bigquery.SchemaField("sent_at", "TIMESTAMP", mode="REQUIRED", description="Timestamp of dispatch"),
-        bigquery.SchemaField("channel", "STRING", mode="REQUIRED", description="Delivery channel e.g. telegram"),
-        bigquery.SchemaField("user_id", "STRING", mode="REQUIRED", description="Internal user identifier"),
+        bigquery.SchemaField(
+            "sent_at", "TIMESTAMP", mode="REQUIRED", description="Timestamp of dispatch"
+        ),
+        bigquery.SchemaField(
+            "channel", "STRING", mode="REQUIRED", description="Delivery channel e.g. telegram"
+        ),
+        bigquery.SchemaField(
+            "user_id", "STRING", mode="REQUIRED", description="Internal user identifier"
+        ),
     ]
     alert_table = bigquery.Table(alert_log_table_id, schema=alert_schema)
     alert_table.time_partitioning = bigquery.TimePartitioning(
@@ -222,10 +251,14 @@ def migrate_local_duckdb(duckdb_path: Path) -> dict[str, dict[str, int | str]]:
 
         phys_count = 0
         if "daily_physiology" in tables:
-            conn.execute("ALTER TABLE daily_physiology ADD COLUMN IF NOT EXISTS body_battery_charged_sleep INTEGER;")
+            conn.execute(
+                "ALTER TABLE daily_physiology ADD COLUMN IF NOT EXISTS body_battery_charged_sleep INTEGER;"
+            )
             row_p = conn.execute("SELECT COUNT(*) FROM daily_physiology").fetchone()
             phys_count = int(row_p[0]) if row_p is not None else 0
-            log.info(f"✅ DuckDB daily_physiology column body_battery_charged_sleep added/verified. Rows: {phys_count}")
+            log.info(
+                f"✅ DuckDB daily_physiology column body_battery_charged_sleep added/verified. Rows: {phys_count}"
+            )
 
         # 2. Create hrv_readings_history
         conn.execute("""
@@ -243,7 +276,9 @@ def migrate_local_duckdb(duckdb_path: Path) -> dict[str, dict[str, int | str]]:
 
         # Column verification
         cols_phys = (
-            [c[0] for c in conn.execute("DESCRIBE daily_physiology").fetchall()] if "daily_physiology" in tables else []
+            [c[0] for c in conn.execute("DESCRIBE daily_physiology").fetchall()]
+            if "daily_physiology" in tables
+            else []
         )
         cols_hrv = [c[0] for c in conn.execute("DESCRIBE hrv_readings_history").fetchall()]
 

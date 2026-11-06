@@ -1,7 +1,7 @@
 [project]
 name = "api"
 version = "0.5.2"
-description = "Add your description here"
+description = "Biometric AI Platform API"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -42,37 +42,68 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "types-requests>=2.33.0.20260513",
+    "pre-commit>=3.7.0",
+    "pip-audit>=2.7.0",
+]
+lint = [
+    "mypy>=1.15.0",
+    "ruff>=0.9.6",
+    "types-requests>=2.33.0.20260513",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",
+    "pytest-xdist>=3.8.0",
 ]
 
 [tool.ruff]
-line-length = 120
+line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "RET", "SIM", "ARG", "PTH"]
-ignore = [
-    "B008", # Allow FastAPI Depends
-    "E402", # Allow imports after environment setup
-    "T201", # Allow print in CLI/scripts
-    "E501", # Ignore line length
-    "SIM102", # Allow nested if
-    "B904", # Ignore raise from
-    "N815", # Allow mixedCase (Garmin API fields)
-    "E701", # Allow multiple statements on one line (colon)
-    "PTH",  # Don't force Path.open() over open()
-    "C416", # Don't force dict() over dict comprehension
-    "ARG001", # Allow unused arguments (common in LangGraph nodes)
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "S",   # flake8-bandit (SAST)
 ]
+ignore = [
+    "B008",   # Allow FastAPI Depends
+    "E402",   # Module level import not at top of file
+    "E501",   # Line too long (managed by formatter)
+    "B904",   # Allow raise HTTPException without from e
+    "SIM102", # Allow nested if
+    "SIM108", # Allow if-else instead of ternary
+    "S104",   # Allow binding to 0.0.0.0 for containerized services
+    "S608",   # Allow f-string BigQuery table/dataset identifier interpolation
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+"**/tests/*" = ["S101", "S105", "S106"]
+"scripts/*" = ["S101", "S105", "S106", "T201"]
+"**/scripts/*" = ["S101", "S105", "S106", "T201"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-strict = false
-ignore_missing_imports = true
 check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
 explicit_package_bases = true
-
-# [tool.uv.sources]
-# garmin-training-toolkit-sdk = { path = "../../garmin-training-toolkit/garmin_toolkit" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-n auto --dist loadfile --cov=src --cov-report=term-missing"

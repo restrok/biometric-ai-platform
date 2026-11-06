@@ -382,4 +382,3 @@ sensors the device does not have or endpoints Garmin intentionally withholds:
 | SpO2 during swimming | Optical sensor blocked by water submersion |
 | Left/right stroke symmetry | Requires dedicated HRM-Swim chest pod or MARQ-class watch |
 | Water temperature | No water thermometer in consumer Garmin wrist devices |
-

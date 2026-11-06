@@ -6,7 +6,6 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.messages import HumanMessage
-
 from src.agent.graph import AgentState, graph
 
 
@@ -26,7 +25,9 @@ async def run_demo():
     }
 
     # Run the graph
-    async for output in graph.astream(inputs, config={"configurable": {"thread_id": "demo_session"}}):
+    async for output in graph.astream(
+        inputs, config={"configurable": {"thread_id": "demo_session"}}
+    ):
         for node_name, state in output.items():
             print(f"\n--- Node: {node_name} ---")
             if "messages" in state:

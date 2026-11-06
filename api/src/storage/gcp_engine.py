@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
-import google.cloud.firestore as firestore  # type: ignore[attr-defined]
+import google.cloud.firestore as firestore
 from google.cloud import bigquery
 
 from src.storage.base import StorageEngine
@@ -32,7 +32,9 @@ class GCPStorageEngine(StorageEngine):
         self._db: firestore.Client | None = None
         self._bq: bigquery.Client | None = None
         self._users_cache: tuple[float, list[str]] | None = None
-        log.info(f"☁️ GCPStorageEngine initialized for project: {self.project_id}, dataset: {self.dataset_id}")
+        log.info(
+            f"☁️ GCPStorageEngine initialized for project: {self.project_id}, dataset: {self.dataset_id}"
+        )
 
     @property
     def db(self) -> firestore.Client:
@@ -49,7 +51,7 @@ class GCPStorageEngine(StorageEngine):
     # --- Profile & User Management ---
     def get_user_profile(self, user_id: str) -> dict[str, Any]:
         doc_ref = self.db.collection("user_profiles").document(user_id)
-        doc = doc_ref.get()  # type: ignore[union-attr]
+        doc = doc_ref.get()
         if getattr(doc, "exists", False):
             return dict(getattr(doc, "to_dict", lambda: {})() or {})
         return {}
@@ -66,7 +68,12 @@ class GCPStorageEngine(StorageEngine):
 
     # --- Goals ---
     def get_user_goals(self, user_id: str) -> list[dict[str, Any]]:
-        docs = self.db.collection("user_goals").where("user_id", "==", user_id).where("status", "==", "active").stream()
+        docs = (
+            self.db.collection("user_goals")
+            .where("user_id", "==", user_id)
+            .where("status", "==", "active")
+            .stream()
+        )
         goals = [{"goal_id": d.id, **dict(d.to_dict() or {})} for d in docs]
         if goals:
             return goals
@@ -109,7 +116,10 @@ class GCPStorageEngine(StorageEngine):
     # --- Semantic Memories ---
     def get_semantic_memories(self, user_id: str) -> list[dict[str, Any]]:
         docs = (
-            self.db.collection("user_memories").where("user_id", "==", user_id).where("is_active", "==", True).stream()
+            self.db.collection("user_memories")
+            .where("user_id", "==", user_id)
+            .where("is_active", "==", True)
+            .stream()
         )
         return [{"memory_id": d.id, **dict(d.to_dict() or {})} for d in docs]
 
@@ -138,7 +148,7 @@ class GCPStorageEngine(StorageEngine):
 
     def update_semantic_memory(self, memory_id: str, new_text: str) -> str:
         doc_ref = self.db.collection("user_memories").document(memory_id)
-        doc = doc_ref.get()  # type: ignore[union-attr]
+        doc = doc_ref.get()
         if not getattr(doc, "exists", False):
             return f"Error: Memory {memory_id} not found."
         now = datetime.now(UTC)
@@ -147,7 +157,7 @@ class GCPStorageEngine(StorageEngine):
 
     def retire_semantic_memory(self, memory_id: str) -> str:
         doc_ref = self.db.collection("user_memories").document(memory_id)
-        doc = doc_ref.get()  # type: ignore[union-attr]
+        doc = doc_ref.get()
         if not getattr(doc, "exists", False):
             return f"Error: Memory {memory_id} not found."
         now = datetime.now(UTC)
@@ -189,9 +199,15 @@ class GCPStorageEngine(StorageEngine):
         # 2. Update BigQuery historical table
         table_id = f"{self.project_id}.{self.dataset_id}.user_health_status"
         safe_feeling = str(health_data.get("feeling", "")).replace("'", "''")
-        safe_notes = str(health_data.get("notes", "")).replace("'", "''") if health_data.get("notes") else None
+        safe_notes = (
+            str(health_data.get("notes", "")).replace("'", "''")
+            if health_data.get("notes")
+            else None
+        )
         safe_injury = (
-            str(health_data.get("injury_notes", "")).replace("'", "''") if health_data.get("injury_notes") else None
+            str(health_data.get("injury_notes", "")).replace("'", "''")
+            if health_data.get("injury_notes")
+            else None
         )
         fatigue = health_data.get("fatigue_level")
 
@@ -200,7 +216,7 @@ class GCPStorageEngine(StorageEngine):
             USING (SELECT DATE '{target_date}' as date) S
             ON T.date = S.date AND T.user_id = '{user_id}'
             WHEN MATCHED THEN
-                UPDATE SET 
+                UPDATE SET
                     feeling = '{safe_feeling}',
                     notes = {f"'{safe_notes}'" if safe_notes else "NULL"},
                     fatigue_level = {fatigue if fatigue is not None else "NULL"},
@@ -320,7 +336,9 @@ class GCPStorageEngine(StorageEngine):
                 r["start_time"] = r["start_time"].isoformat()
         return records
 
-    def get_activity_telemetry(self, activity_id: str, _user_id: str | None = None) -> list[dict[str, Any]]:
+    def get_activity_telemetry(
+        self, activity_id: str, _user_id: str | None = None
+    ) -> list[dict[str, Any]]:
         table_id = f"{self.project_id}.{self.dataset_id}.latest_activity_telemetry"
         query = f"""
             SELECT * FROM `{table_id}`
@@ -394,7 +412,9 @@ class GCPStorageEngine(StorageEngine):
         return df.to_dict(orient="records")
 
     # --- Vector Search / RAG ---
-    def search_knowledge_vectors(self, query_vector: list[float], top_k: int = 5) -> list[dict[str, Any]]:
+    def search_knowledge_vectors(
+        self, query_vector: list[float], top_k: int = 5
+    ) -> list[dict[str, Any]]:
         table_id = f"{self.project_id}.{self.dataset_id}.{self.knowledge_table}"
         sql = f"""
         SELECT base.content, base.metadata, distance
@@ -572,7 +592,9 @@ class GCPStorageEngine(StorageEngine):
         )
         try:
             self.bq.query(query, job_config=job_config).result()
-            log.info(f"✅ Recorded alert dispatch: {alert_key} ({alert_type}) for user {user_id} on {date_str}")
+            log.info(
+                f"✅ Recorded alert dispatch: {alert_key} ({alert_type}) for user {user_id} on {date_str}"
+            )
         except Exception as e:
             log.error(f"❌ Failed to record alert dispatch in BigQuery: {e}")
             raise

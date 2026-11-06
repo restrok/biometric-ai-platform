@@ -78,7 +78,9 @@ class ApiKeyRequest(BaseModel):
 def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str = "garmin") -> None:
     """Seeds realistic sample biometric data tailored to the tracker provider."""
     now = datetime.now()
-    log.info(f"🌱 Seeding simulated biometric data for athlete '{user_id}' with provider '{provider}'...")
+    log.info(
+        f"🌱 Seeding simulated biometric data for athlete '{user_id}' with provider '{provider}'..."
+    )
 
     # 1. 14 Days of Daily Physiology
     physio_records = []
@@ -171,11 +173,17 @@ def seed_mock_biometric_data(engine: StorageEngine, user_id: str, provider: str 
 
     engine.insert_activities(user_id, activities)
     engine.log_health_status(
-        user_id, {"feeling": "Ready & Rested", "fatigue_level": 2, "notes": "Simulated initial baseline."}
+        user_id,
+        {"feeling": "Ready & Rested", "fatigue_level": 2, "notes": "Simulated initial baseline."},
     )
     engine.save_user_goal(
         user_id,
-        {"goal_type": "race", "description": "Sub-40min 10K Target", "target_date": "2026-11-15", "status": "active"},
+        {
+            "goal_type": "race",
+            "description": "Sub-40min 10K Target",
+            "target_date": "2026-11-15",
+            "status": "active",
+        },
     )
     log.info(f"✅ Demo biometric baseline seeded for '{user_id}' ({provider}).")
 
@@ -245,7 +253,9 @@ async def save_setup(payload: SetupConfigPayload):
                 from garmin_training_toolkit_sdk.auth import get_tokens_from_ticket
 
                 tok = get_tokens_from_ticket(ticket)
-                log.info(f"🎫 Exchanged Garmin SSO ticket '{ticket[:10]}...' for user '{payload.user_id}'.")
+                log.info(
+                    f"🎫 Exchanged Garmin SSO ticket '{ticket[:10]}...' for user '{payload.user_id}'."
+                )
             except Exception as e:
                 log.error(f"Failed to exchange Garmin ticket: {e}")
                 err_str = str(e)
@@ -328,7 +338,11 @@ async def get_system_setup():
     base_url = (
         os.getenv("OLLAMA_BASE_URL")
         if provider == "ollama"
-        else (os.getenv("OPENAI_BASE_URL") or os.getenv("LLM_BASE_URL") or os.getenv("LM_STUDIO_BASE_URL"))
+        else (
+            os.getenv("OPENAI_BASE_URL")
+            or os.getenv("LLM_BASE_URL")
+            or os.getenv("LM_STUDIO_BASE_URL")
+        )
     )
     emb_provider = os.getenv("EMBEDDINGS_PROVIDER", "fastembed")
     emb_base_url = os.getenv("EMBEDDING_BASE_URL")
@@ -340,7 +354,9 @@ async def get_system_setup():
         "llm_model": model,
         "llm_base_url": base_url,
         "llm_has_api_key": bool(
-            os.getenv("OLLAMA_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            os.getenv("OLLAMA_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
         ),
         "embeddings_provider": emb_provider,
         "embedding_base_url": emb_base_url,
@@ -396,7 +412,9 @@ async def save_system_setup(payload: SystemConfigPayload):
         storage_dir.mkdir(parents=True, exist_ok=True)
         with open(storage_dir / "system_config.json", "w") as f:
             json.dump(persistent_cfg, f, indent=2)
-        log.info(f"💾 Persistent system configuration written to {storage_dir / 'system_config.json'}")
+        log.info(
+            f"💾 Persistent system configuration written to {storage_dir / 'system_config.json'}"
+        )
     except Exception as e:
         log.warning(f"Could not write system_config.json: {e}")
 
@@ -647,7 +665,9 @@ async def google_auth_callback(
             },
         )
 
-        return RedirectResponse(url=f"/dashboard?user_id={user_id}&auth=google_success", status_code=303)
+        return RedirectResponse(
+            url=f"/dashboard?user_id={user_id}&auth=google_success", status_code=303
+        )
     except Exception as e:
         log.exception(f"Failed to exchange Google Health auth code: {e}")
         return HTMLResponse(
@@ -763,7 +783,9 @@ async def fitbit_auth_callback(
             },
         )
 
-        return RedirectResponse(url=f"/dashboard?user_id={user_id}&auth=fitbit_success", status_code=303)
+        return RedirectResponse(
+            url=f"/dashboard?user_id={user_id}&auth=fitbit_success", status_code=303
+        )
     except Exception as e:
         log.exception(f"Failed to exchange Fitbit auth code: {e}")
         return HTMLResponse(
@@ -807,7 +829,9 @@ async def dashboard_page(user_id: str | None = None):
     """Renders the dark-mode sports performance dashboard."""
     engine = get_storage_engine()
     users = engine.list_users()
-    default_user = str(user_id or (users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user")))
+    default_user = str(
+        user_id or (users[0] if users else os.getenv("DEFAULT_USER_ID", "default_user"))
+    )
     content = get_template("dashboard.html").replace("{{ATHLETE_ID}}", default_user)
     return HTMLResponse(content=content)
 
@@ -855,7 +879,9 @@ async def dashboard_data(user_id: str | None = None, force: bool = False):
         recent_km = float(macro_load[-1].get("total_distance_km", 0.0))
         weekly_km = round(recent_km, 1)
         past_weeks = macro_load[-4:-1] if len(macro_load) >= 4 else macro_load[:-1]
-        chronic_km = sum(float(w.get("total_distance_km", 0.0)) for w in past_weeks) / max(1, len(past_weeks))
+        chronic_km = sum(float(w.get("total_distance_km", 0.0)) for w in past_weeks) / max(
+            1, len(past_weeks)
+        )
         computed_acwr = round(recent_km / chronic_km, 2) if chronic_km > 0 else 1.0
 
     raw_payload = {
@@ -1005,7 +1031,12 @@ async def save_athlete_dashboard_layout(user_id: str, payload: dict[str, Any]):
     clean_visible = {k: v for k, v in raw_visible.items() if k != "widget-chart"}
     clean_sizes = {k: v for k, v in raw_sizes.items() if k != "widget-chart"}
     clean_order = ["widget-chart-physio" if x == "widget-chart" else x for x in raw_order]
-    clean_layout = {"order": clean_order, "visible": clean_visible, "sizes": clean_sizes, "active_kpis": active_kpis}
+    clean_layout = {
+        "order": clean_order,
+        "visible": clean_visible,
+        "sizes": clean_sizes,
+        "active_kpis": active_kpis,
+    }
 
     engine.update_user_profile(user_id, {"dashboard_layout": clean_layout})
     log.info(f"🎨 Saved personalized dashboard layout for athlete: {user_id}")

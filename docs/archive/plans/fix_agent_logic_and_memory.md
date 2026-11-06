@@ -32,7 +32,7 @@ sync_triggered_this_turn = any(
 ## 3. Problem: Stale Data & Cache Pollution
 **Issue:** `retrieve_biometric_data` uses a 5-minute TTL cache. If a sync finishes in 30 seconds, the retriever still shows old data for the remaining 4.5 minutes.
 
-**Solution:** 
+**Solution:**
 - Add a `force_reload: bool = False` argument to `retrieve_biometric_data`.
 - If `force_reload` is True, bypass `lru_cache`.
 - The agent should automatically set `force_reload=True` if a sync was detected in the last 2 turns.

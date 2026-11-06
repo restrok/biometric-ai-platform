@@ -75,3 +75,12 @@ credentials.json
 *.enc
 secrets/
 
+
+# Testing & Quality Caches
+.coverage
+*.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

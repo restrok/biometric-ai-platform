@@ -11,7 +11,9 @@ def test_calculate_critical_power_and_w_prime(mock_bq):
     mock_client = MagicMock()
     mock_bq.return_value = mock_client
     mock_query_job = MagicMock()
-    mock_query_job.result.return_value = [MagicMock(peak_power=310.0, peak_3m_w=290.0, peak_12m_w=255.0)]
+    mock_query_job.result.return_value = [
+        MagicMock(peak_power=310.0, peak_3m_w=290.0, peak_12m_w=255.0)
+    ]
     mock_client.query.return_value = mock_query_job
 
     raw_res = calculate_critical_power_and_w_prime.invoke(

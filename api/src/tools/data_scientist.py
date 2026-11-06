@@ -32,7 +32,9 @@ def _get_available_tables(client: bigquery.Client, project_id: str, dataset_id: 
     return _tables_cache[cache_key]
 
 
-def _qualify_and_isolate_sql(sql: str, user_id: str, project_id: str, dataset_id: str, tables: list[str]) -> str:
+def _qualify_and_isolate_sql(
+    sql: str, user_id: str, project_id: str, dataset_id: str, tables: list[str]
+) -> str:
     """Normalizes user_id filter and qualifies unqualified table names safely."""
     # 1. Replace any single-quoted user_id literal in `user_id = '...'` with the verified user_id
     normalized_sql = re.sub(
@@ -62,7 +64,9 @@ def _format_bytes(size: float) -> str:
 class SQLQueryInput(BaseModel):
     """Input schema for executing an exploratory SQL query."""
 
-    sql: str = Field(..., description="The complete BigQuery SQL query to execute. MUST be a SELECT statement.")
+    sql: str = Field(
+        ..., description="The complete BigQuery SQL query to execute. MUST be a SELECT statement."
+    )
     user_id: str = Field(..., description="The internal ID of the user (to verify isolation).")
 
 
@@ -88,9 +92,7 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
         return "Error: Only SELECT operations are allowed for exploratory analysis."
 
     if "SELECT *" in sql.upper():
-        return (
-            "Error: SELECT * is forbidden. Please list explicit columns to ensure cost efficiency and schema stability."
-        )
+        return "Error: SELECT * is forbidden. Please list explicit columns to ensure cost efficiency and schema stability."
 
     try:
         client = get_bq_client(pid)
@@ -98,10 +100,11 @@ def execute_exploratory_query(sql: str, user_id: str) -> str:
         qualified_sql = _qualify_and_isolate_sql(sql, user_id, pid, ds, available_tables)
 
         # Isolation Check after normalization
-        if f"user_id = '{user_id}'" not in qualified_sql and f"user_id='{user_id}'" not in qualified_sql:
-            return (
-                f"Error: Security violation. Query must include 'WHERE user_id = '{user_id}'' to ensure data isolation."
-            )
+        if (
+            f"user_id = '{user_id}'" not in qualified_sql
+            and f"user_id='{user_id}'" not in qualified_sql
+        ):
+            return f"Error: Security violation. Query must include 'WHERE user_id = '{user_id}'' to ensure data isolation."
 
         # 2. Automatic Dry Run Guardrail (< 500 MB)
         dry_run_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
@@ -145,7 +148,10 @@ def execute_exploratory_query_dry_run(sql: str, user_id: str) -> str:
         available_tables = _get_available_tables(client, pid, ds)
         qualified_sql = _qualify_and_isolate_sql(sql, user_id, pid, ds, available_tables)
 
-        if f"user_id = '{user_id}'" not in qualified_sql and f"user_id='{user_id}'" not in qualified_sql:
+        if (
+            f"user_id = '{user_id}'" not in qualified_sql
+            and f"user_id='{user_id}'" not in qualified_sql
+        ):
             return f"Error: Security violation. Query must include 'WHERE user_id = '{user_id}''."
 
         job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)

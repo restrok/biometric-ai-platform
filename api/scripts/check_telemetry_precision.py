@@ -60,13 +60,13 @@ def audit_telemetry_precision(
             activity_name = f"ID:{activity_id}"
 
         query_raw = f"""
-            SELECT 
-                timestamp_ms, hr_bpm, power_w, cadence_spm, stride_length_mm, 
-                vertical_oscillation_cm, ground_contact_time_ms, vertical_ratio, 
-                vertical_speed, body_battery, temperature_c, elevation_m, 
+            SELECT
+                timestamp_ms, hr_bpm, power_w, cadence_spm, stride_length_mm,
+                vertical_oscillation_cm, ground_contact_time_ms, vertical_ratio,
+                vertical_speed, body_battery, temperature_c, elevation_m,
                 speed_mps, gap_mps, performance_condition, run_walk_index
-            FROM `{project_id}.{dataset}.latest_activity_telemetry` 
-            WHERE activity_id = '{activity_id}' 
+            FROM `{project_id}.{dataset}.latest_activity_telemetry`
+            WHERE activity_id = '{activity_id}'
             ORDER BY timestamp_ms
         """
         df_raw = client.query(query_raw).to_dataframe()
@@ -94,7 +94,10 @@ def audit_telemetry_precision(
     agg_map.update({"hr_bpm": ["mean", "max"], "power_w": ["mean", "max"]})
 
     raw_15s = df_raw.groupby("time_block_15s").agg(agg_map)
-    raw_15s.columns = [f"{c[0]}_{c[1]}" if isinstance(c, tuple) and c[1] != "mean" else c[0] for c in raw_15s.columns]
+    raw_15s.columns = [
+        f"{c[0]}_{c[1]}" if isinstance(c, tuple) and c[1] != "mean" else c[0]
+        for c in raw_15s.columns
+    ]
     raw_15s = raw_15s.reset_index()
 
     # 2. Simulate Event-Based Segmentation (Work Thresholds: >180W or >145spm)
@@ -107,9 +110,12 @@ def audit_telemetry_precision(
         raw_15s["is_work"] = 1  # Fallback
 
     # 5-min limit logic
-    raw_15s["time_bucket"] = raw_15s["time_block_15s"].astype("datetime64[ns]").astype(np.int64) // 10**9 // 300
+    raw_15s["time_bucket"] = (
+        raw_15s["time_block_15s"].astype("datetime64[ns]").astype(np.int64) // 10**9 // 300
+    )
     raw_15s["change"] = (
-        (raw_15s["is_work"].diff().fillna(0).abs() > 0) | (raw_15s["time_bucket"].diff().fillna(0).abs() > 0)
+        (raw_15s["is_work"].diff().fillna(0).abs() > 0)
+        | (raw_15s["time_bucket"].diff().fillna(0).abs() > 0)
     ).astype(int)
     raw_15s["segment_id"] = raw_15s["change"].cumsum()
 
@@ -167,9 +173,13 @@ def audit_telemetry_precision(
 
         # Check MAXes
         if "power_w_max" in seg:
-            log.info(f"  - POWER MAX         : {seg['power_w_max']:>7.1f} | {gt['power_w'].max():>7.1f} | 0.00%")
+            log.info(
+                f"  - POWER MAX         : {seg['power_w_max']:>7.1f} | {gt['power_w'].max():>7.1f} | 0.00%"
+            )
         if "hr_bpm_max" in seg:
-            log.info(f"  - HR MAX            : {seg['hr_bpm_max']:>7.1f} | {gt['hr_bpm'].max():>7.1f} | 0.00%")
+            log.info(
+                f"  - HR MAX            : {seg['hr_bpm_max']:>7.1f} | {gt['hr_bpm'].max():>7.1f} | 0.00%"
+            )
 
     log.info("-" * 120)
 

@@ -42,14 +42,24 @@ def check_proactive_alerts(user_id: str) -> str:
             if len(hrv_vals) >= 5 and len(rhr_vals) >= 5:
                 today_hrv, base_hrv = hrv_vals[0], hrv_vals[1:]
                 std_hrv = statistics.stdev(base_hrv) if len(base_hrv) > 1 else 0.0
-                hrv_z = round((today_hrv - statistics.mean(base_hrv)) / std_hrv, 2) if std_hrv > 0 else 0.0
+                hrv_z = (
+                    round((today_hrv - statistics.mean(base_hrv)) / std_hrv, 2)
+                    if std_hrv > 0
+                    else 0.0
+                )
 
                 today_rhr, base_rhr = rhr_vals[0], rhr_vals[1:]
                 std_rhr = statistics.stdev(base_rhr) if len(base_rhr) > 1 else 0.0
-                rhr_z = round((today_rhr - statistics.mean(base_rhr)) / std_rhr, 2) if std_rhr > 0 else 0.0
+                rhr_z = (
+                    round((today_rhr - statistics.mean(base_rhr)) / std_rhr, 2)
+                    if std_rhr > 0
+                    else 0.0
+                )
 
                 if hrv_z < -1.5 and rhr_z > 1.5:
-                    immune_msg = f"⚠️ Alerta radar inmune para {user_id}: HRV Z {hrv_z}, RHR Z +{rhr_z}."
+                    immune_msg = (
+                        f"⚠️ Alerta radar inmune para {user_id}: HRV Z {hrv_z}, RHR Z +{rhr_z}."
+                    )
                     alerts_triggered.append(immune_msg)
 
                     data_date = str(physio[0].get("date") or date.today())[:10]
@@ -70,7 +80,9 @@ def check_proactive_alerts(user_id: str) -> str:
                                 user_id=user_id,
                             )
                     else:
-                        log.info(f"Skipping dispatch: {alert_type} for {user_id} on {data_date} already dispatched.")
+                        log.info(
+                            f"Skipping dispatch: {alert_type} for {user_id} on {data_date} already dispatched."
+                        )
 
             return json.dumps(
                 {
@@ -86,7 +98,9 @@ def check_proactive_alerts(user_id: str) -> str:
             )
         except Exception as e:
             log.warning(f"Local proactive alerts fallback: {e}")
-            return json.dumps({"user_id": user_id, "has_alerts": False, "alerts_count": 0, "alerts_triggered": []})
+            return json.dumps(
+                {"user_id": user_id, "has_alerts": False, "alerts_count": 0, "alerts_triggered": []}
+            )
 
     config = get_config()
     pid = config["project_id"]
@@ -107,7 +121,9 @@ def check_proactive_alerts(user_id: str) -> str:
             ORDER BY date DESC LIMIT 21
         """
         hrv_res = list(client.query(query_hrv).result())
-        hrv_rows: list[float] = [float(r.avg_hrv) for r in hrv_res if getattr(r, "avg_hrv", None) is not None]
+        hrv_rows: list[float] = [
+            float(r.avg_hrv) for r in hrv_res if getattr(r, "avg_hrv", None) is not None
+        ]
 
         query_rhr = f"""
             SELECT date, resting_heart_rate
@@ -117,17 +133,27 @@ def check_proactive_alerts(user_id: str) -> str:
         """
         rhr_res = list(client.query(query_rhr).result())
         rhr_rows: list[float] = [
-            float(r.resting_heart_rate) for r in rhr_res if getattr(r, "resting_heart_rate", None) is not None
+            float(r.resting_heart_rate)
+            for r in rhr_res
+            if getattr(r, "resting_heart_rate", None) is not None
         ]
 
         if len(hrv_rows) >= 5 and len(rhr_rows) >= 5:
             today_hrv, baseline_hrv = hrv_rows[0], hrv_rows[1:]
             std_hrv = statistics.stdev(baseline_hrv) if len(baseline_hrv) > 1 else 0.0
-            hrv_z = round((today_hrv - statistics.mean(baseline_hrv)) / std_hrv, 2) if std_hrv > 0 else 0.0
+            hrv_z = (
+                round((today_hrv - statistics.mean(baseline_hrv)) / std_hrv, 2)
+                if std_hrv > 0
+                else 0.0
+            )
 
             today_rhr, baseline_rhr = rhr_rows[0], rhr_rows[1:]
             std_rhr = statistics.stdev(baseline_rhr) if len(baseline_rhr) > 1 else 0.0
-            rhr_z = round((today_rhr - statistics.mean(baseline_rhr)) / std_rhr, 2) if std_rhr > 0 else 0.0
+            rhr_z = (
+                round((today_rhr - statistics.mean(baseline_rhr)) / std_rhr, 2)
+                if std_rhr > 0
+                else 0.0
+            )
 
             if hrv_z < -1.5 and rhr_z > 1.5:
                 immune_msg = (
@@ -141,7 +167,9 @@ def check_proactive_alerts(user_id: str) -> str:
                 data_date = str(raw_date)[:10] if raw_date else str(date.today())[:10]
                 alert_type = "immune_radar"
                 payload_hash = hashlib.sha256(f"{user_id}:{hrv_z}:{rhr_z}".encode()).hexdigest()
-                alert_key = hashlib.sha256(f"{user_id}|{alert_type}|{data_date}|{payload_hash}".encode()).hexdigest()
+                alert_key = hashlib.sha256(
+                    f"{user_id}|{alert_type}|{data_date}|{payload_hash}".encode()
+                ).hexdigest()
 
                 if not storage_engine.is_alert_dispatched(alert_key, data_date=data_date):
                     if send_proactive_notification(user_id, immune_msg):
@@ -154,7 +182,9 @@ def check_proactive_alerts(user_id: str) -> str:
                             user_id=user_id,
                         )
                 else:
-                    log.info(f"Skipping dispatch: {alert_type} for {user_id} on {data_date} already dispatched.")
+                    log.info(
+                        f"Skipping dispatch: {alert_type} for {user_id} on {data_date} already dispatched."
+                    )
 
         # 2. ACWR Workload Check
         query_acwr = f"""
@@ -193,7 +223,9 @@ def check_proactive_alerts(user_id: str) -> str:
                             user_id=user_id,
                         )
                 else:
-                    log.info(f"Skipping dispatch: {alert_type} for {user_id} on {acwr_date_str} already dispatched.")
+                    log.info(
+                        f"Skipping dispatch: {alert_type} for {user_id} on {acwr_date_str} already dispatched."
+                    )
 
         result = {
             "user_id": user_id,
@@ -205,7 +237,9 @@ def check_proactive_alerts(user_id: str) -> str:
             "alerts_triggered": alerts_triggered,
         }
 
-        log.info(f"✅ Proactive alerts check completed for {user_id}: {len(alerts_triggered)} alerts")
+        log.info(
+            f"✅ Proactive alerts check completed for {user_id}: {len(alerts_triggered)} alerts"
+        )
         return json.dumps(result, indent=2)
 
     except Exception as e:

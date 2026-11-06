@@ -17,7 +17,6 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from scripts.auth_google_calendar_gmail_cli import parse_code_from_input
 from src.google_workspace.calendar import GoogleCalendarClient, _format_rfc3339
 from src.google_workspace.gmail import (
@@ -111,7 +110,9 @@ def test_oauth_exchange_code_success(mock_oauth_client):
         return mock_resp
 
     with patch("httpx.Client.post", side_effect=mock_post):
-        result = mock_oauth_client.exchange_code_for_tokens("test-auth-code", code_verifier="test-verifier")
+        result = mock_oauth_client.exchange_code_for_tokens(
+            "test-auth-code", code_verifier="test-verifier"
+        )
         assert result["access_token"] == "ya29.fake-access-token"
         assert result["refresh_token"] == "1//fake-refresh-token"
         assert "created_at" in result
@@ -149,11 +150,19 @@ def test_oauth_refresh_token(mock_oauth_client):
 def test_vault_encrypted_storage_and_separation(temp_vault):
     user_id = "test_athlete@example.com"
     cal_tokens = {"access_token": "cal-access", "refresh_token": "cal-refresh", "expires_in": 3600}
-    gmail_tokens = {"access_token": "gmail-access", "refresh_token": "gmail-refresh", "expires_in": 3600}
+    gmail_tokens = {
+        "access_token": "gmail-access",
+        "refresh_token": "gmail-refresh",
+        "expires_in": 3600,
+    }
 
     # Store separately
-    cal_path = save_tokens_to_vault("google_calendar", user_id, cal_tokens, vault=temp_vault, sync_homelab_dev=False)
-    gmail_path = save_tokens_to_vault("google_gmail", user_id, gmail_tokens, vault=temp_vault, sync_homelab_dev=False)
+    cal_path = save_tokens_to_vault(
+        "google_calendar", user_id, cal_tokens, vault=temp_vault, sync_homelab_dev=False
+    )
+    gmail_path = save_tokens_to_vault(
+        "google_gmail", user_id, gmail_tokens, vault=temp_vault, sync_homelab_dev=False
+    )
 
     assert cal_path.name == f"google_calendar_tokens_{user_id}.enc"
     assert gmail_path.name == f"google_gmail_tokens_{user_id}.enc"
@@ -183,12 +192,18 @@ def test_get_valid_access_token_auto_refresh(temp_vault, mock_oauth_client):
         "expires_in": 3600,
         "created_at": time.time() - 4000,
     }
-    save_tokens_to_vault("google_calendar", user_id, expired_tokens, vault=temp_vault, sync_homelab_dev=False)
+    save_tokens_to_vault(
+        "google_calendar", user_id, expired_tokens, vault=temp_vault, sync_homelab_dev=False
+    )
 
     with patch.object(
         mock_oauth_client,
         "refresh_access_token",
-        return_value={"access_token": "fresh-refreshed-token", "expires_in": 3600, "created_at": time.time()},
+        return_value={
+            "access_token": "fresh-refreshed-token",
+            "expires_in": 3600,
+            "created_at": time.time(),
+        },
     ) as mock_refresh:
         token = get_valid_access_token(
             provider="google_calendar",
@@ -231,7 +246,13 @@ def test_calendar_list_events(mock_oauth_client):
                 "end": {"dateTime": "2026-09-13T09:00:00Z"},
                 "location": "Running Track",
                 "htmlLink": "https://calendar.google.com/event?eid=evt_123",
-                "attendees": [{"email": "coach@example.com", "displayName": "Coach", "responseStatus": "accepted"}],
+                "attendees": [
+                    {
+                        "email": "coach@example.com",
+                        "displayName": "Coach",
+                        "responseStatus": "accepted",
+                    }
+                ],
             },
             {
                 "id": "evt_456",
@@ -403,7 +424,9 @@ def test_gmail_list_and_read_messages(mock_oauth_client):
     )
 
     with (
-        patch.object(client, "list_messages", return_value={"messages": [{"id": "m1"}, {"id": "m2"}]}),
+        patch.object(
+            client, "list_messages", return_value={"messages": [{"id": "m1"}, {"id": "m2"}]}
+        ),
         patch.object(
             client,
             "get_message",

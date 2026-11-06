@@ -6,7 +6,6 @@ from pathlib import Path
 
 from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS
 from garminconnect import Garmin
-
 from src.utils.config import get_config, get_secret, set_secret
 from src.utils.notifications import send_proactive_notification
 from src.utils.vault import get_vault
@@ -85,9 +84,9 @@ def refresh_garmin_tokens() -> bool:
 
         token_json = get_secret(secret_name) if os.getenv("GOOGLE_CLOUD_PROJECT") else None
         has_vault = get_vault().has_tokens("garmin", user_id)
-        file_exists = (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json").exists() or (
-            Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json"
-        ).exists()
+        file_exists = (
+            Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json"
+        ).exists() or (Path("/root/.garminconnect") / f"garmin_tokens_{user_id}.json").exists()
 
         if not token_json and not has_vault and not file_exists:
             log.debug(f"Skipping user {user_id}: no tokens found.")
@@ -189,7 +188,9 @@ def refresh_user_token(user_id: str) -> bool:
                 log.info(f"✨ Repaired/Updated Secret Manager for {user_id}")
 
         # C. Update legacy file if present, or write to standard .garminconnect path
-        target_file = working_source_path or (Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json")
+        target_file = working_source_path or (
+            Path.home() / ".garminconnect" / f"garmin_tokens_{user_id}.json"
+        )
         try:
             target_file.parent.mkdir(parents=True, exist_ok=True)
             with open(target_file, "w") as f:

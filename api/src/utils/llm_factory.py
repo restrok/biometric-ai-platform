@@ -63,5 +63,8 @@ def get_chat_model(model_name: str, temperature: float = 0, **kwargs):
         )
     # For Google, we can pass through extra kwargs like automatic_function_calling
     return ChatGoogleGenerativeAI(
-        model=model_name, google_api_key=os.getenv("GOOGLE_API_KEY"), temperature=temperature, **kwargs
+        model=model_name,
+        google_api_key=os.getenv("GOOGLE_API_KEY"),
+        temperature=temperature,
+        **kwargs,
     )

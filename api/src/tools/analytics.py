@@ -33,7 +33,7 @@ def _analyze_swim_efficiency(
 
     # 1. Fetch activity summary
     query_summary = f"""
-        SELECT 
+        SELECT
             name, type, distance_m, duration_sec, moving_duration_sec, elapsed_duration_sec,
             avg_hr, max_hr, min_hr, recovery_hr, avg_swim_cadence, active_lengths,
             avg_strokes_per_length, avg_swolf, pool_length_m, total_strokes,
@@ -47,7 +47,7 @@ def _analyze_swim_efficiency(
 
     # 2. Fetch length-level telemetry
     query_lengths = f"""
-        SELECT 
+        SELECT
             length_index, start_time_gmt, distance_m, duration_sec, avg_speed_mps,
             avg_hr, max_hr, total_strokes, avg_swolf, swim_stroke, pace_per_100m_sec, stroke_rate
         FROM `{project_id}.{dataset}.swim_length_telemetry`
@@ -69,13 +69,19 @@ def _analyze_swim_efficiency(
         return f"No swimming data found for activity ID {activity_id}."
 
     total_dist = summary_data.get("distance_m") or sum(r.get("distance_m", 0) for r in length_rows)
-    total_dur = summary_data.get("duration_sec") or sum(r.get("duration_sec", 0) for r in length_rows)
+    total_dur = summary_data.get("duration_sec") or sum(
+        r.get("duration_sec", 0) for r in length_rows
+    )
     moving_dur = summary_data.get("moving_duration_sec")
     total_rest = (total_dur - moving_dur) if (total_dur and moving_dur) else None
 
     # Length analytics
-    swolf_vals = [r["avg_swolf"] for r in length_rows if r.get("avg_swolf") is not None and r["avg_swolf"] > 0]
-    avg_swolf = round(float(np.mean(swolf_vals)), 1) if swolf_vals else summary_data.get("avg_swolf")
+    swolf_vals = [
+        r["avg_swolf"] for r in length_rows if r.get("avg_swolf") is not None and r["avg_swolf"] > 0
+    ]
+    avg_swolf = (
+        round(float(np.mean(swolf_vals)), 1) if swolf_vals else summary_data.get("avg_swolf")
+    )
     min_swolf = round(float(np.min(swolf_vals)), 1) if swolf_vals else None
     max_swolf = round(float(np.max(swolf_vals)), 1) if swolf_vals else None
 
@@ -102,7 +108,12 @@ def _analyze_swim_efficiency(
     for r in length_rows:
         stroke = r.get("swim_stroke") or "UNKNOWN"
         if stroke not in stroke_styles:
-            stroke_styles[stroke] = {"lengths_count": 0, "swolf_list": [], "pace_list": [], "hr_list": []}
+            stroke_styles[stroke] = {
+                "lengths_count": 0,
+                "swolf_list": [],
+                "pace_list": [],
+                "hr_list": [],
+            }
         stroke_styles[stroke]["lengths_count"] += 1
         if r.get("avg_swolf"):
             stroke_styles[stroke]["swolf_list"].append(r["avg_swolf"])
@@ -115,8 +126,12 @@ def _analyze_swim_efficiency(
     for stroke, data in stroke_styles.items():
         style_summary[stroke] = {
             "lengths_count": data["lengths_count"],
-            "avg_swolf": round(float(np.mean(data["swolf_list"])), 1) if data["swolf_list"] else None,
-            "avg_pace_100m_sec": round(float(np.mean(data["pace_list"])), 1) if data["pace_list"] else None,
+            "avg_swolf": round(float(np.mean(data["swolf_list"])), 1)
+            if data["swolf_list"]
+            else None,
+            "avg_pace_100m_sec": round(float(np.mean(data["pace_list"])), 1)
+            if data["pace_list"]
+            else None,
             "avg_hr": round(float(np.mean(data["hr_list"])), 1) if data["hr_list"] else None,
         }
 
@@ -165,13 +180,9 @@ def _analyze_swim_efficiency(
                         f"Zone 2 Aerobic Base (Avg HR {s_avg_hr} bpm <= Swim AeT {z2_m} bpm)"
                     )
                 elif s_avg_hr <= z4_m:
-                    swim_intensity_classification = (
-                        f"Zone 3-4 Threshold / Tempo (Avg HR {s_avg_hr} bpm between {z2_m}-{z4_m} bpm)"
-                    )
+                    swim_intensity_classification = f"Zone 3-4 Threshold / Tempo (Avg HR {s_avg_hr} bpm between {z2_m}-{z4_m} bpm)"
                 else:
-                    swim_intensity_classification = (
-                        f"Zone 5 High Intensity / Anaerobic (Avg HR {s_avg_hr} bpm > Swim AnT {z4_m} bpm)"
-                    )
+                    swim_intensity_classification = f"Zone 5 High Intensity / Anaerobic (Avg HR {s_avg_hr} bpm > Swim AnT {z4_m} bpm)"
         except Exception as e:
             log.warning(f"Could not load swimming zones for {user_id}: {e}")
 
@@ -217,7 +228,9 @@ def _analyze_swim_efficiency(
 
 
 @tool(args_schema=ActivityID)
-def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) -> dict[str, Any] | str:
+def analyze_activity_efficiency(
+    activity_id: str, user_id: str | None = None
+) -> dict[str, Any] | str:
     """Performs high-precision physiological analysis in BigQuery.
 
     Automatically detects activity sport type (Running vs. Swimming vs. Other).
@@ -248,7 +261,9 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
         activity_type = act_type_row[0].type if act_type_row else None
 
         if activity_type in ("lap_swimming", "open_water_swimming"):
-            return _analyze_swim_efficiency(activity_id, user_id, client, config["project_id"], dataset)
+            return _analyze_swim_efficiency(
+                activity_id, user_id, client, config["project_id"], dataset
+            )
     except Exception as e:
         log.warning(f"Failed to check activity type for {activity_id}: {e}")
 
@@ -256,7 +271,7 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
 
     query = f"""
     WITH session_stats AS (
-        SELECT 
+        SELECT
             AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
             AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` t
@@ -264,10 +279,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
         {user_where}
     ),
     telemetry_base AS (
-        SELECT 
+        SELECT
             t.timestamp_ms,
-            t.hr_bpm, 
-            t.power_w, 
+            t.hr_bpm,
+            t.power_w,
             t.cadence_spm,
             t.vertical_oscillation_cm as vo,
             t.stride_length_mm as sl,
@@ -285,14 +300,14 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
         -- Dynamically filter only active WORK phases based on the session's own average metrics (no hardcoded constants)
         AND (
             (s.avg_power IS NOT NULL AND t.power_w >= s.avg_power)
-            OR 
+            OR
             (s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND t.cadence_spm >= s.avg_cadence)
             OR
             (s.avg_power IS NULL AND s.avg_cadence IS NULL)
         )
     ),
     telemetry_stats AS (
-        SELECT 
+        SELECT
             timestamp_ms, hr_bpm, power_w, cadence_spm, vo, sl, gct, vr, vs, bb, gap,
             PERCENT_RANK() OVER(ORDER BY timestamp_ms) as progress
         FROM telemetry_base
@@ -317,10 +332,10 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
             AVG(gct) as avg_gct
         FROM telemetry_stats
     )
-    SELECT 
-        eff_first_half, eff_second_half, gct_first_half, gct_second_half, 
-        total_battery_drain, avg_vertical_ratio, avg_vertical_speed, avg_gap, 
-        hr_per_step, avg_hr, avg_power, avg_cadence, avg_vo, avg_sl, avg_gct 
+    SELECT
+        eff_first_half, eff_second_half, gct_first_half, gct_second_half,
+        total_battery_drain, avg_vertical_ratio, avg_vertical_speed, avg_gap,
+        hr_per_step, avg_hr, avg_power, avg_cadence, avg_vo, avg_sl, avg_gct
     FROM halves
     """
 
@@ -337,12 +352,24 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
             "avg_power": round(row.avg_power, 1) if row.avg_power is not None else None,
             "avg_cadence": round(row.avg_cadence, 1) if row.avg_cadence is not None else None,
             "hr_per_step": round(row.hr_per_step, 3) if row.hr_per_step is not None else None,
-            "body_battery_drain": int(row.total_battery_drain) if row.total_battery_drain is not None else None,
-            "avg_vertical_ratio_pct": round(row.avg_vertical_ratio, 2) if row.avg_vertical_ratio is not None else None,
-            "avg_vertical_speed_mps": round(row.avg_vertical_speed, 3) if row.avg_vertical_speed is not None else None,
-            "efficiency_score": (round(row.eff_first_half, 3) if row.eff_first_half is not None else None),
-            "gct_first_half": (round(row.gct_first_half, 1) if row.gct_first_half is not None else None),
-            "gct_second_half": (round(row.gct_second_half, 1) if row.gct_second_half is not None else None),
+            "body_battery_drain": int(row.total_battery_drain)
+            if row.total_battery_drain is not None
+            else None,
+            "avg_vertical_ratio_pct": round(row.avg_vertical_ratio, 2)
+            if row.avg_vertical_ratio is not None
+            else None,
+            "avg_vertical_speed_mps": round(row.avg_vertical_speed, 3)
+            if row.avg_vertical_speed is not None
+            else None,
+            "efficiency_score": (
+                round(row.eff_first_half, 3) if row.eff_first_half is not None else None
+            ),
+            "gct_first_half": (
+                round(row.gct_first_half, 1) if row.gct_first_half is not None else None
+            ),
+            "gct_second_half": (
+                round(row.gct_second_half, 1) if row.gct_second_half is not None else None
+            ),
             "avg_gct_ms": round(row.avg_gct, 1) if row.avg_gct is not None else None,
             "avg_stride_length_mm": round(row.avg_sl, 0) if row.avg_sl is not None else None,
         }
@@ -351,7 +378,11 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
             dec = ((row.eff_first_half - row.eff_second_half) / row.eff_first_half) * 100
             summary["aerobic_decoupling_pct"] = f"{round(dec, 2)}%"
             summary["interpretation"] = (
-                "Stable" if dec < 5 else "Cardiac Drift Detected" if dec < 10 else "Significant Decoupling"
+                "Stable"
+                if dec < 5
+                else "Cardiac Drift Detected"
+                if dec < 10
+                else "Significant Decoupling"
             )
 
         log.info(f"??? Full Efficiency analysis complete for {activity_id}")
@@ -362,7 +393,9 @@ def analyze_activity_efficiency(activity_id: str, user_id: str | None = None) ->
 
 
 @tool(args_schema=ActivityID)
-def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> list[dict[str, Any]] | str:
+def analyze_activity_stages(
+    activity_id: str, user_id: str | None = None
+) -> list[dict[str, Any]] | str:
     """Analyzes telemetry to split an activity into physiological stages.
 
     For Running: Splits by Intervals/Work vs. Rest.
@@ -393,7 +426,7 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
 
         if activity_type in ("lap_swimming", "open_water_swimming"):
             query_lengths = f"""
-                SELECT 
+                SELECT
                     length_index, distance_m, duration_sec, avg_speed_mps,
                     avg_hr, max_hr, total_strokes, avg_swolf, swim_stroke, pace_per_100m_sec
                 FROM `{config["project_id"]}.{dataset}.swim_length_telemetry`
@@ -420,12 +453,12 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
         log.warning(f"Swim stage check fallback: {e}")
 
     query = f"""
-        SELECT 
+        SELECT
             timestamp_ms, hr_bpm, power_w, cadence_spm,
             stride_length_mm, vertical_oscillation_cm, ground_contact_time_ms,
             vertical_ratio, vertical_speed, body_battery, temperature_c, gap_mps
-        FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry` 
-        WHERE activity_id = '{activity_id}' 
+        FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
+        WHERE activity_id = '{activity_id}'
         {user_where}
         ORDER BY timestamp_ms ASC
     """
@@ -439,7 +472,9 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
         threshold = session_avg_power * 0.9 if not np.isnan(session_avg_power) else 180
 
         # Smoothing & Thresholding
-        df["power_smooth"] = df["power_w"].rolling(window=10, center=True).mean().fillna(df["power_w"])
+        df["power_smooth"] = (
+            df["power_w"].rolling(window=10, center=True).mean().fillna(df["power_w"])
+        )
         df["is_work"] = df["power_smooth"] > threshold
         df["state_change"] = df["is_work"] != df["is_work"].shift(1)
         df["stage_id"] = df["state_change"].cumsum()
@@ -453,7 +488,11 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
                 continue
 
             cadence_clean = group["cadence_spm"].replace(0, np.nan)
-            hr_step = (group["hr_bpm"] / cadence_clean).mean() if not cadence_clean.isnull().all() else None
+            hr_step = (
+                (group["hr_bpm"] / cadence_clean).mean()
+                if not cadence_clean.isnull().all()
+                else None
+            )
             bb_drop = group["body_battery"].max() - group["body_battery"].min()
 
             stage_summary = {
@@ -466,7 +505,9 @@ def analyze_activity_stages(activity_id: str, user_id: str | None = None) -> lis
                 "avg_cadence": round(group["cadence_spm"].mean(), 1)
                 if not group["cadence_spm"].isnull().all()
                 else None,
-                "hr_per_step": round(hr_step, 3) if hr_step is not None and not np.isnan(hr_step) else None,
+                "hr_per_step": round(hr_step, 3)
+                if hr_step is not None and not np.isnan(hr_step)
+                else None,
                 "bb_drop": int(bb_drop) if not np.isnan(bb_drop) else 0,
             }
 

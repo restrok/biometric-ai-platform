@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 
-import google.cloud.firestore as firestore  # type: ignore[attr-defined]
+import google.cloud.firestore as firestore
 from dotenv import load_dotenv
 
 # Setup logging

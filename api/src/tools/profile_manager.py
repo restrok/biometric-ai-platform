@@ -23,7 +23,9 @@ class ZoneUpdate(BaseModel):
 
 
 @tool(args_schema=ZoneUpdate)
-def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None):
+def update_user_zones(
+    z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None
+):
     """
     Updates the user's custom heart rate zones.
     Source of truth is Firestore for low-latency agent access.
@@ -56,7 +58,7 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_i
 
     query = f"""
         UPDATE `{table_id}`
-        SET 
+        SET
             custom_z1_max = {z1_max},
             custom_z2_max = {z2_max},
             custom_z3_max = {z3_max},
@@ -75,11 +77,17 @@ def update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_i
 
 
 class HealthStatusInput(BaseModel):
-    feeling: str = Field(..., description="Overall subjective feeling (e.g., 'Sick', 'Tired', 'Injured', 'Great')")
+    feeling: str = Field(
+        ..., description="Overall subjective feeling (e.g., 'Sick', 'Tired', 'Injured', 'Great')"
+    )
     notes: str | None = Field(None, description="Detailed notes about the user's condition.")
     fatigue_level: int | None = Field(None, description="General fatigue level on a 1-10 scale.")
-    injury_notes: str | None = Field(None, description="Notes about any physical discomfort or injuries.")
-    status_date: str | None = Field(None, description="Date of the status (YYYY-MM-DD). Defaults to today.")
+    injury_notes: str | None = Field(
+        None, description="Notes about any physical discomfort or injuries."
+    )
+    status_date: str | None = Field(
+        None, description="Date of the status (YYYY-MM-DD). Defaults to today."
+    )
     user_id: str | None = Field(None, description="The ID of the user.")
 
 
@@ -138,7 +146,7 @@ def log_health_status(
         USING (SELECT DATE '{target_date}' as date) S
         ON {on_clause}
         WHEN MATCHED THEN
-            UPDATE SET 
+            UPDATE SET
                 feeling = '{safe_feeling}',
                 notes = {f"'{safe_notes}'" if safe_notes else "NULL"},
                 fatigue_level = {fatigue_level if fatigue_level is not None else "NULL"},
@@ -159,11 +167,16 @@ def log_health_status(
 
 
 class ProactiveConfigInput(BaseModel):
-    enabled: bool | None = Field(None, description="Whether to enable proactive coaching alerts and auto-sync.")
-    interval_hours: int | None = Field(
-        None, description="Frequency of auto-sync in hours (e.g., 6). Set to 0 to use a specific daily hour."
+    enabled: bool | None = Field(
+        None, description="Whether to enable proactive coaching alerts and auto-sync."
     )
-    target_hour: int | None = Field(None, description="Specific daily hour (0-23) for sync if interval_hours is 0.")
+    interval_hours: int | None = Field(
+        None,
+        description="Frequency of auto-sync in hours (e.g., 6). Set to 0 to use a specific daily hour.",
+    )
+    target_hour: int | None = Field(
+        None, description="Specific daily hour (0-23) for sync if interval_hours is 0."
+    )
     user_id: str | None = Field(None, description="The ID of the user.")
 
 
@@ -229,10 +242,16 @@ def configure_proactive_coaching(
 
 class GoalInput(BaseModel):
     target_date: str = Field(..., description="Target date for the goal (YYYY-MM-DD).")
-    goal_type: str = Field(..., description="Type of goal (e.g., 'race', 'volume', 'weight', 'pace').")
-    target_value: str = Field(..., description="Target value (e.g., '50:00', '100km', '75kg', '5:00 min/km').")
+    goal_type: str = Field(
+        ..., description="Type of goal (e.g., 'race', 'volume', 'weight', 'pace')."
+    )
+    target_value: str = Field(
+        ..., description="Target value (e.g., '50:00', '100km', '75kg', '5:00 min/km')."
+    )
     description: str | None = Field(None, description="Detailed description of the goal.")
-    status: Literal["active", "completed", "abandoned"] = Field("active", description="Current status of the goal.")
+    status: Literal["active", "completed", "abandoned"] = Field(
+        "active", description="Current status of the goal."
+    )
     user_id: str | None = Field(None, description="The ID of the user.")
 
 
@@ -298,14 +317,16 @@ def manage_goals(
     safe_desc = description.replace("'", "''") if description else None
     safe_val = target_value.replace("'", "''")
 
-    on_clause = f"T.target_date = S.target_date AND T.goal_type = S.goal_type AND T.user_id = '{user_id}'"
+    on_clause = (
+        f"T.target_date = S.target_date AND T.goal_type = S.goal_type AND T.user_id = '{user_id}'"
+    )
 
     query = f"""
         MERGE `{table_id}` T
         USING (SELECT DATE '{target_date}' as target_date, '{goal_type}' as goal_type) S
         ON {on_clause}
         WHEN MATCHED THEN
-            UPDATE SET 
+            UPDATE SET
                 target_value = '{safe_val}',
                 description = {f"'{safe_desc}'" if safe_desc else "NULL"},
                 status = '{status}'
@@ -324,7 +345,9 @@ def manage_goals(
 
 
 class CalibrationMarkerInput(BaseModel):
-    marker_type: str = Field(..., description="Type of marker (e.g., 'ac_ratio_red_line', 'adaptation_peak').")
+    marker_type: str = Field(
+        ..., description="Type of marker (e.g., 'ac_ratio_red_line', 'adaptation_peak')."
+    )
     marker_value: float = Field(..., description="Numerical value of the marker.")
     context: str | None = Field(None, description="Context or reason for this marker.")
     user_id: str | None = Field(None, description="The ID of the user.")
@@ -376,7 +399,7 @@ def save_calibration_marker(
         USING (SELECT '{marker_type}' as marker_type) S
         ON {on_clause}
         WHEN MATCHED THEN
-            UPDATE SET 
+            UPDATE SET
                 marker_value = {marker_value},
                 context = {f"'{safe_context}'" if safe_context else "NULL"},
                 updated_at = CURRENT_TIMESTAMP()
@@ -398,8 +421,12 @@ class MaxHRCalibrationInput(BaseModel):
     """Input schema for auto-calibrating user max_hr from peak activity telemetry."""
 
     user_id: str = Field(..., description="The internal user ID (mandatory).")
-    observed_peak_hr: float = Field(..., description="Observed peak heart rate in bpm from FIT telemetry.")
-    activity_name: str | None = Field(None, description="Name or type of activity (e.g. 'Tigre 10k Race').")
+    observed_peak_hr: float = Field(
+        ..., description="Observed peak heart rate in bpm from FIT telemetry."
+    )
+    activity_name: str | None = Field(
+        None, description="Name or type of activity (e.g. 'Tigre 10k Race')."
+    )
 
 
 @tool(args_schema=MaxHRCalibrationInput)
@@ -417,7 +444,11 @@ def calibrate_profile_max_hr(
         profile = get_user_profile(user_id)
         current_pcp = profile.get("personal_calibration_profile", {})
         stored_raw = current_pcp.get("max_hr", 185.0)
-        stored_max_hr = float(stored_raw.get("value", 185.0)) if isinstance(stored_raw, dict) else float(stored_raw)
+        stored_max_hr = (
+            float(stored_raw.get("value", 185.0))
+            if isinstance(stored_raw, dict)
+            else float(stored_raw)
+        )
 
         if observed_peak_hr > stored_max_hr:
             # Auto-calibration triggered
@@ -539,7 +570,7 @@ def update_sport_zones(
             table_id = f"{project_id}.{dataset}.user_profile"
             query = f"""
                 UPDATE `{table_id}`
-                SET 
+                SET
                     custom_z1_max = {z1_max},
                     custom_z2_max = {z2_max},
                     custom_z3_max = {z3_max},

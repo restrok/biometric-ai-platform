@@ -6,7 +6,6 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.messages import HumanMessage
-
 from src.agent.graph import AgentState, graph
 from src.utils.config import setup_environment
 
@@ -33,7 +32,9 @@ async def run_audit():
     }
 
     # Run the graph
-    async for output in graph.astream(inputs, config={"configurable": {"thread_id": f"audit_{user_id}"}}):
+    async for output in graph.astream(
+        inputs, config={"configurable": {"thread_id": f"audit_{user_id}"}}
+    ):
         for node_name, state in output.items():
             print(f"\n--- Node: {node_name} ---")
             if "messages" in state:

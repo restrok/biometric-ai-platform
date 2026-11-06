@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 # Google OAuth 2.0 Endpoints
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"  # noqa: S105
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
 # Readonly Scopes

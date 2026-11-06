@@ -8,7 +8,6 @@ from typing import cast
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.messages import HumanMessage
-
 from src.agent.graph import AgentState, graph
 from src.utils.config import setup_environment
 
@@ -80,7 +79,10 @@ async def main():
 
     # --- TEST 4: Final Check ---
     await run_test_cycle(
-        user_id, f"session_4_{user_id}", "Resúmeme qué sabes de mí ahora.", "TEST 4: Final State Verification"
+        user_id,
+        f"session_4_{user_id}",
+        "Resúmeme qué sabes de mí ahora.",
+        "TEST 4: Final State Verification",
     )
 
 

@@ -50,7 +50,9 @@ def create_profile_tables():
     ]
 
     body_table = bigquery.Table(body_table_id, schema=body_schema)
-    body_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+    body_table.time_partitioning = bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field="date"
+    )
 
     client.create_table(body_table, exists_ok=True)
     print(f"✅ Table {body_table_id} ready.")
@@ -71,7 +73,9 @@ def create_profile_tables():
     ]
 
     scheduled_table = bigquery.Table(scheduled_table_id, schema=scheduled_schema)
-    scheduled_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+    scheduled_table.time_partitioning = bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field="date"
+    )
 
     client.create_table(scheduled_table, exists_ok=True)
     print(f"✅ Table {scheduled_table_id} ready.")
@@ -89,7 +93,9 @@ def create_profile_tables():
     ]
 
     health_table = bigquery.Table(health_table_id, schema=health_schema)
-    health_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+    health_table.time_partitioning = bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field="date"
+    )
 
     client.create_table(health_table, exists_ok=True)
     print(f"✅ Table {health_table_id} ready.")
@@ -100,10 +106,14 @@ def create_profile_tables():
         bigquery.SchemaField("id", "STRING", mode="REQUIRED"),
         bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
         bigquery.SchemaField("target_date", "DATE", mode="REQUIRED"),
-        bigquery.SchemaField("goal_type", "STRING", mode="REQUIRED"),  # 'race', 'volume', 'weight', etc.
+        bigquery.SchemaField(
+            "goal_type", "STRING", mode="REQUIRED"
+        ),  # 'race', 'volume', 'weight', etc.
         bigquery.SchemaField("target_value", "STRING", mode="REQUIRED"),  # '50:00', '100km', etc.
         bigquery.SchemaField("description", "STRING", mode="NULLABLE"),
-        bigquery.SchemaField("status", "STRING", mode="REQUIRED"),  # 'active', 'completed', 'abandoned'
+        bigquery.SchemaField(
+            "status", "STRING", mode="REQUIRED"
+        ),  # 'active', 'completed', 'abandoned'
         bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
     ]
 
@@ -125,7 +135,9 @@ def create_profile_tables():
     ]
 
     daily_table = bigquery.Table(daily_table_id, schema=daily_schema)
-    daily_table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="date")
+    daily_table.time_partitioning = bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field="date"
+    )
 
     client.create_table(daily_table, exists_ok=True)
     print(f"✅ Table {daily_table_id} ready.")
@@ -134,7 +146,9 @@ def create_profile_tables():
     calib_table_id = f"{PROJECT_ID}.{DATASET_ID}.user_calibration_profile"
     calib_schema = [
         bigquery.SchemaField("user_id", "STRING", mode="NULLABLE"),
-        bigquery.SchemaField("marker_type", "STRING", mode="REQUIRED"),  # 'ac_ratio_red_line', 'adaptation_peak', etc.
+        bigquery.SchemaField(
+            "marker_type", "STRING", mode="REQUIRED"
+        ),  # 'ac_ratio_red_line', 'adaptation_peak', etc.
         bigquery.SchemaField("marker_value", "FLOAT64", mode="REQUIRED"),
         bigquery.SchemaField("context", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),

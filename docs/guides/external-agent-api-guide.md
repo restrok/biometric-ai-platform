@@ -102,7 +102,7 @@ If you need direct, non-agentic access to the data, use the specialized tool end
 ```
 
 ### 6. Workout Library Management
-**Endpoints:** 
+**Endpoints:**
 - `POST /api/v1/tools/workout/list`
 - `POST /api/v1/tools/workout/batch_remove`
 - `POST /api/v1/tools/workout/prune_unused`

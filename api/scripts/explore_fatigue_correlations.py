@@ -1,5 +1,4 @@
 from google.cloud import bigquery
-
 from src.utils.config import get_config, setup_environment
 
 
@@ -12,11 +11,11 @@ def run_analysis():
 
     query = f"""
     WITH telemetry_base AS (
-        SELECT 
+        SELECT
             activity_id,
             timestamp_ms,
-            hr_bpm, 
-            power_w, 
+            hr_bpm,
+            power_w,
             ground_contact_time_ms as gct,
             PERCENT_RANK() OVER(PARTITION BY activity_id ORDER BY timestamp_ms) as total_progress
         FROM `{config["project_id"]}.{dataset}.latest_activity_telemetry`
@@ -24,7 +23,7 @@ def run_analysis():
         AND hr_bpm > 0
     ),
     telemetry_stats AS (
-        SELECT 
+        SELECT
             activity_id, hr_bpm, power_w, gct,
             PERCENT_RANK() OVER(PARTITION BY activity_id ORDER BY timestamp_ms) as progress
         FROM telemetry_base
@@ -55,14 +54,14 @@ def run_analysis():
         WHERE user_id = '{user_id}'
     ),
     hrv_data AS (
-        SELECT 
-            CAST(date AS DATE) as hrv_date, 
+        SELECT
+            CAST(date AS DATE) as hrv_date,
             avg_hrv
         FROM `{config["project_id"]}.{dataset}.hrv_history`
         WHERE user_id = '{user_id}'
     ),
     merged_data AS (
-        SELECT 
+        SELECT
             d.activity_id,
             ad.activity_name,
             ad.activity_date,
@@ -85,17 +84,23 @@ def run_analysis():
         return
 
     if not results:
-        print("No correlations found. (Maybe lack of matching HRV data for the day after the activity?)")
+        print(
+            "No correlations found. (Maybe lack of matching HRV data for the day after the activity?)"
+        )
         return
 
-    print(f"{'Date':<12} | {'Activity':<30} | {'Decoupling':<10} | {'GCT Drift':<10} | {'Next HRV':<8}")
+    print(
+        f"{'Date':<12} | {'Activity':<30} | {'Decoupling':<10} | {'GCT Drift':<10} | {'Next HRV':<8}"
+    )
     print("-" * 85)
     for row in results:
         name = row.activity_name[:30] if row.activity_name else "Unknown"
         dec = row.decoupling_pct if row.decoupling_pct is not None else 0.0
         drift = row.gct_drift_pct if row.gct_drift_pct is not None else 0.0
         hrv = row.next_day_hrv if row.next_day_hrv is not None else 0.0
-        print(f"{str(row.activity_date):<12} | {name:<30} | {dec:>9.2f}% | {drift:>9.2f}% | {hrv:>8.1f}")
+        print(
+            f"{str(row.activity_date):<12} | {name:<30} | {dec:>9.2f}% | {drift:>9.2f}% | {hrv:>8.1f}"
+        )
 
     # Summary analysis
     print("\nSummary Analysis (HRV the day after):")

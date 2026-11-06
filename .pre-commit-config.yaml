@@ -1,0 +1,43 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: ^api/templates/.*
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=2000']
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        args: [--fix, --config=api/pyproject.toml]
+        files: ^api/
+      - id: ruff-format
+        args: [--config=api/pyproject.toml]
+        files: ^api/
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: bash -c "cd api && /home/fsirio/.local/bin/uv run mypy ."
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, chore, refactor, docs, test, ci, perf, style, build]

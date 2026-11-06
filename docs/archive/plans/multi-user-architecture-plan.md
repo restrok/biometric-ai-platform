@@ -11,7 +11,7 @@ The Biometric AI Platform currently operates as a single-user system, hardcoded 
 
 ## Proposed Solution
 1.  **Identity:** Trust the internal network. Clients will pass `X-User-ID: <username>` (e.g., `default_user`, `wife_username`) in HTTP headers.
-2.  **Secret Management:** 
+2.  **Secret Management:**
     - Enable Google Secret Manager API on the GCP project.
     - Store Garmin tokens as secrets named `garmin_tokens_<user_id>`.
     - Update `ProviderFactory` to fetch the secret payload from GCP instead of reading the local filesystem.

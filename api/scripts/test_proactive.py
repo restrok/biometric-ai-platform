@@ -8,7 +8,9 @@ from src.agent.proactive import run_proactive_analysis
 def test_proactive() -> None:
     """Triggers the proactive analysis workflow."""
     # Configure logging to see what's happening
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
 
     user_id = "default_user"
     print(f"🚀 Manually triggering proactive analysis for user: {user_id}")

@@ -9,7 +9,6 @@ from typing import Any
 
 from garmin_training_toolkit_sdk.core.garmin import GarminProvider
 from garmin_training_toolkit_sdk.utils import find_token_file
-
 from src.utils.config import get_secret
 
 log = logging.getLogger(__name__)
@@ -61,11 +60,12 @@ def get_provider(
     if str(watch_provider).lower() in ("google_health", "google"):
         from fitbit_training_toolkit_sdk.core.google_health import GoogleHealthProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
-
         from src.utils.vault import get_vault
 
         vault_tokens = get_vault().retrieve_tokens("google_health", target_user)
-        google_token_file = Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
+        google_token_file = (
+            Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
+        )
         if vault_tokens:
             provider = GoogleHealthProvider(tokens=vault_tokens)
         elif google_token_file.exists():
@@ -81,7 +81,6 @@ def get_provider(
     if str(watch_provider).lower() == "fitbit":
         from fitbit_training_toolkit_sdk.core.fitbit import FitbitProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
-
         from src.utils.vault import get_vault
 
         vault_tokens = get_vault().retrieve_tokens("fitbit", target_user)
@@ -91,7 +90,9 @@ def get_provider(
         elif fitbit_token_file.exists():
             provider = FitbitProvider(token_path=fitbit_token_file)
         else:
-            log.info(f"No Fitbit tokens on disk for {user_id}, using MockFitbitProvider for testing.")
+            log.info(
+                f"No Fitbit tokens on disk for {user_id}, using MockFitbitProvider for testing."
+            )
             provider = MockFitbitProvider()
         _providers[cache_key] = provider
         return provider
@@ -176,7 +177,7 @@ def get_provider(
         try:
             settings = provider.client.get_userprofile_settings()
             provider.client.display_name = settings.get("displayName")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Could not retrieve display_name from provider: %s", e)
     _providers[cache_key] = provider
     return provider

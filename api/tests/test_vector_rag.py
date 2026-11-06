@@ -17,7 +17,6 @@ setup_environment()
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-
 from src.agent.graph import graph
 
 
@@ -29,7 +28,9 @@ def test_vector_rag_flow():
     print("\n🚀 Testing Vector Store (RAG) Flow...")
     print("=" * 60)
 
-    query = "Explain the benefits of polarized 80/20 training according to my internal research base."
+    query = (
+        "Explain the benefits of polarized 80/20 training according to my internal research base."
+    )
 
     inputs = {"messages": [HumanMessage(content=query)]}
 
@@ -37,7 +38,9 @@ def test_vector_rag_flow():
     print("\nProcessing...\n")
 
     # Run the graph
-    for output in graph.stream(cast(Any, inputs), config={"configurable": {"thread_id": "test_thread"}}):
+    for output in graph.stream(
+        cast(Any, inputs), config={"configurable": {"thread_id": "test_thread"}}
+    ):
         for node_name, state in output.items():
             print(f"\n--- Node: {node_name} ---")
             if "messages" in state:

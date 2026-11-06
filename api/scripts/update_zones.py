@@ -3,7 +3,6 @@
 import sys
 
 from google.cloud import bigquery
-
 from src.utils.config import get_config, setup_environment
 
 
@@ -40,7 +39,9 @@ def update_zones() -> None:
     try:
         query_job = client.query(sql_query)
         query_job.result()
-        print(f"Successfully updated custom zones in BigQuery: Z1:{z1_max}, Z2:{z2_max}, Z3:{z3_max}, Z4:{z4_max}")
+        print(
+            f"Successfully updated custom zones in BigQuery: Z1:{z1_max}, Z2:{z2_max}, Z3:{z3_max}, Z4:{z4_max}"
+        )
     except Exception as e:
         print(f"Error updating custom zones: {e}")
 

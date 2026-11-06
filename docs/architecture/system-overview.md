@@ -1,6 +1,6 @@
 # System Architecture & Multi-Agent Overview
 
-The **Biometric AI Platform** is an enterprise-grade, multi-agent sports physiology platform built on **LangGraph**, **FastAPI**, and a **Hybrid GCP Lakehouse (Firestore + BigQuery + BigQuery Vector Search)**. 
+The **Biometric AI Platform** is an enterprise-grade, multi-agent sports physiology platform built on **LangGraph**, **FastAPI**, and a **Hybrid GCP Lakehouse (Firestore + BigQuery + BigQuery Vector Search)**.
 
 It acts as an autonomous AI Head Coach for endurance athletes, coordinating specialized agents to analyze telemetry, calculate workload stress, monitor autonomic recovery, and prevent injury.
 
@@ -13,19 +13,19 @@ The platform executes an event-driven, graph-based agent flow orchestrated by **
 ```mermaid
 graph TD
     User([Athlete / API Client]) --> Router[Intent Router & Guardrails]
-    
+
     Router -- Data Needed --> Retriever[Hybrid Context Retriever]
-    
+
     subgraph Parallel Specialist Analysis Phase
         Retriever --> Injury[🛡️ Injury Prevention Agent]
         Retriever --> Sleep[🧬 Sleep & Circadian Agent]
         Retriever --> Nutrition[⚖️ Metabolic Nutrition Agent]
     end
-    
+
     Injury --> HeadCoach[🧠 Head Coach Synthesis Node]
     Sleep --> HeadCoach
     Nutrition --> HeadCoach
-    
+
     HeadCoach -- Exercise Science RAG --> RAGTool[📚 Exercise Science Vector Search]
     RAGTool -- Gemini Embeddings + VECTOR_SEARCH --> BQVec[(BigQuery Vector Store)]
     BQVec -- COSINE Distance Matches --> RAGTool
@@ -37,10 +37,10 @@ graph TD
     DataSci -- 3. Execute SQL --> BQ
     BQ -- 4. Analytics Output --> DataSci
     DataSci --> HeadCoach
-    
+
     HeadCoach -- Workout Actions --> Tools[Device / Profile Tools]
     Tools -- Dynamic Updates --> FS[(Firestore OLTP)]
-    
+
     HeadCoach --> ResponseValidator[Response & Safety Gating]
     ResponseValidator --> MemoryExtractor[🧠 Semantic Memory Extractor]
     MemoryExtractor -- Persist Golden Nuggets --> FS

@@ -21,7 +21,7 @@ def project_monthly_costs():
 
     # Query for historical usage
     query = f"""
-    SELECT 
+    SELECT
         COUNT(*) as total_calls,
         SUM(total_tokens) as total_tokens,
         SUM(cost_usd) as total_cost,

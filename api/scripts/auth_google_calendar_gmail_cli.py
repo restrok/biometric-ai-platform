@@ -170,14 +170,18 @@ def main():
             "access_type": "offline",
             "prompt": "consent",
         }
-        direct_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+        direct_url = (
+            f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
+        )
         print("\nURL de autorización (abrir en navegador móvil/escritorio):\n")
         print(direct_url)
         print("\n" + "-" * 70)
         print("INSTRUCCIONES:")
         print("1. Abrí la URL en el navegador de tu celular.")
         print("2. Aceptá el consentimiento con tu cuenta de Google.")
-        print(f"3. El celular intentará redirigir a {args.redirect_uri}?code=... (la página no cargará).")
+        print(
+            f"3. El celular intentará redirigir a {args.redirect_uri}?code=... (la página no cargará)."
+        )
         print("4. Copiá la URL completa de la barra de direcciones del navegador del celular.")
         print("5. Canjeá el código ejecutando:")
         print('   python scripts/auth_google_calendar_gmail_cli.py --code "<URL_O_CODIGO>"\n')
@@ -203,7 +207,9 @@ def main():
         print("Al finalizar el consentimiento, el navegador redirigirá a:")
         print(f"  {args.redirect_uri}?code=4/0A...&state={state}")
         print("-" * 70)
-        print("PASO 3: Copiá la URL completa de la barra de direcciones (o únicamente el código '4/0A...'):")
+        print(
+            "PASO 3: Copiá la URL completa de la barra de direcciones (o únicamente el código '4/0A...'):"
+        )
 
         user_input = input("\nPegá la URL o el código aquí: ").strip()
         if not user_input:
@@ -239,11 +245,17 @@ def main():
         print(f"  ✓ Ubicación principal: {local_vault.vault_dir}")
 
         homelab_dev_vault = Path("/home/fsirio/homelab/biometric-coach-dev/data/vault")
-        if homelab_dev_vault.exists() and local_vault.vault_dir.resolve() != homelab_dev_vault.resolve():
+        if (
+            homelab_dev_vault.exists()
+            and local_vault.vault_dir.resolve() != homelab_dev_vault.resolve()
+        ):
             print(f"  ✓ Sincronizado en contenedor dev: {homelab_dev_vault}")
 
         homelab_prod_vault = Path("/home/fsirio/homelab/biometric-coach/data/vault")
-        if homelab_prod_vault.exists() and local_vault.vault_dir.resolve() != homelab_prod_vault.resolve():
+        if (
+            homelab_prod_vault.exists()
+            and local_vault.vault_dir.resolve() != homelab_prod_vault.resolve()
+        ):
             print(f"  ✓ Sincronizado en contenedor prod: {homelab_prod_vault}")
 
         print("=" * 70)
@@ -253,8 +265,12 @@ def main():
         print(f"\n❌ Error durante el canje de tokens: {e}")
         print("Sugerencias:")
         print("1. Verificá que las APIs de Calendar y Gmail estén habilitadas en el proyecto GCP.")
-        print("2. Verificá que la cuenta de usuario esté añadida en la lista de Test Users en el Consent Screen.")
-        print("3. Recordá que el código de autorización solo puede usarse una única vez y expira rápidamente.")
+        print(
+            "2. Verificá que la cuenta de usuario esté añadida en la lista de Test Users en el Consent Screen."
+        )
+        print(
+            "3. Recordá que el código de autorización solo puede usarse una única vez y expira rápidamente."
+        )
         sys.exit(1)
 
 

@@ -12,7 +12,9 @@ log = logging.getLogger(__name__)
 class ReadReportInput(BaseModel):
     """Input schema for reading a report artifact."""
 
-    gcs_uri: str = Field(..., description="The Signed URL (https://...) or gs:// URI of the report.")
+    gcs_uri: str = Field(
+        ..., description="The Signed URL (https://...) or gs:// URI of the report."
+    )
 
 
 @tool(args_schema=ReadReportInput)
@@ -25,7 +27,7 @@ def read_report_artifact(gcs_uri: str) -> str:
 
     try:
         if gcs_uri.startswith("http"):
-            response = requests.get(gcs_uri)
+            response = requests.get(gcs_uri, timeout=30)
             response.raise_for_status()
             content = response.text
         elif gcs_uri.startswith("gs://"):

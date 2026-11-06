@@ -12,7 +12,7 @@ This document outlines evidence-based strategies for improving sleep architectur
 | **L-Theanine** | 0.71 (Moderate-Large) | 200-400mg (with dinner) | Facilitates ANS down-regulation; synergizes with Magnesium. |
 
 ### Behavioral Interventions
-*   **CBT-I (Cognitive Behavioral Therapy for Insomnia):** 
+*   **CBT-I (Cognitive Behavioral Therapy for Insomnia):**
     *   **Effect Size:** 0.95 (Highest efficacy).
     *   **Application:** Effective for 70-80% of athletes with high cognitive stress.
 *   **4-7-8 Breathing Protocol:**

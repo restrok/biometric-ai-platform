@@ -59,12 +59,20 @@ class RetrieverInput(BaseModel):
     dataset: str | None = Field(None, description="BigQuery Dataset ID")
     limit: int = Field(5, description="Max number of activities to retrieve.")
     offset: int = Field(0, description="Number of activities to skip (for paging).")
-    activity_type: str | None = Field(None, description="Filter by type (e.g. 'running', 'walking').")
-    start_date: str | None = Field(None, description="Start date for activity filtering (YYYY-MM-DD).")
+    activity_type: str | None = Field(
+        None, description="Filter by type (e.g. 'running', 'walking')."
+    )
+    start_date: str | None = Field(
+        None, description="Start date for activity filtering (YYYY-MM-DD)."
+    )
     end_date: str | None = Field(None, description="End date for activity filtering (YYYY-MM-DD).")
-    user_id: str | None = Field(None, description="The internal ID of the user (e.g., 'athlete_1').")
+    user_id: str | None = Field(
+        None, description="The internal ID of the user (e.g., 'athlete_1')."
+    )
     force_reload: bool = Field(False, description="Bypass cache and force reload from BigQuery")
-    include_telemetry: bool = Field(False, description="Include detailed timeseries summary for runs.")
+    include_telemetry: bool = Field(
+        False, description="Include detailed timeseries summary for runs."
+    )
 
 
 def _get_cache_key(user_id: str | None, include_telemetry: bool = False) -> str:
@@ -125,7 +133,11 @@ def retrieve_biometric_data(
             include_telemetry=include_telemetry,
         )
 
-    cache_key = f"{user_id}_forced_{time.time()}" if force_reload else _get_cache_key(user_id, include_telemetry)
+    cache_key = (
+        f"{user_id}_forced_{time.time()}"
+        if force_reload
+        else _get_cache_key(user_id, include_telemetry)
+    )
     return _retrieve_biometric_data_cached(
         project_id,
         dataset,
@@ -197,7 +209,12 @@ def _retrieve_biometric_data_local(
 
     daily_physio = engine.get_daily_physiology(user_id, days=7)
     recent_acts = engine.get_recent_activities(
-        user_id, limit=limit, offset=offset, activity_type=activity_type, start_date=start_date, end_date=end_date
+        user_id,
+        limit=limit,
+        offset=offset,
+        activity_type=activity_type,
+        start_date=start_date,
+        end_date=end_date,
     )
     health_status = _enrich_health_status(engine.get_health_status(user_id))
     goals = engine.get_user_goals(user_id)
@@ -213,14 +230,18 @@ def _retrieve_biometric_data_local(
             id_prefix = f"[ID: {mem_id}] ({mem_type}) " if mem_id else ""
             memories.append(f"{id_prefix}{date_str}{text}")
 
-    calib_markers = engine.get_calibration_markers(user_id) if hasattr(engine, "get_calibration_markers") else []
+    calib_markers = (
+        engine.get_calibration_markers(user_id)
+        if hasattr(engine, "get_calibration_markers")
+        else []
+    )
 
     top_3_ids = [
-        str(a.get("activity_id") or a.get("id")) for a in recent_acts[:3] if a.get("activity_id") or a.get("id")
+        str(a.get("activity_id") or a.get("id"))
+        for a in recent_acts[:3]
+        if a.get("activity_id") or a.get("id")
     ]
-    telemetry_summary = (
-        "Detailed timeseries omitted for performance (available on-demand via analyze_activity_efficiency tool)."
-    )
+    telemetry_summary = "Detailed timeseries omitted for performance (available on-demand via analyze_activity_efficiency tool)."
     if include_telemetry and top_3_ids:
         telemetry_summary = "Telemetry summary available."
 
@@ -313,12 +334,16 @@ def _retrieve_biometric_data_cached(
         )
 
     if not project_id:
-        project_id = config.get("project_id") or os.getenv("GOOGLE_CLOUD_PROJECT") or "bio-intelligence-dev"
+        project_id = (
+            config.get("project_id") or os.getenv("GOOGLE_CLOUD_PROJECT") or "bio-intelligence-dev"
+        )
     if not dataset:
         dataset = config.get("dataset_id") or "biometric_data_dev"
 
     if not project_id:
-        log.warning("GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data.")
+        log.warning(
+            "GOOGLE_CLOUD_PROJECT not set. Biometric retrieval will fail if not using mock data."
+        )
 
     start_total = time.time()
     if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and not os.getenv("GOOGLE_CLOUD_PROJECT"):
@@ -361,18 +386,20 @@ def _retrieve_biometric_data_cached(
             where_clause = "WHERE " + " AND ".join(where_clauses)
 
             query_act = f"""
-                SELECT id, 
-                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date, 
+                SELECT id,
+                       FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date,
                        type, distance_m, avg_hr, vo2max, duration_sec, avg_power,
                        moving_duration_sec, avg_swolf, active_lengths, is_personal_record, swim_stroke
-                FROM `{project_id}.{dataset}.recent_activities` 
+                FROM `{project_id}.{dataset}.recent_activities`
                 {where_clause}
-                ORDER BY date DESC 
+                ORDER BY date DESC
                 LIMIT {limit} OFFSET {offset}
             """
             act_rows = [dict(row) for row in client.query(query_act).result()]
             top_3_ids = [str(row["id"]) for row in act_rows[:3] if row.get("id")]
-            log.info(f"?????? BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)")
+            log.info(
+                f"?????? BigQuery: Activities retrieved in {time.time() - t0:.2f}s ({len(act_rows)} rows)"
+            )
             return "recent_activities", act_rows
         except Exception as e:
             log.warning(f"??? Activities retrieval failed: {e}")
@@ -384,7 +411,7 @@ def _retrieve_biometric_data_cached(
             t0 = time.time()
             query_status = f"""
                 SELECT status, acute_load, chronic_load, load_focus, vo2max
-                FROM `{project_id}.{dataset}.training_status` 
+                FROM `{project_id}.{dataset}.training_status`
                 {user_where}
                 ORDER BY date DESC LIMIT 1
             """
@@ -397,7 +424,9 @@ def _retrieve_biometric_data_cached(
                 or not status_data.get("acute_load")
                 or str(status_data.get("acute_load")).strip().lower() in ["null", "none", ""]
             ):
-                log.info("???? Garmin Training Status missing or invalid. Querying BigQuery view fallback...")
+                log.info(
+                    "???? Garmin Training Status missing or invalid. Querying BigQuery view fallback..."
+                )
                 query_fallback = f"""
                     SELECT 'Calculated (Fallback)' AS status, acute_load, chronic_load, ac_ratio, metric_used
                     FROM `{project_id}.{dataset}.view_calculated_training_status`
@@ -416,7 +445,9 @@ def _retrieve_biometric_data_cached(
                     fallback_data["info"] = (
                         f"Generated via BigQuery ACWR view ({fallback_data.get('metric_used', 'unknown')})."
                     )
-                    log.info(f"?????? BigQuery: Fallback training status retrieved in {time.time() - t0:.2f}s")
+                    log.info(
+                        f"?????? BigQuery: Fallback training status retrieved in {time.time() - t0:.2f}s"
+                    )
                     return "training_status", fallback_data
 
             log.info(f"?????? BigQuery: Training status retrieved in {time.time() - t0:.2f}s")
@@ -432,9 +463,9 @@ def _retrieve_biometric_data_cached(
         try:
             t0 = time.time()
             query_sleep = f"""
-                SELECT date, duration_sec, quality, deep_sec, light_sec, 
+                SELECT date, duration_sec, quality, deep_sec, light_sec,
                        rem_sec, awake_sec, restless_moments
-                FROM `{project_id}.{dataset}.sleep_history` 
+                FROM `{project_id}.{dataset}.sleep_history`
                 {user_where}
                 ORDER BY date DESC LIMIT 1
             """
@@ -451,7 +482,7 @@ def _retrieve_biometric_data_cached(
             query_hrv = f"""
                 SELECT date, avg_hrv, min_hrv, max_hrv, status, baseline_low, baseline_high,
                        hrv_first_half_avg, hrv_second_half_avg, hrv_decay_slope
-                FROM `{project_id}.{dataset}.hrv_history` 
+                FROM `{project_id}.{dataset}.hrv_history`
                 {user_where}
                 ORDER BY date DESC LIMIT 7
             """
@@ -547,7 +578,7 @@ def _retrieve_biometric_data_cached(
             t0 = time.time()
             query_daily = f"""
                 SELECT date, resting_heart_rate, all_day_stress_avg, body_battery_end_of_day, total_steps, body_battery_charged_sleep
-                FROM `{project_id}.{dataset}.daily_physiology` 
+                FROM `{project_id}.{dataset}.daily_physiology`
                 {user_where}
                 ORDER BY date DESC LIMIT 7
             """
@@ -568,7 +599,11 @@ def _retrieve_biometric_data_cached(
             calib_list = []
             for m_type, m_data in calib_dict.items():
                 calib_list.append(
-                    {"marker_type": m_type, "marker_value": m_data.get("value"), "context": m_data.get("context")}
+                    {
+                        "marker_type": m_type,
+                        "marker_value": m_data.get("value"),
+                        "context": m_data.get("context"),
+                    }
                 )
             log.info(f"?????? Firestore: Calibration profile retrieved in {time.time() - t0:.2f}s")
             return "personal_calibration_profile", calib_list
@@ -585,10 +620,10 @@ def _retrieve_biometric_data_cached(
             if user_id:
                 where_sched += f" AND user_id = '{user_id}'"
             query_sched = f"""
-                SELECT title, date, sport_type, duration_sec, distance_m 
-                FROM `{project_id}.{dataset}.scheduled_workouts` 
+                SELECT title, date, sport_type, duration_sec, distance_m
+                FROM `{project_id}.{dataset}.scheduled_workouts`
                 {where_sched}
-                ORDER BY date ASC 
+                ORDER BY date ASC
                 LIMIT 5
             """
             sched_rows = [dict(row) for row in client.query(query_sched).result()]
@@ -645,7 +680,7 @@ def _retrieve_biometric_data_cached(
             # V3.6 Precision Hybrid (Event-Aware Trend Detection)
             query_tel_series = f"""
             WITH session_stats AS (
-                SELECT 
+                SELECT
                     activity_id,
                     AVG(CASE WHEN power_w > 0 THEN power_w END) as avg_power,
                     AVG(CASE WHEN cadence_spm > 0 THEN cadence_spm END) as avg_cadence
@@ -655,11 +690,11 @@ def _retrieve_biometric_data_cached(
                 GROUP BY activity_id
             ),
             base AS (
-                SELECT 
-                    t.activity_id, 
+                SELECT
+                    t.activity_id,
                     t.activity_name,
-                    t.timestamp_ms, 
-                    t.hr_bpm, 
+                    t.timestamp_ms,
+                    t.hr_bpm,
                     t.power_w,
                     t.ground_contact_time_ms as gct,
                     t.cadence_spm + IFNULL(t.fractional_cadence, 0) as cad,
@@ -674,22 +709,22 @@ def _retrieve_biometric_data_cached(
                     t.performance_condition as perf,
                     t.run_walk_index as rw_idx,
                     -- Dynamic WORK classification without any hardcoded thresholds
-                    CASE 
+                    CASE
                         WHEN s.avg_power IS NOT NULL AND t.power_w >= s.avg_power THEN 1
                         WHEN s.avg_power IS NULL AND s.avg_cadence IS NOT NULL AND (t.cadence_spm + IFNULL(t.fractional_cadence, 0)) >= s.avg_cadence THEN 1
                         WHEN s.avg_power IS NULL AND s.avg_cadence IS NULL AND t.hr_bpm > COALESCE(p.custom_z2_max, 165) THEN 1
-                        ELSE 0 
+                        ELSE 0
                     END as is_work
                 FROM `{project_id}.{dataset}.latest_activity_telemetry` t
                 JOIN session_stats s ON t.activity_id = s.activity_id
                 JOIN `{project_id}.{dataset}.user_profile` p ON t.user_id = p.user_id
-                WHERE t.activity_id IN ({ids_str}) 
+                WHERE t.activity_id IN ({ids_str})
                   AND t.timestamp_ms >= {thirty_days_ago_ms}
                   {f" AND t.user_id = '{user_id}'" if user_id else ""}
             ),
             state_changes AS (
-                SELECT 
-                    activity_id, activity_name, timestamp_ms, hr_bpm, power_w, gct, cad, osc, 
+                SELECT
+                    activity_id, activity_name, timestamp_ms, hr_bpm, power_w, gct, cad, osc,
                     v_ratio, v_speed, battery, temp, elev, speed, gap, perf, rw_idx, is_work,
                     CASE WHEN is_work != LAG(is_work) OVER (PARTITION BY activity_id ORDER BY timestamp_ms) THEN 1 ELSE 0 END as state_change
                 FROM base
@@ -706,7 +741,7 @@ def _retrieve_biometric_data_cached(
                 FROM segments
             ),
             windowed_metrics AS (
-                SELECT 
+                SELECT
                     activity_id, activity_name, event_id, is_work,
                     MIN(timestamp_ms) as start_time_ms,
                     MAX(timestamp_ms) as end_time_ms,
@@ -735,12 +770,12 @@ def _retrieve_biometric_data_cached(
                 GROUP BY activity_id, activity_name, event_id, is_work, seg_start, seg_end
                 HAVING duration_sec >= 10
             )
-            SELECT 
+            SELECT
                 activity_id, activity_name, event_id, is_work, start_time_ms, end_time_ms, duration_sec,
                 avg_hr, avg_pwr, avg_cad, avg_osc, avg_v_ratio, avg_v_speed, avg_battery, avg_temp,
                 avg_elev, avg_speed, avg_gap, avg_perf, avg_rw_idx,
                 hr_start_avg, hr_end_avg, gct_start_avg, gct_end_avg, pwr_start_avg, pwr_end_avg
-            FROM windowed_metrics 
+            FROM windowed_metrics
             ORDER BY activity_id, start_time_ms ASC
             """
             rows = list(client.query(query_tel_series).result())
@@ -856,7 +891,9 @@ def _retrieve_biometric_data_cached(
 
     # Count valid running activities to determine if calibration phase is needed
     running_activities = [
-        a for a in context.get("recent_activities", []) if isinstance(a, dict) and a.get("type") == "running"
+        a
+        for a in context.get("recent_activities", [])
+        if isinstance(a, dict) and a.get("type") == "running"
     ]
     calibration_phase_required = len(running_activities) < 3
     context["calibration_guardrails"] = {
@@ -886,7 +923,7 @@ def _retrieve_biometric_data_cached(
             return {k: serialize_dates(v) for k, v in obj.items()}
         if isinstance(obj, list):
             return [serialize_dates(i) for i in obj]
-        if isinstance(obj, (date, datetime)):
+        if isinstance(obj, date | datetime):
             return obj.isoformat()
         return obj
 

@@ -162,7 +162,9 @@ class GoogleCalendarClient:
                 # Token might have expired during runtime; retry once with forced refresh
                 log.info(f"Received 401 for user '{self.user_id}'. Forcing token refresh...")
                 tokens = self.oauth_client.refresh_access_token(
-                    self.oauth_client.load_tokens_from_vault("google_calendar", self.user_id)["refresh_token"]
+                    self.oauth_client.load_tokens_from_vault("google_calendar", self.user_id)[
+                        "refresh_token"
+                    ]
                     if hasattr(self.oauth_client, "load_tokens_from_vault")
                     else ""
                 )

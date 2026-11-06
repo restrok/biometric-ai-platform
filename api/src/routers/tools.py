@@ -55,7 +55,9 @@ class LegacyTarget(BaseModel):
 
 
 class WorkoutStep(BaseModel):
-    type: str = Field(..., description="Step type: 'run', 'warmup', 'cooldown', 'recovery', 'interval'")
+    type: str = Field(
+        ..., description="Step type: 'run', 'warmup', 'cooldown', 'recovery', 'interval'"
+    )
     duration_mins: float | None = Field(None, examples=[10.0])
     distance_m: int | None = Field(None, examples=[800])
     duration: float | None = Field(None, description="Legacy duration in minutes.")
@@ -71,7 +73,9 @@ class RepeatGroup(BaseModel):
 class Workout(BaseModel):
     name: str = Field(..., examples=["VO2 Max Intervals"])
     description: str = Field("", examples=["6x800m intervals"])
-    duration: float = Field(..., description="Total estimated duration in minutes.", examples=[56.0])
+    duration: float = Field(
+        ..., description="Total estimated duration in minutes.", examples=[56.0]
+    )
     date: str = Field(..., description="YYYY-MM-DD", examples=["2026-04-27"])
     steps: list[WorkoutStep | RepeatGroup]
 
@@ -84,7 +88,9 @@ class TrainingPlan(BaseModel):
 
 
 class CalendarRange(BaseModel):
-    start_date: str = Field(..., description="Start date in YYYY-MM-DD format", examples=["2026-04-26"])
+    start_date: str = Field(
+        ..., description="Start date in YYYY-MM-DD format", examples=["2026-04-26"]
+    )
     end_date: str = Field(..., description="End date in YYYY-MM-DD format", examples=["2026-04-27"])
 
 
@@ -93,14 +99,24 @@ class WorkoutID(BaseModel):
 
 
 class ZoneUpdate(BaseModel):
-    z1_max: int = Field(..., description="Maximum heart rate for Zone 1 (Recovery).", examples=[144])
-    z2_max: int = Field(..., description="Maximum heart rate for Zone 2 (Aerobic Base).", examples=[165])
-    z3_max: int = Field(..., description="Maximum heart rate for Zone 3 (Gray Zone).", examples=[176])
-    z4_max: int = Field(..., description="Maximum heart rate for Zone 4 (Threshold).", examples=[186])
+    z1_max: int = Field(
+        ..., description="Maximum heart rate for Zone 1 (Recovery).", examples=[144]
+    )
+    z2_max: int = Field(
+        ..., description="Maximum heart rate for Zone 2 (Aerobic Base).", examples=[165]
+    )
+    z3_max: int = Field(
+        ..., description="Maximum heart rate for Zone 3 (Gray Zone).", examples=[176]
+    )
+    z4_max: int = Field(
+        ..., description="Maximum heart rate for Zone 4 (Threshold).", examples=[186]
+    )
 
 
 class ActivityID(BaseModel):
-    activity_id: str = Field(..., description="The unique ID of the activity (e.g., Garmin Activity ID) to analyze.")
+    activity_id: str = Field(
+        ..., description="The unique ID of the activity (e.g., Garmin Activity ID) to analyze."
+    )
 
 
 class BatchWorkoutID(BaseModel):
@@ -109,7 +125,9 @@ class BatchWorkoutID(BaseModel):
 
 class SearchQuery(BaseModel):
     query: str = Field(
-        ..., description="Natural language science question.", examples=["Polarized training 80/20 rule"]
+        ...,
+        description="Natural language science question.",
+        examples=["Polarized training 80/20 rule"],
     )
 
 
