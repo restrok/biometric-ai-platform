@@ -73,7 +73,7 @@ jobs:
         run: uv run pip-audit --ignore-vuln PYSEC-2026-3467 --ignore-vuln PYSEC-2026-3046 --ignore-vuln PYSEC-2026-2447
 
       - name: Run Gitleaks Secret Detection
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
