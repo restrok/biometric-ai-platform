@@ -26,6 +26,9 @@ class LocalStorageEngine(StorageEngine):
         if not data_dir:
             base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             data_dir = os.path.join(base_path, "data")
+            worker = os.environ.get("PYTEST_XDIST_WORKER")
+            if worker:
+                data_dir = os.path.join(data_dir, worker)
 
         self.data_dir = os.path.abspath(data_dir)
         os.makedirs(self.data_dir, exist_ok=True)
@@ -653,7 +656,7 @@ class LocalStorageEngine(StorageEngine):
                     if row[0]:
                         users.add(str(row[0]))
         except Exception as e:
-            log.debug("Error querying user profiles: %s", e)
+            log.debug(f"User profile query failed: {e}")
 
         try:
             duck_conn = self._get_duckdb_conn()
@@ -664,7 +667,7 @@ class LocalStorageEngine(StorageEngine):
             finally:
                 duck_conn.close()
         except Exception as e:
-            log.debug("Error querying duckdb activities: %s", e)
+            log.debug(f"DuckDB activity user query failed: {e}")
 
         if not users:
             users.add(os.getenv("DEFAULT_USER_ID", "default_user"))
