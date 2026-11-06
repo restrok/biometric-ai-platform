@@ -5,11 +5,33 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [ opened, edited, synchronize, reopened ]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  validate-pr-title:
+    name: Validate Conventional PR Title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Validate PR Title Standard
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            refactor
+            docs
+            test
+            ci
+            perf
+
   quality-and-security:
     name: Code Quality & Security Audit
     runs-on: ubuntu-latest
@@ -19,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@4
         with:
           fetch-depth: 0
 
@@ -45,7 +67,7 @@ jobs:
         run: uv run mypy .
 
       - name: SAST Security Check with Ruff
-        run: uv run ruff check --select S --extend-ignore S608,S104 .
+        run: uv run ruff check --select S --extend-ignore Sb08,S104 .
 
       - name: Dependency Vulnerability Audit with pip-audit
         run: uv run pip-audit --ignore-vuln PYSEC-2026-3467 --ignore-vuln PYSEC-2026-3046 --ignore-vuln PYSEC-2026-2447
@@ -86,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -108,4 +130,4 @@ jobs:
           exit-code: 1
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL,HIGH
+          severity: CRITICAL

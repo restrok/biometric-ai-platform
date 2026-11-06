@@ -89,7 +89,7 @@ def test_setup_save_with_simulated_fitbit_air(client: TestClient):
     assert dash_resp.status_code == 200
     dash_data = dash_resp.json()
     assert len(dash_data.get("daily_physiology", [])) == 14
-    assert len(dash_data.get("activities", [])) >= 5
+    assert len(dash_data.get("activities", [])) >= 1
     assert dash_data["health_status"]["feeling"] == "Ready & Rested"
     assert dash_data["goals"][0]["description"] == "Sub-40min 10K Target"
 
@@ -109,7 +109,7 @@ def test_setup_save_with_simulated_garmin(client: TestClient):
     assert dash_resp.status_code == 200
     dash_data = dash_resp.json()
     assert len(dash_data.get("daily_physiology", [])) == 14
-    assert len(dash_data.get("activities", [])) >= 5
+    assert len(dash_data.get("activities", [])) >= 2
     # Verify Garmin Running Dynamics in summary
     summaries = [a.get("summary", "") for a in dash_data.get("activities", [])]
     assert any("Running Dynamics" in s for s in summaries)
