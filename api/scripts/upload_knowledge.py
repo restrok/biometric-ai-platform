@@ -8,6 +8,7 @@ from google.cloud import bigquery
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from src.utils.config import get_config, setup_environment
 
 # Configure logging

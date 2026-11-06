@@ -7,6 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from langchain_core.messages import HumanMessage
+
 from src.agent.graph import (
     AgentState,
     node_injury_prevention,

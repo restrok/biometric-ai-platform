@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fitbit_training_toolkit_sdk.auth.google_auth import GoogleHealthOAuthClient
+
 from src.utils.vault import LocalSecureVault
 
 DEFAULT_CLIENT_ID = os.getenv("GOOGLE_HEALTH_CLIENT_ID", "")

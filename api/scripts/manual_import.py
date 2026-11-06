@@ -6,6 +6,7 @@ from datetime import date
 
 import pandas as pd
 from google.cloud import bigquery
+
 from src.tools.etl_job import upload_to_bq, upsert_to_bq
 from src.utils.provider_factory import get_provider
 

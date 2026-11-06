@@ -23,9 +23,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field
-from scripts.list_models import list_available_models
 from typing_extensions import TypedDict
 
+from scripts.list_models import list_available_models
 from src.agent.prompts import (
     DATA_SCIENTIST_PROMPT,
     HEAD_COACH_SYSTEM_PROMPT,

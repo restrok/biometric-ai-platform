@@ -3,6 +3,7 @@
 from typing import Any
 
 from google.cloud import bigquery
+
 from src.utils.config import get_config, setup_environment
 
 

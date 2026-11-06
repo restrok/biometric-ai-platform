@@ -26,6 +26,7 @@ import logging
 
 import pytest
 from langchain_core.messages import HumanMessage
+
 from src.agent.graph import graph
 
 logging.basicConfig(level=logging.INFO)

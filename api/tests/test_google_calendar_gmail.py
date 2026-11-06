@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from scripts.auth_google_calendar_gmail_cli import parse_code_from_input
 from src.google_workspace.calendar import GoogleCalendarClient, _format_rfc3339
 from src.google_workspace.gmail import (

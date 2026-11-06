@@ -9,6 +9,7 @@ from typing import Any
 
 from garmin_training_toolkit_sdk.core.garmin import GarminProvider
 from garmin_training_toolkit_sdk.utils import find_token_file
+
 from src.utils.config import get_secret
 
 log = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ def get_provider(
     if str(watch_provider).lower() in ("google_health", "google"):
         from fitbit_training_toolkit_sdk.core.google_health import GoogleHealthProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
+
         from src.utils.vault import get_vault
 
         vault_tokens = get_vault().retrieve_tokens("google_health", target_user)
@@ -81,6 +83,7 @@ def get_provider(
     if str(watch_provider).lower() == "fitbit":
         from fitbit_training_toolkit_sdk.core.fitbit import FitbitProvider
         from fitbit_training_toolkit_sdk.testing.mock import MockFitbitProvider
+
         from src.utils.vault import get_vault
 
         vault_tokens = get_vault().retrieve_tokens("fitbit", target_user)

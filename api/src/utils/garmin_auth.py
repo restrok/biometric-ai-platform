@@ -6,6 +6,7 @@ from pathlib import Path
 
 from garmin_training_toolkit_sdk.utils import DI_CLIENT_IDS
 from garminconnect import Garmin
+
 from src.utils.config import get_config, get_secret, set_secret
 from src.utils.notifications import send_proactive_notification
 from src.utils.vault import get_vault

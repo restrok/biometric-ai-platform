@@ -17,6 +17,7 @@ setup_environment()
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from src.agent.graph import graph
 
 

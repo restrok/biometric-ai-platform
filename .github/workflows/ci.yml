@@ -33,7 +33,7 @@ jobs:
             perf
 
   quality-and-security:
-    name: Code Quality & Security Audit
+    name: Code Quality & Security Audit (Tier 1)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -67,7 +67,7 @@ jobs:
         run: uv run mypy .
 
       - name: SAST Security Check with Ruff
-        run: uv run ruff check --select S --extend-ignore Sb08,S104 .
+        run: uv run ruff check --select S --extend-ignore S608,S104 .
 
       - name: Dependency Vulnerability Audit with pip-audit
         run: uv run pip-audit --ignore-vuln PYSEC-2026-3467 --ignore-vuln PYSEC-2026-3046 --ignore-vuln PYSEC-2026-2447
@@ -78,7 +78,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   tests:
-    name: Parallel Automated Tests & Coverage
+    name: Parallel Automated Tests & Coverage (Tier 2)
+    needs: [quality-and-security]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -104,7 +105,8 @@ jobs:
         run: uv run pytest
 
   docker-check:
-    name: Docker Build & Vulnerability Scan
+    name: Docker Build & Vulnerability Scan (Tier 3)
+    needs: [quality-and-security, tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

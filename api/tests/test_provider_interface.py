@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from garmin_training_toolkit_sdk.core.base import BaseBiometricProvider
 from garmin_training_toolkit_sdk.protocol.workouts import WorkoutPlan
+
 from src.utils.provider_factory import get_provider
 
 

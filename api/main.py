@@ -10,6 +10,7 @@ from typing import Any, Literal, cast
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
 from src.utils.config import setup_environment
 
 # Load environment and handle API keys (must be before logging setup to get LOG_LEVEL)
@@ -63,6 +64,7 @@ from contextlib import asynccontextmanager
 
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+
 from src.agent.graph import graph
 from src.agent.proactive import run_proactive_analysis
 from src.routers import tools, web_ui

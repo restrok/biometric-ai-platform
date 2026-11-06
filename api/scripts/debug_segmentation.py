@@ -4,6 +4,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from google.cloud import bigquery
+
 from src.utils.config import setup_environment
 
 
