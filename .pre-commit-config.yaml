@@ -15,21 +15,21 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: bash -c "cd api && /home/fsirio/.local/bin/uv run ruff check --fix ."
+        entry: bash -c "export PATH=\"$HOME/.local/bin:$PATH\" && cd api && uv run ruff check --fix ."
         language: system
         types: [python]
         pass_filenames: false
 
       - id: ruff-format
         name: ruff format
-        entry: bash -c "cd api && /home/fsirio/.local/bin/uv run ruff format ."
+        entry: bash -c "export PATH=\"$HOME/.local/bin:$PATH\" && cd api && uv run ruff format ."
         language: system
         types: [python]
         pass_filenames: false
 
       - id: mypy
         name: mypy
-        entry: bash -c "cd api && /home/fsirio/.local/bin/uv run mypy ."
+        entry: bash -c "export PATH=\"$HOME/.local/bin:$PATH\" && cd api && uv run mypy ."
         language: system
         types: [python]
         pass_filenames: false

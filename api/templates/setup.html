@@ -340,7 +340,7 @@
           <div id="box_custom_embeddings" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
             <div id="box_embedding_base_url" class="space-y-1.5">
               <label id="lbl_embedding_base_url" class="block text-xs font-semibold text-slate-300">Embeddings Base URL</label>
-              <input type="text" id="system_embedding_base_url" placeholder="http://192.168.89.32:11434/v1"
+              <input type="text" id="system_embedding_base_url" placeholder="http://localhost:11434/v1"
                      class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
             </div>
             <div id="box_embedding_model" class="space-y-1.5">
@@ -634,7 +634,7 @@
 
         if (provider === 'ollama') {
           boxUrl.classList.remove('hidden');
-          inputUrl.placeholder = 'http://192.168.89.32:11434/v1 (ThinkCentre) o local';
+          inputUrl.placeholder = 'http://localhost:11434/v1 o remote host';
           inputModel.placeholder = 'nomic-embed-text';
         } else if (provider === 'openai') {
           boxUrl.classList.remove('hidden');
