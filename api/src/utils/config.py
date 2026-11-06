@@ -129,7 +129,9 @@ def setup_environment():
         docker_fallback = "/root/.config/gcloud/application_default_credentials.json"
         if os.path.exists(docker_fallback):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = docker_fallback
-            log.info(f"🔄 Resolved GOOGLE_APPLICATION_CREDENTIALS to container path: {docker_fallback}")
+            log.info(
+                f"🔄 Resolved GOOGLE_APPLICATION_CREDENTIALS to container path: {docker_fallback}"
+            )
 
     # Set system timezone if TZ is provided
     tz = os.getenv("TZ")

@@ -26,7 +26,7 @@ if api_key_raw:
         if decoded_str.startswith("AIza"):
             os.environ["GOOGLE_API_KEY"] = decoded_str
     except Exception:
-        pass
+        os.environ["GOOGLE_API_KEY"] = api_key_raw
 
 from src.agent.graph import graph
 
@@ -39,7 +39,12 @@ async def run_evaluation():
     with open(dataset_path) as f:
         test_samples = json.load(f)
 
-    evaluation_data: dict[str, list] = {"question": [], "answer": [], "contexts": [], "ground_truth": []}
+    evaluation_data: dict[str, list] = {
+        "question": [],
+        "answer": [],
+        "contexts": [],
+        "ground_truth": [],
+    }
 
     # 2. Generate Answers and Collect Contexts
     for sample in test_samples:
@@ -54,7 +59,9 @@ async def run_evaluation():
         # Extract Answer
         answer = result_agent["messages"][-1].content
         if isinstance(answer, list):
-            answer = "\n".join([t.get("text", "") for t in answer if isinstance(t, dict) and "text" in t])
+            answer = "\n".join(
+                [t.get("text", "") for t in answer if isinstance(t, dict) and "text" in t]
+            )
 
         # Extract Context (from ToolMessages)
         contexts = []

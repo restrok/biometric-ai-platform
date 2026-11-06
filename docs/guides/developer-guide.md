@@ -10,17 +10,17 @@ The platform is designed as a **Parallel Agentic RAG** system, leveraging a hybr
 graph TD
     User([User Request]) --> Router{Intent Classifier}
     Router -- Tool Need --> Retriever[Hybrid Context Retriever]
-    
+
     subgraph "Parallel Analysis Phase (Fan-out)"
         Retriever --> Injury[🛡️ Injury Prevention]
         Retriever --> Sleep[🧬 Sleep & Circadian]
         Retriever --> Nutrition[⚖️ Metabolic Nutrition]
     end
-    
+
     Injury --> Analyzer[Head Coach / Analyzer]
     Sleep --> Analyzer
     Nutrition --> Analyzer
-    
+
     subgraph "Data & State Layer"
         Retriever --> FS[(Firestore OLTP)]
         Retriever --> BQ[(BigQuery OLAP)]
@@ -28,11 +28,11 @@ graph TD
         FS --> Memories[(Semantic Memory)]
         BQ --> Telemetry[(Biometric Telemetry)]
     end
-    
+
     Analyzer -- "Action" --> Tools[Action Tools]
     Tools -- "State Update" --> FS
     Tools -- "Historical Backup" --> BQ
-    
+
     Analyzer --> Validator[Response Validator]
     Validator --> User
 ```
@@ -84,7 +84,7 @@ sequenceDiagram
     participant Agent
     participant GarminSSO as Garmin SSO Portal
     participant SM as Google Secret Manager
-    
+
     User->>Agent: "Coach, connect my Garmin"
     Agent->>Agent: get_garmin_auth_url()
     Agent-->>User: Provides secure SSO link
@@ -197,7 +197,7 @@ The infrastructure is managed via **Terraform** in the `/infrastructure` directo
 *   **`modules/billing`**: Configures budget alerts and safety caps to prevent unexpected costs.
 
 ### 2. State Management
-We use a **GCS Backend** for state management, which enables team collaboration and state versioning. 
+We use a **GCS Backend** for state management, which enables team collaboration and state versioning.
 *   **Partial Configuration**: Sensitive backend details (bucket name) are stored in `backend.tfvars` (local only).
 *   **Security**: All `*.tfvars` files are ignored by git. Use `terraform.tfvars.example` as a template.
 

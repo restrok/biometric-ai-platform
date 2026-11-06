@@ -32,7 +32,9 @@ def init_finops_bq():
     ]
 
     table = bigquery.Table(table_ref, schema=schema)
-    table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY, field="timestamp")
+    table.time_partitioning = bigquery.TimePartitioning(
+        type_=bigquery.TimePartitioningType.DAY, field="timestamp"
+    )
 
     try:
         client.create_table(table, exists_ok=True)

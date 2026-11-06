@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-import google.cloud.firestore as firestore  # type: ignore[attr-defined]
+import google.cloud.firestore as firestore
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
@@ -41,7 +41,15 @@ def migrate():
         if p_rows:
             p = dict(p_rows[0])
             # Basic fields
-            for field in ["display_name", "gender", "age", "height_cm", "weight_kg", "max_hr", "resting_hr"]:
+            for field in [
+                "display_name",
+                "gender",
+                "age",
+                "height_cm",
+                "weight_kg",
+                "max_hr",
+                "resting_hr",
+            ]:
                 if p.get(field) is not None:
                     profile_data[field] = p[field]
 

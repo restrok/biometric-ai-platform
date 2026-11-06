@@ -80,7 +80,10 @@ async def main():
 
     # --- TEST 4: Final Check ---
     await run_test_cycle(
-        user_id, f"session_4_{user_id}", "Resúmeme qué sabes de mí ahora.", "TEST 4: Final State Verification"
+        user_id,
+        f"session_4_{user_id}",
+        "Resúmeme qué sabes de mí ahora.",
+        "TEST 4: Final State Verification",
     )
 
 

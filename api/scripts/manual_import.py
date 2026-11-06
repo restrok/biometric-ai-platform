@@ -65,7 +65,9 @@ def manual_import(start_date: date, end_date: date, user_id: str = "default_user
             client = bigquery.Client()
             proj = os.getenv("GOOGLE_CLOUD_PROJECT")
             ds = os.getenv("DATASET_NAME", "biometric_data_dev")
-            client.query(f"DELETE FROM `{proj}.{ds}.latest_activity_telemetry` WHERE activity_id = '{act.id}'").result()
+            client.query(
+                f"DELETE FROM `{proj}.{ds}.latest_activity_telemetry` WHERE activity_id = '{act.id}'"
+            ).result()
             upload_to_bq(df_t, "latest_activity_telemetry", "telemetry", user_id=user_id)
 
             # Calculate avg/max power if available

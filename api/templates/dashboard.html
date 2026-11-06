@@ -492,8 +492,8 @@
       const container = document.getElementById('toast-container');
       if (!container) return;
       const toast = document.createElement('div');
-      toast.className = 'pointer-events-auto bg-slate-900 border ' + 
-        (type === 'error' ? 'border-rose-500/80 text-rose-300' : 'border-emerald-500/80 text-emerald-300') + 
+      toast.className = 'pointer-events-auto bg-slate-900 border ' +
+        (type === 'error' ? 'border-rose-500/80 text-rose-300' : 'border-emerald-500/80 text-emerald-300') +
         ' px-4 py-2.5 rounded-xl shadow-2xl flex items-center space-x-2 text-xs font-semibold transform transition-all duration-300 opacity-0 translate-y-2';
       toast.innerHTML = '<span>' + (type === 'error' ? '⚠️' : '✓') + '</span> <span>' + message + '</span>';
       container.appendChild(toast);
@@ -1174,7 +1174,7 @@ async function loadAthleteLayout(userId) {
       currentUserId = newUserId;
       document.getElementById('athlete-badge').innerText = newUserId;
       window.history.replaceState(null, '', '/dashboard?user_id=' + encodeURIComponent(newUserId));
-      
+
       // Load and apply this athlete's specific dashboard layout!
       await loadAthleteLayout(newUserId);
       await loadDashboard();

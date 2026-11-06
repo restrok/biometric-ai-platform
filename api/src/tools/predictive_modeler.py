@@ -21,9 +21,13 @@ log = logging.getLogger(__name__)
 class ProposedSession(BaseModel):
     """Schema for a single proposed workout session."""
 
-    date: str | None = Field(None, description="Proposed date in YYYY-MM-DD format (defaults to today).")
+    date: str | None = Field(
+        None, description="Proposed date in YYYY-MM-DD format (defaults to today)."
+    )
     duration_mins: float = Field(..., description="Duration in minutes.")
-    estimated_work_kj: float | None = Field(None, description="Estimated mechanical work in kJ (Power * sec / 1000).")
+    estimated_work_kj: float | None = Field(
+        None, description="Estimated mechanical work in kJ (Power * sec / 1000)."
+    )
     estimated_trimp: float | None = Field(None, description="Estimated TRIMP load.")
     target_zone: int | None = Field(None, description="Target HR Zone (1-5).")
     avg_hr: float | None = Field(None, description="Estimated average heart rate.")
@@ -32,13 +36,21 @@ class ProposedSession(BaseModel):
 class ProjectTrainingImpactInput(BaseModel):
     """Input schema for projecting multi-day or single-session training plan workload impact."""
 
-    user_id: str = Field(..., description="The internal ID of the user (mandatory for multi-tenant isolation).")
+    user_id: str = Field(
+        ..., description="The internal ID of the user (mandatory for multi-tenant isolation)."
+    )
     proposed_sessions: list[dict[str, Any]] | None = Field(
         None, description="List of proposed workout sessions for the next 7-14 days."
     )
-    duration_mins: float | None = Field(None, description="Single session duration in minutes (legacy/simple mode).")
-    avg_hr: float | None = Field(None, description="Single session average heart rate (legacy/simple mode).")
-    projection_days: int = Field(14, description="Number of simulation days into the future (default 14).")
+    duration_mins: float | None = Field(
+        None, description="Single session duration in minutes (legacy/simple mode)."
+    )
+    avg_hr: float | None = Field(
+        None, description="Single session average heart rate (legacy/simple mode)."
+    )
+    projection_days: int = Field(
+        14, description="Number of simulation days into the future (default 14)."
+    )
 
 
 @tool(args_schema=ProjectTrainingImpactInput)
@@ -86,7 +98,7 @@ def project_training_impact(
         # 1. Fetch historical workload for the last 35 days to form baseline
         start_date = (datetime.now() - timedelta(days=35)).strftime("%Y-%m-%d")
         query_history = f"""
-            SELECT 
+            SELECT
                 DATE(TIMESTAMP_SECONDS(CAST(date AS INT64))) as dt,
                 SUM((duration_sec * COALESCE(avg_power, 0)) / 1000.0) AS work_kj,
                 SUM((duration_sec / 60.0) * (COALESCE(avg_hr, 120) / 165.0)) AS trimp
@@ -99,7 +111,7 @@ def project_training_impact(
 
         # 2. Fetch User Calibration Profile
         query_calib = f"""
-            SELECT marker_type, marker_value 
+            SELECT marker_type, marker_value
             FROM `{pid}.{ds}.user_calibration_profile`
             WHERE user_id = '{user_id}'
         """
@@ -151,7 +163,8 @@ def project_training_impact(
         df_sim["acute"] = df_sim[metric_col].rolling(window=7, min_periods=1).sum()
         df_sim["chronic"] = df_sim[metric_col].rolling(window=28, min_periods=1).sum() / 4.0
         df_sim["acwr"] = df_sim.apply(
-            lambda row: round(row["acute"] / row["chronic"], 2) if row["chronic"] > 0 else 1.0, axis=1
+            lambda row: round(row["acute"] / row["chronic"], 2) if row["chronic"] > 0 else 1.0,
+            axis=1,
         )
 
         # Filter simulation period from today onwards
@@ -230,7 +243,9 @@ class CriticalPowerInput(BaseModel):
     target_power_watts: float = Field(
         268.0, description="Target power output in Watts for 10k (default 268W for <50m 10k)."
     )
-    target_duration_mins: float = Field(50.0, description="Target event duration in minutes (default 50 mins).")
+    target_duration_mins: float = Field(
+        50.0, description="Target event duration in minutes (default 50 mins)."
+    )
 
 
 @tool(args_schema=CriticalPowerInput)
@@ -261,7 +276,7 @@ def calculate_critical_power_and_w_prime(
         client = bigquery.Client(project=pid)
         # Query peak short-duration (3m = 180s) and long-duration (12m = 720s) power from activities
         query_peaks = f"""
-            SELECT 
+            SELECT
                 MAX(avg_power) as peak_power,
                 MAX(CASE WHEN duration_sec BETWEEN 120 AND 300 THEN avg_power END) as peak_3m_w,
                 MAX(CASE WHEN duration_sec >= 600 THEN avg_power END) as peak_12m_w

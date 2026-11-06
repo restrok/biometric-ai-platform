@@ -28,7 +28,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
     # --- 0. Onboarding Check (Asynchronous ETL) ---
     profile = get_user_profile(user_id)
     if not profile.get("full_etl_synced"):
-        log.info(f"🆕 User {user_id} is new or has no full sync. Triggering background historical ETL...")
+        log.info(
+            f"🆕 User {user_id} is new or has no full sync. Triggering background historical ETL..."
+        )
         _trigger_async_historical_backfill(user_id)
         # Exit gracefully to avoid analyzing incomplete data
         return
@@ -45,7 +47,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             return
 
         query_specific = f"""
-            SELECT id, date, type, name 
+            SELECT id, date, type, name
             FROM `{config["project_id"]}.{dataset}.recent_activities`
             WHERE user_id = @user_id
             AND CAST(id AS STRING) IN UNNEST(@activity_ids)
@@ -59,7 +61,7 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         activities_to_process = list(client.query(query_specific, job_config=job_config).result())
     else:
         query_latest = f"""
-            SELECT id, date, type, name 
+            SELECT id, date, type, name
             FROM `{config["project_id"]}.{dataset}.recent_activities`
             WHERE user_id = @user_id
             AND date >= UNIX_SECONDS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR))
@@ -108,7 +110,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             _run_discovery_phase(user_id)
             update_user_profile(user_id, {"last_discovery_date": today_str})
         else:
-            log.info(f"⏭️ Skipping Discovery Phase for {user_id} (already executed on {today_str} or no new data).")
+            log.info(
+                f"⏭️ Skipping Discovery Phase for {user_id} (already executed on {today_str} or no new data)."
+            )
 
         # 4. Concise Morning Check-In (only during waking hours >= 06:00 local, once per day)
         if current_hour < 6 and not activities_to_process:
@@ -167,7 +171,10 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
             tags=["proactive", "planner"],
         )
         callbacks = [langfuse_cb] if langfuse_cb else []
-        config = cast(RunnableConfig, {"configurable": {"thread_id": proactive_thread_id}, "callbacks": callbacks})
+        config = cast(
+            RunnableConfig,
+            {"configurable": {"thread_id": proactive_thread_id}, "callbacks": callbacks},
+        )
         result = graph.invoke(initial_state, config=config)
 
         update_user_profile(
@@ -182,7 +189,9 @@ def run_proactive_analysis(user_id: str, new_activity_ids: list[str] | None = No
         ai_reply = ""
         for msg in reversed(result.get("messages", [])):
             if msg.type == "ai" and msg.content:
-                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get(
+                    "is_ds_report"
+                ):
                     continue
                 ai_reply = str(msg.content).strip()
                 if ai_reply:
@@ -243,7 +252,10 @@ def _run_discovery_phase(user_id: str):
             tags=["proactive", "discovery", "data-scientist"],
         )
         callbacks = [langfuse_cb] if langfuse_cb else []
-        config = cast(RunnableConfig, {"configurable": {"thread_id": discovery_thread_id}, "callbacks": callbacks})
+        config = cast(
+            RunnableConfig,
+            {"configurable": {"thread_id": discovery_thread_id}, "callbacks": callbacks},
+        )
         graph.invoke(initial_state, config=config)
 
     except Exception as e:
@@ -252,7 +264,7 @@ def _run_discovery_phase(user_id: str):
 
 def _safe_localtime(ts):
     """Handles timestamps in seconds, milliseconds, microseconds, or nanoseconds."""
-    if not isinstance(ts, (int, float)):
+    if not isinstance(ts, int | float):
         return time.localtime()
 
     # Heuristic to detect precision
@@ -272,7 +284,9 @@ def _safe_localtime(ts):
 
 def _analyze_metabolic_cost(user_id, activity_id, activity_name, activity_timestamp):
     log.info(f"🔥 Analyzing metabolic cost for activity {activity_id}...")
-    efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
+    efficiency = analyze_activity_efficiency.invoke(
+        {"activity_id": activity_id, "user_id": user_id}
+    )
 
     if isinstance(efficiency, dict) and "hr_per_step" in efficiency:
         hr_step = efficiency["hr_per_step"]
@@ -313,7 +327,9 @@ def _check_health_pre_symptoms(user_id):
                 # 2. RHR Z-Score
                 physiology = data.get("daily_physiology_7d", [])
                 rhr_values = [
-                    p.get("resting_heart_rate") for p in physiology if p.get("resting_heart_rate") is not None
+                    p.get("resting_heart_rate")
+                    for p in physiology
+                    if p.get("resting_heart_rate") is not None
                 ]
 
                 rhr_z = 0.0
@@ -352,7 +368,9 @@ def _check_health_pre_symptoms(user_id):
                         "hrv_warning",
                     ):
                         if send_proactive_notification(user_id, msg):
-                            _log_notification(user_id, hrv_history[0].get("date"), "hrv_warning", msg)
+                            _log_notification(
+                                user_id, hrv_history[0].get("date"), "hrv_warning", msg
+                            )
     except Exception as e:
         log.error(f"❌ Immune Radar analysis failed: {e}")
 
@@ -365,9 +383,9 @@ def _has_been_notified(client, dataset, user_id, entity_id, notification_type):
     _ensure_log_table_exists(client, table_id)
 
     query = f"""
-        SELECT COUNT(*) as count 
+        SELECT COUNT(*) as count
         FROM `{table_id}`
-        WHERE user_id = @user_id 
+        WHERE user_id = @user_id
         AND entity_id = @entity_id
         AND type = @type
     """
@@ -418,7 +436,9 @@ def _log_notification(user_id, entity_id, notification_type, message):
 
 def _analyze_hydration(user_id, activity_id, activity_name, activity_timestamp):
     log.info(f"💧 Analyzing hydration for activity {activity_id}...")
-    efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
+    efficiency = analyze_activity_efficiency.invoke(
+        {"activity_id": activity_id, "user_id": user_id}
+    )
 
     if isinstance(efficiency, dict) and "aerobic_decoupling_pct" in efficiency:
         drift_str = efficiency["aerobic_decoupling_pct"].replace("%", "")
@@ -477,9 +497,15 @@ def _analyze_hrv_status(user_id):
 
 def _analyze_neuromuscular_fatigue(user_id, activity_id, activity_name, activity_timestamp):
     log.info(f"🦵 Analyzing neuromuscular fatigue for activity {activity_id}...")
-    efficiency = analyze_activity_efficiency.invoke({"activity_id": activity_id, "user_id": user_id})
+    efficiency = analyze_activity_efficiency.invoke(
+        {"activity_id": activity_id, "user_id": user_id}
+    )
 
-    if isinstance(efficiency, dict) and "gct_first_half" in efficiency and "gct_second_half" in efficiency:
+    if (
+        isinstance(efficiency, dict)
+        and "gct_first_half" in efficiency
+        and "gct_second_half" in efficiency
+    ):
         gct1 = efficiency["gct_first_half"]
         gct2 = efficiency["gct_second_half"]
 

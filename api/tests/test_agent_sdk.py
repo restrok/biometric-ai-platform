@@ -5,8 +5,9 @@ from src.agent.graph import graph
 from src.tools.retriever import retrieve_biometric_data
 
 
-def test_retriever_not_empty():
+def test_retriever_not_empty(monkeypatch: pytest.MonkeyPatch):
     """Verify that the retriever returns a dictionary (even if mock)."""
+    monkeypatch.setenv("STORAGE_MODE", "local")
     data = retrieve_biometric_data.invoke({"user_id": "test_user"})
     assert isinstance(data, dict)
     assert "recent_activities" in data
@@ -18,8 +19,13 @@ async def test_agent_invocation():
     """Verify that the agent can be invoked and returns a message."""
     from typing import Any, cast
 
-    initial_state = {"messages": [HumanMessage(content="Hello coach, how am I doing?")], "user_id": "test_user"}
-    result = await graph.ainvoke(cast(Any, initial_state), config={"configurable": {"thread_id": "test_thread"}})
+    initial_state = {
+        "messages": [HumanMessage(content="Hello coach, how am I doing?")],
+        "user_id": "test_user",
+    }
+    result = await graph.ainvoke(
+        cast(Any, initial_state), config={"configurable": {"thread_id": "test_thread"}}
+    )
 
     assert "messages" in result
     assert len(result["messages"]) > 1

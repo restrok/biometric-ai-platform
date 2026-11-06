@@ -67,7 +67,9 @@ def mcp_analyze_activity_stages(activity_id: str) -> str:
 
 
 @mcp_server.tool()
-def mcp_query_macro_load_history(user_id: str | None = None, group_by: str = "weekly", limit_months: int = 6) -> str:
+def mcp_query_macro_load_history(
+    user_id: str | None = None, group_by: str = "weekly", limit_months: int = 6
+) -> str:
     """Aggregates training volume, distance, TRIMP, and session counts."""
     return str(
         query_macro_load_history.invoke(
@@ -150,7 +152,9 @@ def mcp_log_health_status(
 
 
 @mcp_server.tool()
-def mcp_update_user_zones(z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None) -> str:
+def mcp_update_user_zones(
+    z1_max: int, z2_max: int, z3_max: int, z4_max: int, user_id: str | None = None
+) -> str:
     """Updates heart rate training zones (Z1 - Z5)."""
     return str(
         update_user_zones.invoke(

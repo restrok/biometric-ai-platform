@@ -45,7 +45,9 @@ def get_storage_client(project_id: str) -> storage.Client:
     return _storage_clients[project_id]
 
 
-async def save_artifact_to_gcs(project_id: str, bucket_name: str, file_name: str, content: str) -> str:
+async def save_artifact_to_gcs(
+    project_id: str, bucket_name: str, file_name: str, content: str
+) -> str:
     """Uploads the report artifact to a GCS bucket and generates a Signed URL."""
 
     def _upload():
@@ -59,7 +61,9 @@ async def save_artifact_to_gcs(project_id: str, bucket_name: str, file_name: str
 
         # Generate Signed URL valid for 2 hours
         try:
-            url = blob.generate_signed_url(version="v4", expiration=timedelta(hours=2), method="GET")
+            url = blob.generate_signed_url(
+                version="v4", expiration=timedelta(hours=2), method="GET"
+            )
         except Exception as e:
             log.warning(f"Could not generate Signed URL: {e}. Falling back to Authenticated URL.")
             url = f"https://storage.cloud.google.com/{bucket_name}/{file_name}"
@@ -78,7 +82,11 @@ class DeepReportingInput(BaseModel):
 
 
 def _generate_svg_chart(
-    data: list[float], labels: list[str], title: str, color: str = "#3b82f6", baseline: float | None = None
+    data: list[float],
+    labels: list[str],
+    title: str,
+    color: str = "#3b82f6",
+    baseline: float | None = None,
 ) -> str:
     """Generates a responsive, zero-dependency SVG trend chart."""
     if not data:
@@ -100,7 +108,9 @@ def _generate_svg_chart(
     range_val = (max_val - min_val) if max_val != min_val else 1
 
     def get_x(i):
-        return padding + (i * (width - 2 * padding) / (len(data) - 1)) if len(data) > 1 else width / 2
+        return (
+            padding + (i * (width - 2 * padding) / (len(data) - 1)) if len(data) > 1 else width / 2
+        )
 
     def get_y(v):
         return height - padding - ((v - min_val) * (height - 2 * padding) / range_val)
@@ -130,7 +140,9 @@ def _generate_svg_chart(
     """
 
 
-def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tuple[dict[str, Any], str]:
+def _calculate_deep_stats(
+    context: dict[str, pd.DataFrame], user_id: str
+) -> tuple[dict[str, Any], str]:
     """
     Core Analytical Engine: Performs cross-domain statistical analysis.
     Inspired by SensorFM's multi-domain health prediction tasks.
@@ -156,7 +168,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
     # Fetch User Calibration Profile
     query_calib = f"""
-        SELECT marker_type, marker_value 
+        SELECT marker_type, marker_value
         FROM `{config["project_id"]}.{dataset}.user_calibration_profile`
         WHERE user_id = '{user_id}'
     """
@@ -168,9 +180,15 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         df_act = df_act.sort_values("date").set_index("date")
 
         # Acute:Chronic (A:C) Ratio logic
-        df_daily = df_act.resample("D").agg({"distance_km": "sum", "avg_hr": "mean", "avg_power": "mean"}).fillna(0)
+        df_daily = (
+            df_act.resample("D")
+            .agg({"distance_km": "sum", "avg_hr": "mean", "avg_power": "mean"})
+            .fillna(0)
+        )
         df_daily["acute_load"] = df_daily["distance_km"].rolling(window=7, min_periods=1).sum()
-        df_daily["chronic_load"] = df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
+        df_daily["chronic_load"] = (
+            df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
+        )
         df_daily["ac_ratio"] = (df_daily["acute_load"] / df_daily["chronic_load"]).fillna(1.0)
 
         ac_ratio = round(df_daily["ac_ratio"].iloc[-1], 2)
@@ -179,7 +197,11 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         ac_data = df_daily["ac_ratio"].tail(30).tolist()
         ac_labels = [d.strftime("%b %d") for d in df_daily.index[-30:]]
         ac_trend_svg = _generate_svg_chart(
-            ac_data, ac_labels, "Workload (A:C Ratio) - Last 30 Days", color="var(--accent)", baseline=1.0
+            ac_data,
+            ac_labels,
+            "Workload (A:C Ratio) - Last 30 Days",
+            color="var(--accent)",
+            baseline=1.0,
         )
 
         # Color based on A:C ratio
@@ -216,7 +238,9 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         avg_hrv = df_hrv["avg_hrv"].mean()
         recent_hrv = df_hrv["avg_hrv"].tail(7).mean()
         hrv_pct_change = ((recent_hrv - avg_hrv) / avg_hrv) * 100 if avg_hrv > 0 else 0
-        hrv_trend = "Improving" if hrv_pct_change > 5 else "Declining" if hrv_pct_change < -5 else "Stable"
+        hrv_trend = (
+            "Improving" if hrv_pct_change > 5 else "Declining" if hrv_pct_change < -5 else "Stable"
+        )
 
         if hrv_trend == "Improving":
             hrv_color = "var(--success)"
@@ -229,7 +253,11 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         hrv_data = df_hrv["avg_hrv"].tail(30).tolist()
         hrv_labels = [d.strftime("%b %d") for d in df_hrv["date"].tail(30)]
         hrv_trend_svg = _generate_svg_chart(
-            hrv_data, hrv_labels, "Autonomic Recovery (HRV) - Last 30 Days", color=hrv_color, baseline=avg_hrv
+            hrv_data,
+            hrv_labels,
+            "Autonomic Recovery (HRV) - Last 30 Days",
+            color=hrv_color,
+            baseline=avg_hrv,
         )
 
         hrv_summary = f"Your average HRV is <strong>{int(avg_hrv)} ms</strong>. The 7-day trend is <strong>{hrv_trend}</strong> ({round(hrv_pct_change, 1)}% variance vs baseline)."
@@ -253,7 +281,9 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
         recent_health = df_health.tail(14).copy()
         # Ensure numeric types for comparison
-        recent_health["fatigue_level"] = pd.to_numeric(recent_health["fatigue_level"], errors="coerce")
+        recent_health["fatigue_level"] = pd.to_numeric(
+            recent_health["fatigue_level"], errors="coerce"
+        )
         recent_health["feeling"] = pd.to_numeric(recent_health["feeling"], errors="coerce")
 
         high_fatigue_days = len(recent_health[recent_health["fatigue_level"] >= 7])
@@ -269,9 +299,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         elif high_fatigue_days == 0 and ac_ratio > profile.ac_ratio_red_line:
             health_correlation_insight = f"<strong>Warning:</strong> You are not reporting high fatigue, but your objective workload (A:C > {profile.ac_ratio_red_line}) is high. Beware of masked cumulative fatigue."
         else:
-            health_correlation_insight = (
-                "Your subjective feelings are currently tracking normally with your objective training load."
-            )
+            health_correlation_insight = "Your subjective feelings are currently tracking normally with your objective training load."
 
     # 5. Warnings & Anomalies
     warnings = []
@@ -310,7 +338,11 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         )
     if hrv_trend == "Declining":
         warnings.append(
-            ("Systemic Stress", "HRV trend is declining. Prioritize sleep and low-intensity sessions.", "warning-box")
+            (
+                "Systemic Stress",
+                "HRV trend is declining. Prioritize sleep and low-intensity sessions.",
+                "warning-box",
+            )
         )
     if high_fatigue_days >= 4:
         warnings.append(
@@ -377,7 +409,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
         }}
 
         * {{ box-sizing: border-box; }}
-        
+
         body {{
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.6;
@@ -403,17 +435,17 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             margin-bottom: 48px;
         }}
 
-        h1 {{ 
-            margin: 0; 
-            font-size: 1.875rem; 
-            font-weight: 800; 
+        h1 {{
+            margin: 0;
+            font-size: 1.875rem;
+            font-weight: 800;
             letter-spacing: -0.025em;
             color: var(--primary);
         }}
 
-        .subtitle {{ 
-            color: var(--text-muted); 
-            font-size: 1rem; 
+        .subtitle {{
+            color: var(--text-muted);
+            font-size: 1rem;
             margin-top: 8px;
             font-weight: 500;
         }}
@@ -444,28 +476,28 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
         .stat-card:hover {{ transform: translateY(-2px); }}
 
-        .stat-value {{ 
-            font-size: 2rem; 
-            font-weight: 700; 
-            display: block; 
+        .stat-value {{
+            font-size: 2rem;
+            font-weight: 700;
+            display: block;
             color: var(--primary);
             line-height: 1;
         }}
 
-        .stat-label {{ 
-            font-size: 0.75rem; 
-            color: var(--text-muted); 
-            text-transform: uppercase; 
-            letter-spacing: 0.05em; 
-            margin-top: 8px; 
+        .stat-label {{
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 8px;
             display: block;
             font-weight: 600;
         }}
 
         section {{ margin-bottom: 48px; }}
 
-        h2 {{ 
-            font-size: 1.25rem; 
+        h2 {{
+            font-size: 1.25rem;
             font-weight: 700;
             margin-bottom: 24px;
             display: flex;
@@ -488,9 +520,9 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             margin-bottom: 20px;
         }}
 
-        h3 {{ 
-            font-size: 1rem; 
-            font-weight: 600; 
+        h3 {{
+            font-size: 1rem;
+            font-weight: 600;
             margin-top: 0;
             color: var(--accent);
             display: flex;
@@ -523,7 +555,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
             padding-top: 16px;
             border-top: 1px dashed var(--border);
         }}
-        
+
         .trend-chart {{
             width: 100%;
             height: auto;
@@ -576,7 +608,7 @@ def _calculate_deep_stats(context: dict[str, pd.DataFrame], user_id: str) -> tup
 
         <section aria-labelledby="domain-analysis-title">
             <h2 id="domain-analysis-title">🔍 Multi-Domain Analysis</h2>
-            
+
             <article>
                 <h3>{icon_check} Cardiovascular & Load</h3>
                 <p class="insight-text">{cv_summary}</p>
@@ -652,7 +684,7 @@ async def generate_deep_historical_report(
 
         # 1. Activities
         q_act = f"""
-            SELECT 
+            SELECT
                 FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date_str,
                 SUM(distance_m)/1000 as distance_km,
                 AVG(avg_hr) as avg_hr,

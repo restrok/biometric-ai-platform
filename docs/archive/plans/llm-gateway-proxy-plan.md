@@ -3,7 +3,7 @@
 > **Status:** ❌ DISCARDED (Concept replaced by direct API usage due to proxy noise)
 
 ## 1. Background & Motivation
-Currently, the Biometric AI Platform relies on a direct connection to Google's Generative AI API using an API Key. While effective, this creates a dependency on a single provider and consumes API quota/tokens. 
+Currently, the Biometric AI Platform relies on a direct connection to Google's Generative AI API using an API Key. While effective, this creates a dependency on a single provider and consumes API quota/tokens.
 
 The goal is to implement a **Universal LLM Gateway** that makes the project provider-agnostic (supporting Gemini, OpenAI, Anthropic, etc.) and introduces a "Power User" mode: a **CLI Multi-Provider Proxy**. This proxy will leverage local CLI tools (`gemini-cli`, `claude-code`, etc.) as zero-cost inference engines with automatic failover.
 

@@ -38,7 +38,9 @@ class JsonFormatter(logging.Formatter):
 
 # Console Handler (Human-readable)
 stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"))
+stream_handler.setFormatter(
+    logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
+)
 
 # Unified File Handler (Machine-readable JSON)
 file_handler = logging.FileHandler("api.log")
@@ -113,9 +115,13 @@ async def lifespan(app: FastAPI):
                             hour=next_interval_hour % 24, minute=0, second=0, microsecond=0
                         )
                     else:
-                        next_run = now.replace(hour=next_interval_hour, minute=0, second=0, microsecond=0)
+                        next_run = now.replace(
+                            hour=next_interval_hour, minute=0, second=0, microsecond=0
+                        )
 
-                    log.info(f"📅 Proactive auto-sync interval set to {interval_hours} hours (Local Time).")
+                    log.info(
+                        f"📅 Proactive auto-sync interval set to {interval_hours} hours (Local Time)."
+                    )
                 else:
                     # Fallback to daily specific hour (default 23:00 Local)
                     target_hour = int(os.getenv("PROACTIVE_HOUR_LOCAL", "23"))
@@ -270,10 +276,15 @@ async def direct_chat(
         ai_reply = ""
         for msg in reversed(result["messages"]):
             if msg.type == "ai" and msg.content:
-                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get(
+                    "is_ds_report"
+                ):
                     continue
                 if isinstance(msg.content, list):
-                    text_parts = [item if isinstance(item, str) else item.get("text", "") for item in msg.content]
+                    text_parts = [
+                        item if isinstance(item, str) else item.get("text", "")
+                        for item in msg.content
+                    ]
                     ai_reply = "\n".join(filter(None, text_parts))
                 else:
                     ai_reply = str(msg.content)
@@ -281,9 +292,7 @@ async def direct_chat(
                     break
 
         if not ai_reply:
-            ai_reply = (
-                "El entrenador analizó la consulta pero no generó respuesta de texto. Por favor intenta de nuevo."
-            )
+            ai_reply = "El entrenador analizó la consulta pero no generó respuesta de texto. Por favor intenta de nuevo."
 
         return {"response": ai_reply, "message": ai_reply, "user_id": user_id}
     except Exception as e:
@@ -292,7 +301,9 @@ async def direct_chat(
 
 
 @app.post("/v1/chat/completions")
-async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | None = Header(None, alias="X-User-ID")):
+async def openai_chat_completion(
+    req: OpenAICompletionRequest, x_user_id: str | None = Header(None, alias="X-User-ID")
+):
     """OpenAI-compatible endpoint for chat completions."""
     user_id = x_user_id or os.getenv("DEFAULT_USER_ID", "default_user")
     log.info(f"📩 Incoming request | User: {user_id} | Model: {req.model} | Stream: {req.stream}")
@@ -333,7 +344,9 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
             completion_id = f"chatcmpl-{int(time.time())}"
             created_time = int(time.time())
 
-            async for event in graph.astream_events(cast(Any, initial_state), version="v2", config=config):
+            async for event in graph.astream_events(
+                cast(Any, initial_state), version="v2", config=config
+            ):
                 kind = event["event"]
                 tags = event.get("tags", [])
 
@@ -346,7 +359,9 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
                             "object": "chat.completion.chunk",
                             "created": created_time,
                             "model": req.model,
-                            "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
+                            "choices": [
+                                {"index": 0, "delta": {"content": content}, "finish_reason": None}
+                            ],
                         }
                         yield f"data: {json.dumps(chunk)}\n\n"
 
@@ -365,12 +380,17 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
         for msg in reversed(result["messages"]):
             if msg.type == "ai" and msg.content:
                 # Skip internal messages
-                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get("is_ds_report"):
+                if msg.additional_kwargs.get("is_memory_extraction") or msg.additional_kwargs.get(
+                    "is_ds_report"
+                ):
                     continue
 
                 # If it's a list (rich response), join it
                 if isinstance(msg.content, list):
-                    text_parts = [item if isinstance(item, str) else item.get("text", "") for item in msg.content]
+                    text_parts = [
+                        item if isinstance(item, str) else item.get("text", "")
+                        for item in msg.content
+                    ]
                     ai_reply = "\n".join(filter(None, text_parts))
                 else:
                     ai_reply = str(msg.content)
@@ -387,7 +407,9 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
             model=req.model,
             choices=[
                 OpenAICompletionResponseChoice(
-                    index=0, message=OpenAIChatMessage(role="assistant", content=ai_reply), finish_reason="stop"
+                    index=0,
+                    message=OpenAIChatMessage(role="assistant", content=ai_reply),
+                    finish_reason="stop",
                 )
             ],
         )
@@ -399,4 +421,4 @@ async def openai_chat_completion(req: OpenAICompletionRequest, x_user_id: str | 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)  # noqa: S104

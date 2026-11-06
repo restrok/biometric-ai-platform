@@ -36,7 +36,11 @@ from src.agent.prompts import (
 )
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
-from src.tools.data_scientist import execute_exploratory_query, execute_exploratory_query_dry_run, get_bigquery_schema
+from src.tools.data_scientist import (
+    execute_exploratory_query,
+    execute_exploratory_query_dry_run,
+    get_bigquery_schema,
+)
 from src.tools.deep_reporting import generate_deep_historical_report
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
@@ -48,7 +52,11 @@ from src.tools.garmin_uploader import (
     upload_training_plan,
 )
 from src.tools.historical_biometrics import generate_historical_report, query_macro_load_history
-from src.tools.memory_manager import retire_semantic_memory, save_semantic_memory, update_semantic_memory
+from src.tools.memory_manager import (
+    retire_semantic_memory,
+    save_semantic_memory,
+    update_semantic_memory,
+)
 from src.tools.predictive_modeler import project_training_impact
 from src.tools.profile_manager import (
     configure_proactive_coaching,
@@ -94,7 +102,16 @@ class IntentClassifier(BaseModel):
     """Classifies the user's intent regarding biometric data needs."""
 
     intent: Literal[
-        "none", "full", "activities", "sleep", "hrv", "nutrition", "sync", "planning", "discovery", "profile"
+        "none",
+        "full",
+        "activities",
+        "sleep",
+        "hrv",
+        "nutrition",
+        "sync",
+        "planning",
+        "discovery",
+        "profile",
     ] = Field(
         ...,
         description="The type of biometric data needed to answer the query. "
@@ -115,10 +132,10 @@ Your goal is to provide personalized, research-backed training advice based on t
 
 ### 🛡️ MANDATORY PRE-FLIGHT HEALTH SCAN (CRITICAL)
 Before you prescribe ANY training plan or specific workout (using `upload_training_plan`), you MUST perform a holistic scan of the user's current physiological state:
-1. **Objective Workload:** Check the current **Acute:Chronic (A:C) Ratio**. 
+1. **Objective Workload:** Check the current **Acute:Chronic (A:C) Ratio**.
    - If A:C Ratio > 1.3: You are FORBIDDEN from prescribing high intensity. Suggest Zone 1/2 or rest.
    - If A:C Ratio > 1.5: You MUST recommend immediate deload or total rest.
-2. **Nervous System Status:** Evaluate the latest **HRV Trend**. 
+2. **Nervous System Status:** Evaluate the latest **HRV Trend**.
    - If HRV is "Declining" or "Unbalanced": Prioritize recovery sessions only.
 3. **Subjective Wellness:** Check the latest **Health Logs** (Fatigue/Feeling).
    - If fatigue >= 7 or feeling <= 4: Override high-intensity requests with easy recovery.
@@ -156,7 +173,7 @@ Before you prescribe ANY training plan or specific workout (using `upload_traini
 
 3. **Heart Rate Zones & Personalization (Data-Driven):**
    - **Formula vs. Reality:** While standard zones use Max HR 193, your real telemetry shows you reached **196 bpm**. Use the higher observed value for calculations.
-   - **The Talk Test (AeT):** If a user reports they can hold a full conversation at 160 bpm, this is a strong indicator that their **Aerobic Threshold (AeT)** is higher than the standard formula suggests. 
+   - **The Talk Test (AeT):** If a user reports they can hold a full conversation at 160 bpm, this is a strong indicator that their **Aerobic Threshold (AeT)** is higher than the standard formula suggests.
    - **Analytical Rule:** Do not just tell the user they are wrong. Analyze the `last_3_runs_telemetry`. If the HR is stable (not drifting) at 155-165 bpm over 45+ minutes, acknowledge that their Zone 2 cap may be significantly higher (e.g., 160-165 bpm).
    - **Propose Custom Zones:** If the data and feedback conflict with the 80/20 standard formula, propose **Custom Zones** based on the user's actual performance data.
 
@@ -206,7 +223,9 @@ def node_router(state: AgentState) -> dict[str, Any]:
     """
     # HARDCODED OVERRIDES: Ensure critical commands never fail due to model confusion or bad memory
     last_message = state["messages"][-1].content
-    last_msg_str = last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+    last_msg_str = (
+        last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+    )
 
     sync_commands = ["/garmin_sync", "/garmin_sync_full", "/garmin_login", "sync garmin"]
     if any(cmd in last_msg_str for cmd in sync_commands):
@@ -221,7 +240,9 @@ def node_router(state: AgentState) -> dict[str, Any]:
     # Autonomous background runs (Discovery / Proactive Check-In) already specify their exact intent
     raw_last = str(last_message)
     if raw_last.startswith("ROLE: Data Scientist"):
-        log.info("🎯 Hardcoded Override: DISCOVERY intent preserved for autonomous Data Scientist audit.")
+        log.info(
+            "🎯 Hardcoded Override: DISCOVERY intent preserved for autonomous Data Scientist audit."
+        )
         return {
             "intent": "discovery",
             "loop_count": 0,
@@ -230,7 +251,9 @@ def node_router(state: AgentState) -> dict[str, Any]:
         }
     if raw_last.startswith("SYSTEM INSTRUCTION:"):
         preset_intent = state.get("intent") or "checkin"
-        log.info(f"🎯 Hardcoded Override: {preset_intent.upper()} intent preserved for autonomous proactive run.")
+        log.info(
+            f"🎯 Hardcoded Override: {preset_intent.upper()} intent preserved for autonomous proactive run."
+        )
         return {
             "intent": preset_intent,
             "loop_count": 0,
@@ -252,7 +275,9 @@ def node_router(state: AgentState) -> dict[str, Any]:
     try:
         provider = os.getenv("LLM_PROVIDER", "google").lower()
         if provider in ["ollama", "openai", "lmstudio"]:
-            structured_llm = model.with_structured_output(IntentClassifier, method="function_calling")
+            structured_llm = model.with_structured_output(
+                IntentClassifier, method="function_calling"
+            )
         else:
             structured_llm = model.with_structured_output(IntentClassifier)
         content_to_classify = last_msg if isinstance(last_msg, str) else str(last_msg)
@@ -357,9 +382,12 @@ def node_retrieve_context(state: AgentState) -> dict[str, Any]:
     force_reload = False
     for msg in reversed(state["messages"]):
         if (msg.type == "tool" and msg.name == "sync_biometric_data") or (
-            hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls)
+            hasattr(msg, "tool_calls")
+            and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls)
         ):
-            log.info("🔄 Recent sync detected in message history. Forcing reload of biometric context.")
+            log.info(
+                "🔄 Recent sync detected in message history. Forcing reload of biometric context."
+            )
             force_reload = True
             break
 
@@ -403,7 +431,9 @@ def node_injury_prevention(state: AgentState) -> dict[str, Any]:
     response = model.invoke(input_messages)
     in_t, out_t = extract_token_usage(response)
     if in_t or out_t:
-        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="injury_prevention")
+        log_llm_call(
+            active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="injury_prevention"
+        )
 
     report_msg = SystemMessage(
         content=f"--- INTERNAL INJURY RISK REPORT ---\n{response.content}\n----------------------------------"
@@ -439,7 +469,9 @@ def node_sleep_recovery(state: AgentState) -> dict[str, Any]:
     response = model.invoke(input_messages)
     in_t, out_t = extract_token_usage(response)
     if in_t or out_t:
-        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="sleep_recovery")
+        log_llm_call(
+            active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="sleep_recovery"
+        )
 
     report_msg = SystemMessage(
         content=f"--- INTERNAL SLEEP & RECOVERY REPORT ---\n{response.content}\n----------------------------------"
@@ -475,7 +507,9 @@ def node_metabolic_nutrition(state: AgentState) -> dict[str, Any]:
     response = model.invoke(input_messages)
     in_t, out_t = extract_token_usage(response)
     if in_t or out_t:
-        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="metabolic_nutrition")
+        log_llm_call(
+            active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="metabolic_nutrition"
+        )
 
     report_msg = SystemMessage(
         content=f"--- INTERNAL METABOLIC & FUELING REPORT ---\n{response.content}\n----------------------------------"
@@ -506,7 +540,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     # SYNC OPTIMIZATION: Short-circuit or restrict tools for the sync intent
     if intent == "sync":
         last_message = state["messages"][-1].content
-        last_msg_str = last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+        last_msg_str = (
+            last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+        )
 
         # 1. Check for Login Command
         if "/garmin_login" in last_msg_str:
@@ -521,7 +557,10 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
 
             sync_triggered = any(
                 (msg.type == "tool" and msg.name == "sync_biometric_data")
-                or (hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls))
+                or (
+                    hasattr(msg, "tool_calls")
+                    and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls)
+                )
                 for msg in messages_since_human
             )
             if sync_triggered:
@@ -547,7 +586,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
             log.info("🔄 Sync command detected. Restricting tools to Sync.")
             tools = [sync_biometric_data]
     elif intent == "checkin":
-        log.info("☀️ Check-in intent detected. Disabling tool binding for fast, concise check-in generation.")
+        log.info(
+            "☀️ Check-in intent detected. Disabling tool binding for fast, concise check-in generation."
+        )
         tools = []
     else:
         tools = [
@@ -600,13 +641,17 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
                     data = json.loads(content)
                     if isinstance(data, dict) and "updated_biometric_context" in data:
                         current_context = data["updated_biometric_context"]
-                        log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
+                        log.info(
+                            "🔄 Found updated biometric context in tool results. Using it for analysis."
+                        )
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug("Tool output is not JSON with biometric context: %s", e)
             elif isinstance(content, dict) and "updated_biometric_context" in content:
                 current_context = content["updated_biometric_context"]
-                log.info("🔄 Found updated biometric context in tool results. Using it for analysis.")
+                log.info(
+                    "🔄 Found updated biometric context in tool results. Using it for analysis."
+                )
                 break
 
     context_str = f"\nUser Biometric Context:\n{current_context}"
@@ -620,7 +665,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
     sync_instruction = ""
     if intent == "sync":
         last_message = state["messages"][-1].content
-        last_msg_str = last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+        last_msg_str = (
+            last_message.lower() if isinstance(last_message, str) else str(last_message).lower()
+        )
 
         if "/garmin_login" in last_msg_str:
             sync_instruction = "\n\n### 🔑 LOGIN COMMAND DETECTED\n- **REQUIRED ACTION:** Call `get_garmin_auth_url` immediately with user_id. Do NOT ask for credentials or provide analysis."
@@ -634,7 +681,10 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
 
             sync_triggered = any(
                 (msg.type == "tool" and msg.name == "sync_biometric_data")
-                or (hasattr(msg, "tool_calls") and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls))
+                or (
+                    hasattr(msg, "tool_calls")
+                    and any(tc["name"] == "sync_biometric_data" for tc in msg.tool_calls)
+                )
                 for msg in messages_since_human
             )
             if not sync_triggered:
@@ -677,7 +727,9 @@ def node_analyze(state: AgentState) -> dict[str, Any]:
         history = history[-10:]
 
     messages = [
-        SystemMessage(content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt + sync_instruction)
+        SystemMessage(
+            content=HEAD_COACH_SYSTEM_PROMPT + context_str + isolation_prompt + sync_instruction
+        )
     ] + history
 
     # DEBUG: Print full prompt sent to LLM
@@ -746,7 +798,9 @@ def tool_node(state: AgentState) -> Any:
                         f"🛡️ Security Override: Tool '{new_tc['name']}' requested user '{requested_user}', forcing '{actual_user}'"
                     )
                 new_tc["args"]["user_id"] = actual_user
-                log.info(f"💉 Injected/Verified user_id '{actual_user}' into tool '{new_tc['name']}'")
+                log.info(
+                    f"💉 Injected/Verified user_id '{actual_user}' into tool '{new_tc['name']}'"
+                )
             new_tool_calls.append(new_tc)
 
         last_message.tool_calls = new_tool_calls
@@ -796,13 +850,23 @@ def tool_node(state: AgentState) -> Any:
 
 
 class DataScientistOutput(BaseModel):
-    hypothesis: str = Field(..., description="The physiological or statistical hypothesis investigated.")
-    query_executed: str = Field(..., description="The final optimized SQL string that passed the Dry Run.")
-    pattern_detected: bool = Field(..., description="True if data validated the hypothesis; False otherwise.")
-    confidence_score: float = Field(..., ge=0.0, le=1.0, description="Statistical confidence level.")
+    hypothesis: str = Field(
+        ..., description="The physiological or statistical hypothesis investigated."
+    )
+    query_executed: str = Field(
+        ..., description="The final optimized SQL string that passed the Dry Run."
+    )
+    pattern_detected: bool = Field(
+        ..., description="True if data validated the hypothesis; False otherwise."
+    )
+    confidence_score: float = Field(
+        ..., ge=0.0, le=1.0, description="Statistical confidence level."
+    )
     raw_findings: str = Field(..., description="Technical summary of the resulting data.")
     recommended_action: str = Field(..., description="Direct recommendation for the Head Coach.")
-    metric_type: Literal["hrv_stress", "aerobic_decoupling", "rhr_trend", "workload_anomaly", "other"]
+    metric_type: Literal[
+        "hrv_stress", "aerobic_decoupling", "rhr_trend", "workload_anomaly", "other"
+    ]
 
 
 def node_data_scientist(state: AgentState) -> dict[str, Any]:
@@ -856,7 +920,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         "authenticated_user_id": user_id,
         "latest_health_status": raw_context.get("latest_health_status"),
         "user_profile": clean_profile,
-        "daily_physiology_7d": raw_context.get("daily_physiology_7d"),  # Essential Stress/Battery trends
+        "daily_physiology_7d": raw_context.get(
+            "daily_physiology_7d"
+        ),  # Essential Stress/Battery trends
         "training_status": raw_context.get("training_status"),
         "semantic_memories": raw_context.get("semantic_memories"),
         "info": "Lean context provided for hypothesis formulation. Full telemetry available via BigQuery tools.",
@@ -896,7 +962,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
                 )
         elif m.type == "tool":
             messages.append(m)
-            if getattr(m, "name", "") == "execute_exploratory_query" and not str(m.content).startswith("Error:"):
+            if getattr(m, "name", "") == "execute_exploratory_query" and not str(
+                m.content
+            ).startswith("Error:"):
                 has_executed_query_result = True
 
     response: BaseMessage | None = None
@@ -911,7 +979,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
         response = llm_with_tools.invoke(messages)
         in_t, out_t = extract_token_usage(response)
         if in_t or out_t:
-            log_llm_call(DS_MODEL_NAME, in_t, out_t, (time.time() - t0) * 1000, node_name="data_scientist")
+            log_llm_call(
+                DS_MODEL_NAME, in_t, out_t, (time.time() - t0) * 1000, node_name="data_scientist"
+            )
 
     # If the DS wants to use tools, we return them to the 'tools' node
     if response and hasattr(response, "tool_calls") and response.tool_calls:
@@ -932,10 +1002,16 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
     synth_messages: list[BaseMessage] = []
     for m in messages:
         if hasattr(m, "tool_calls") and m.tool_calls:
-            tc_summary = json.dumps([{"name": tc["name"], "args": tc["args"]} for tc in m.tool_calls], default=str)
+            tc_summary = json.dumps(
+                [{"name": tc["name"], "args": tc["args"]} for tc in m.tool_calls], default=str
+            )
             synth_messages.append(HumanMessage(content=f"Executed SQL Tool Call: {tc_summary}"))
         elif m.type == "tool":
-            synth_messages.append(HumanMessage(content=f"SQL Query Result ({getattr(m, 'name', 'tool')}): {m.content}"))
+            synth_messages.append(
+                HumanMessage(
+                    content=f"SQL Query Result ({getattr(m, 'name', 'tool')}): {m.content}"
+                )
+            )
         else:
             synth_messages.append(m)
     if response and not (hasattr(response, "tool_calls") and response.tool_calls):
@@ -968,7 +1044,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
             )
             fallback_messages = list(synth_messages) + [fallback_prompt]
             fallback_resp = llm.invoke(fallback_messages)
-            raw_text = fallback_resp.content if hasattr(fallback_resp, "content") else str(fallback_resp)
+            raw_text = (
+                fallback_resp.content if hasattr(fallback_resp, "content") else str(fallback_resp)
+            )
             if isinstance(raw_text, list):
                 raw_text = "".join(str(part) for part in raw_text)
 
@@ -989,7 +1067,9 @@ def node_data_scientist(state: AgentState) -> dict[str, Any]:
             log.info("🧪 DataScientist generated structured report via fallback JSON parsing.")
             return {"messages": [findings_msg], "ds_loop_count": ds_loop_count + 1}
         except Exception as fallback_err:
-            log.error(f"❌ DataScientist fallback also failed to generate structured report: {fallback_err}")
+            log.error(
+                f"❌ DataScientist fallback also failed to generate structured report: {fallback_err}"
+            )
             return {"messages": [response], "ds_loop_count": ds_loop_count + 1}
 
 
@@ -1032,7 +1112,9 @@ def node_validator(state: AgentState) -> dict[str, Any]:
     has_tool_calls = hasattr(last_msg, "tool_calls") and bool(last_msg.tool_calls)
 
     if has_action_claim and not has_tool_calls and not tool_executed_in_turn:
-        log.warning("🚫 DISCREPANCY DETECTED: Agent claimed an action in first person but didn't emit a tool call.")
+        log.warning(
+            "🚫 DISCREPANCY DETECTED: Agent claimed an action in first person but didn't emit a tool call."
+        )
         error_msg = SystemMessage(
             content="CRITICAL SYSTEM ERROR: You claimed to have performed an action (scheduled/synced/deleted) in your text response, but you DID NOT emit the required tool call. This is a hallucination. You MUST emit the tool call (e.g., upload_training_plan) and DO NOT confirm the action in text until the tool has executed. Please try again."
         )
@@ -1072,7 +1154,9 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     )
 
     # Bind memory tools
-    llm_with_tools = llm.bind_tools([save_semantic_memory, update_semantic_memory, retire_semantic_memory])
+    llm_with_tools = llm.bind_tools(
+        [save_semantic_memory, update_semantic_memory, retire_semantic_memory]
+    )
 
     # Construct messages: extractor prompt + last user message + last coach response
     extractor_prompt = (
@@ -1137,7 +1221,9 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
     response = llm_with_tools.invoke(messages, config={"tags": ["memory_extractor"]})
     in_t, out_t = extract_token_usage(response)
     if in_t or out_t:
-        log_llm_call(active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="memory_extractor")
+        log_llm_call(
+            active_model, in_t, out_t, (time.time() - t0) * 1000, node_name="memory_extractor"
+        )
 
     if hasattr(response, "tool_calls") and response.tool_calls:
         log.info(f"🧠 Extractor found {len(response.tool_calls)} nuggets!")
@@ -1146,7 +1232,13 @@ def node_memory_extractor(state: AgentState) -> dict[str, Any]:
         return {"messages": [response]}
     log.info("🧠 No nuggets extracted.")
     # Return as SystemMessage so main.py ignores it as a final assistant reply
-    return {"messages": [SystemMessage(content="No nuggets found.", additional_kwargs={"is_memory_extraction": True})]}
+    return {
+        "messages": [
+            SystemMessage(
+                content="No nuggets found.", additional_kwargs={"is_memory_extraction": True}
+            )
+        ]
+    }
 
 
 # Conditional edges from analyzer
@@ -1156,7 +1248,11 @@ def route_after_analysis(state: AgentState):
 
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         # Check if any tool call is for exploratory data science
-        exploratory_tools = ["execute_exploratory_query", "get_bigquery_schema", "execute_exploratory_query_dry_run"]
+        exploratory_tools = [
+            "execute_exploratory_query",
+            "get_bigquery_schema",
+            "execute_exploratory_query_dry_run",
+        ]
         if any(tc["name"] in exploratory_tools for tc in last_message.tool_calls):
             log.info("🧪 Routing to Data Scientist node...")
             return "data_scientist"
@@ -1232,18 +1328,26 @@ workflow.add_edge("sleep_recovery", "analyzer")
 workflow.add_edge("metabolic_nutrition", "analyzer")
 
 workflow.add_conditional_edges(
-    "analyzer", route_after_analysis, {"tools": "tools", "data_scientist": "data_scientist", "validator": "validator"}
+    "analyzer",
+    route_after_analysis,
+    {"tools": "tools", "data_scientist": "data_scientist", "validator": "validator"},
 )
 
 # After validator (the final coaching response is ready), run the memory extractor
 workflow.add_conditional_edges(
-    "validator", route_after_validation, {"analyzer": "analyzer", "memory_extractor": "memory_extractor"}
+    "validator",
+    route_after_validation,
+    {"analyzer": "analyzer", "memory_extractor": "memory_extractor"},
 )
 
 # The memory extractor calls tools directly if it finds nuggets
 workflow.add_conditional_edges(
     "memory_extractor",
-    lambda state: "tools" if hasattr(state["messages"][-1], "tool_calls") and state["messages"][-1].tool_calls else END,
+    lambda state: (
+        "tools"
+        if hasattr(state["messages"][-1], "tool_calls") and state["messages"][-1].tool_calls
+        else END
+    ),
 )
 
 
@@ -1273,7 +1377,9 @@ def route_after_tools(state: AgentState):
         # LOOP BREAKER: Prevent infinite DS tool loops
         ds_loop_count = state.get("ds_loop_count", 0)
         if ds_loop_count >= DS_MAX_LOOPS:
-            log.warning(f"⚠️ DataScientist loop limit reached ({ds_loop_count}/{DS_MAX_LOOPS}). Forcing to analyzer.")
+            log.warning(
+                f"⚠️ DataScientist loop limit reached ({ds_loop_count}/{DS_MAX_LOOPS}). Forcing to analyzer."
+            )
             return "analyzer"
         log.info(
             f"🧪 Tools were from data_scientist (Iteration {ds_loop_count}/{DS_MAX_LOOPS}). Back-rooting to DS node."

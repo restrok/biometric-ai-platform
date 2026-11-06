@@ -111,7 +111,7 @@ Target HR = ((HRmax - HRrest) × %intensity) + HRrest
        /                            \
       /                              \
 _____/                                \_____
-     
+
 Base → Build → Peak → Race → Recovery
 ```
 

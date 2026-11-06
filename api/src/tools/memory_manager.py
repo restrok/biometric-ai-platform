@@ -13,11 +13,13 @@ class SemanticMemoryInput(BaseModel):
     """Input for saving a semantic memory."""
 
     user_id: str = Field(..., description="The ID of the user.")
-    memory_type: Literal["preference", "constraint", "health_quirk", "coaching_style", "other"] = Field(
-        ..., description="The category of the memory."
+    memory_type: Literal["preference", "constraint", "health_quirk", "coaching_style", "other"] = (
+        Field(..., description="The category of the memory.")
     )
     memory_text: str = Field(..., description="The factual information to remember.")
-    source_session_id: str | None = Field(None, description="The chat session ID that generated this memory.")
+    source_session_id: str | None = Field(
+        None, description="The chat session ID that generated this memory."
+    )
     confidence_score: float = Field(1.0, description="Confidence in the extraction (0.0 to 1.0).")
 
 

@@ -102,7 +102,9 @@ def complete_garmin_auth(ticket_or_url: str, user_id: str) -> str:
         # 6. Persist to Secret Manager
         secret_name = f"garmin-tokens-{user_id}"
         if set_secret(secret_name, json.dumps(session_dump)):
-            log.info(f"✅ Connection successful for {user_id}. Full session dump saved to Secret Manager.")
+            log.info(
+                f"✅ Connection successful for {user_id}. Full session dump saved to Secret Manager."
+            )
             return (
                 f"✅ **Connection successful!**\n\n"
                 f"Your Garmin account is now linked to user ID '{user_id}'. "

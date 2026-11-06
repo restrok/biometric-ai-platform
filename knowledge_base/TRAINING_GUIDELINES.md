@@ -19,7 +19,7 @@
 ### 3. Weekly Structure
 ```
 Week 1: Medium load   (+5% volume)
-Week 2: High load     (+10% volume)  
+Week 2: High load     (+10% volume)
 Week 3: High load     (same volume)
 Week 4: **DELOAD**    (-40% volume)
 Repeat cycle

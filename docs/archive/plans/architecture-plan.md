@@ -149,28 +149,28 @@ graph TD
 
     User([User Request]) --> Router{Semantic Router}
     Router -- Tool Need --> Retriever[Hybrid Context Retriever]
-    
+
     subgraph Parallel Analysis Phase
         Retriever --> Injury[🛡️ Injury Prevention]
         Retriever --> Sleep[🧬 Sleep & Circadian]
         Retriever --> Nutrition[⚖️ Metabolic Nutrition]
     end
-    
+
     Injury --> Analyzer[Head Coach / Analyzer]
     Sleep --> Analyzer
     Nutrition --> Analyzer
-    
+
     Analyzer -- Exploratory Query --> DS[🧪 Data Scientist]
     DS -- 1. Dry Run --> BQ[(BigQuery Lakehouse)]
     BQ -- 2. Estimated Cost --> DS
     DS -- 3. Exec SQL --> BQ
     BQ -- 4. Results --> DS
     DS --> Analyzer
-    
+
     Analyzer -- Action Required --> Tools[Action Tools]
     Tools -- State Update --> FS[(Firestore OLTP)]
     Tools -- Backup Write --> BQ
-    
+
     Analyzer --> Validator[Response Validator]
     Validator --> Extractor[🧠 Memory Extractor]
     Extractor -- Save Nuggets --> FS
@@ -179,7 +179,7 @@ graph TD
 
 ## 12. Persistent Physiological Memory (Autonomous Discovery)
 
-The system now implements a **Proactive Discovery Loop**. During every synchronization cycle, the **Data Scientist** agent performs an autonomous audit of the user's historical data (30-90 days). 
+The system now implements a **Proactive Discovery Loop**. During every synchronization cycle, the **Data Scientist** agent performs an autonomous audit of the user's historical data (30-90 days).
 
 1.  **Continuity Check:** Reads existing Success Markers from the `user_calibration_profile` (Firestore).
 2.  **Hypothesis Testing:** Executes exploratory queries to find shifts in physiological truths (e.g., "Is my heat sensitivity improving?").
@@ -195,7 +195,7 @@ Based on architectural reviews, the following design decisions address key distr
 
 ### 2. Context Window Bloat in Fan-In (Head Coach)
 **Challenge:** In the parallel topology, the Head Coach receives context from the Retriever plus reports from three specialist agents. If specialists output verbose text, the Head Coach's prompt becomes diluted, increasing cost and reducing attention precision.
-**Mitigation:** To preserve clinical precision without the token bloat, specialists are constrained to **High-Signal Structured Outputs (Noise Reduction)**. 
+**Mitigation:** To preserve clinical precision without the token bloat, specialists are constrained to **High-Signal Structured Outputs (Noise Reduction)**.
 * Specialists do not reiterate raw metrics (as the Head Coach already has the `biometric_context`).
 * Specialists output strictly formatted internal reports containing only derived insights (e.g., calculated Z-scores, physiological interpretation, and hard constraints).
 * This eliminates conversational filler while maintaining 100% of the rigorous analytical depth required for the final synthesis.

@@ -19,7 +19,7 @@ async def iterate_methodology():
 
     query_compare = f"""
     WITH base AS (
-        SELECT 
+        SELECT
             t.activity_id, t.timestamp_ms, t.hr_bpm, t.power_w,
             CASE WHEN t.power_w > 180 OR t.hr_bpm > p.custom_z1_max THEN 1 ELSE 0 END as is_work
         FROM `{pid}.{ds}.latest_activity_telemetry` t
@@ -37,7 +37,7 @@ async def iterate_methodology():
         FROM state_changes
     ),
     segment_stats AS (
-        SELECT 
+        SELECT
             event_id, is_work,
             MIN(timestamp_ms) as start_ms,
             MAX(timestamp_ms) as end_ms,
@@ -47,7 +47,7 @@ async def iterate_methodology():
         HAVING duration_sec > 300
     ),
     window_comparison AS (
-        SELECT 
+        SELECT
             s.event_id, s.is_work, s.duration_sec,
             -- V3.6 (10% Fractional)
             AVG(CASE WHEN t.timestamp_ms <= s.start_ms + (s.duration_sec * 100) THEN t.hr_bpm END) as hr_start_10pct,
@@ -55,7 +55,7 @@ async def iterate_methodology():
             AVG(CASE WHEN t.timestamp_ms <= s.start_ms + 30000 THEN t.hr_bpm END) as hr_start_30s,
             -- V3.8 (15s)
             AVG(CASE WHEN t.timestamp_ms <= s.start_ms + 15000 THEN t.hr_bpm END) as hr_start_15s,
-            
+
             -- Stability check (Standard Deviation in windows)
             STDDEV(CASE WHEN t.timestamp_ms <= s.start_ms + (s.duration_sec * 100) THEN t.hr_bpm END) as hr_std_10pct,
             STDDEV(CASE WHEN t.timestamp_ms <= s.start_ms + 30000 THEN t.hr_bpm END) as hr_std_30s,
@@ -65,7 +65,7 @@ async def iterate_methodology():
         GROUP BY 1, 2, 3
     )
     SELECT event_id, is_work, duration_sec, hr_start_10pct, hr_start_30s, hr_start_15s, hr_std_10pct, hr_std_30s, hr_std_15s
-    FROM window_comparison 
+    FROM window_comparison
     LIMIT 5
     """
 

@@ -9,7 +9,7 @@ def run_discovery():
     from src.tools.data_scientist import execute_exploratory_query
 
     query = """
-    SELECT 
+    SELECT
         DATETIME(TIMESTAMP_SECONDS(a.date), 'America/Argentina/Buenos_Aires') as local_time,
         a.name,
         a.type,

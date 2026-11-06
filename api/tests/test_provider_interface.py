@@ -31,7 +31,11 @@ def test_workout_protocol_validation():
                 {
                     "type": "run",
                     "duration": 30.0,
-                    "target": {"target_type": "heart.rate.zone", "min_target": 140, "max_target": 150},
+                    "target": {
+                        "target_type": "heart.rate.zone",
+                        "min_target": 140,
+                        "max_target": 150,
+                    },
                 }
             ],
         }

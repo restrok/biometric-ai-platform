@@ -111,7 +111,9 @@ class StorageEngine(ABC):
         pass
 
     @abstractmethod
-    def get_activity_telemetry(self, activity_id: str, _user_id: str | None = None) -> list[dict[str, Any]]:
+    def get_activity_telemetry(
+        self, activity_id: str, _user_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """Retrieves 1s telemetry records for an activity."""
         pass
 
@@ -129,7 +131,9 @@ class StorageEngine(ABC):
 
     # --- Vector Search / RAG ---
     @abstractmethod
-    def search_knowledge_vectors(self, query_vector: list[float], top_k: int = 5) -> list[dict[str, Any]]:
+    def search_knowledge_vectors(
+        self, query_vector: list[float], top_k: int = 5
+    ) -> list[dict[str, Any]]:
         """Searches the exercise science knowledge vector store."""
         pass
 

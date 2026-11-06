@@ -138,7 +138,11 @@ def get_langfuse_callback(
         except ImportError:
             from langfuse.langchain import CallbackHandler
 
-        host = os.getenv("LANGFUSE_HOST") or os.getenv("LANGFUSE_BASE_URL") or "https://cloud.langfuse.com"
+        host = (
+            os.getenv("LANGFUSE_HOST")
+            or os.getenv("LANGFUSE_BASE_URL")
+            or "https://cloud.langfuse.com"
+        )
         os.environ.setdefault("OTEL_EXPORTER_OTLP_TIMEOUT", "30000")
         os.environ.setdefault("LANGFUSE_TIMEOUT", "30")
         try:

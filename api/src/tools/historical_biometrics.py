@@ -54,7 +54,9 @@ async def save_to_gcs(project_id: str, bucket_name: str, file_name: str, content
 
         # Generar Signed URL válida por 1 hora
         try:
-            url = blob.generate_signed_url(version="v4", expiration=timedelta(hours=1), method="GET")
+            url = blob.generate_signed_url(
+                version="v4", expiration=timedelta(hours=1), method="GET"
+            )
         except Exception as e:
             log.warning(f"Could not generate Signed URL: {e}. Falling back to Authenticated URL.")
             # Fallback to Authenticated URL (requires browser login)
@@ -85,7 +87,7 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 
     # Fetch User Calibration Profile
     query_calib = f"""
-        SELECT marker_type, marker_value 
+        SELECT marker_type, marker_value
         FROM `{config["project_id"]}.{dataset}.user_calibration_profile`
         WHERE user_id = '{user_id}'
     """
@@ -109,11 +111,15 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 
     # 1. Carga Aguda (7 días) y Crónica (28 días)
     df_daily["acute_load_7d_km"] = df_daily["distance_km"].rolling(window=7, min_periods=1).sum()
-    df_daily["chronic_load_28d_km"] = df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
+    df_daily["chronic_load_28d_km"] = (
+        df_daily["distance_km"].rolling(window=28, min_periods=1).sum() / 4
+    )
 
     # Suavizado de métricas de eficiencia (Ignorando los días sin correr para la base)
     df_valid = df_daily[df_daily["distance_km"] > 0].copy()
-    df_valid["eff_baseline_60d"] = df_valid["efficiency_index"].rolling(window=60, min_periods=5).mean()
+    df_valid["eff_baseline_60d"] = (
+        df_valid["efficiency_index"].rolling(window=60, min_periods=5).mean()
+    )
     df_valid["eff_std_60d"] = df_valid["efficiency_index"].rolling(window=60, min_periods=5).std()
 
     # 2. Detección de Anomalías (Z-Score de los últimos 7 días contra la base de 60 días)
@@ -190,7 +196,9 @@ def _calculate_physiology_metrics(df: pd.DataFrame, user_id: str) -> tuple[dict[
 
 
 @tool(args_schema=HistoricalBiometricsInput)
-async def generate_historical_report(user_id: str, project_id: str | None = None, dataset: str | None = None) -> str:
+async def generate_historical_report(
+    user_id: str, project_id: str | None = None, dataset: str | None = None
+) -> str:
     """
     MANDATORY to call when the user asks for a 'Historical Report', 'Evolution', or 'Monthly Analysis'.
     This tool performs deep physiological analysis (Acute/Chronic Load, Z-Scores) and GENERATES
@@ -208,7 +216,7 @@ async def generate_historical_report(user_id: str, project_id: str | None = None
     def _execute_query():
         client = get_bq_client(pid)
         query = f"""
-            SELECT 
+            SELECT
                 FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP_SECONDS(CAST(date AS INT64))) as date_str,
                 SUM(distance_m)/1000 as distance_km,
                 AVG(vo2max) as vo2max,
@@ -250,7 +258,9 @@ class MacroLoadHistoryInput(BaseModel):
     """Input schema for querying macro historical load (weekly/monthly)."""
 
     user_id: str = Field(..., description="Internal user ID (mandatory).")
-    group_by: str = Field("weekly", description="Aggregation level: 'weekly' or 'monthly' (default 'weekly').")
+    group_by: str = Field(
+        "weekly", description="Aggregation level: 'weekly' or 'monthly' (default 'weekly')."
+    )
     limit_months: int = Field(6, description="Number of months back to query (default 6).")
 
 
@@ -266,7 +276,9 @@ def query_macro_load_history(user_id: str, group_by: str = "weekly", limit_month
             from src.storage.factory import get_storage_engine
 
             engine = get_storage_engine(mode="local")
-            records = engine.query_macro_load_history(user_id=user_id, group_by=group_by, limit_months=limit_months)
+            records = engine.query_macro_load_history(
+                user_id=user_id, group_by=group_by, limit_months=limit_months
+            )
             for r in records:
                 if "period" in r and r["period"] is not None:
                     r["period"] = str(r["period"])
@@ -282,13 +294,19 @@ def query_macro_load_history(user_id: str, group_by: str = "weekly", limit_month
             )
         except Exception as e:
             log.error(f"❌ Local macro load query failed: {e}")
-            return json.dumps({"user_id": user_id, "group_by": group_by, "record_count": 0, "macro_history": []})
+            return json.dumps(
+                {"user_id": user_id, "group_by": group_by, "record_count": 0, "macro_history": []}
+            )
 
     config = get_config()
     pid = config["project_id"]
     ds = config["dataset_id"]
 
-    view_name = "view_weekly_load_analytics" if group_by.lower() == "weekly" else "view_monthly_load_analytics"
+    view_name = (
+        "view_weekly_load_analytics"
+        if group_by.lower() == "weekly"
+        else "view_monthly_load_analytics"
+    )
     date_col = "week_start_date" if group_by.lower() == "weekly" else "month_start_date"
     limit_count = limit_months * 4 if group_by.lower() == "weekly" else limit_months
 
@@ -335,7 +353,9 @@ class ShoeBiomechanicsInput(BaseModel):
     """Input schema for comparing shoe biomechanics pre and post switch date."""
 
     user_id: str = Field(..., description="The internal user ID (mandatory).")
-    switch_date: str = Field("2026-07-18", description="Shoe switch date YYYY-MM-DD (default '2026-07-18').")
+    switch_date: str = Field(
+        "2026-07-18", description="Shoe switch date YYYY-MM-DD (default '2026-07-18')."
+    )
 
 
 @tool(args_schema=ShoeBiomechanicsInput)
@@ -356,7 +376,7 @@ def compare_shoe_biomechanics(
     try:
         # Pre-switch query (Adidas Supernova Stride Dreamstrike+)
         query_pre = f"""
-            SELECT 
+            SELECT
                 COUNT(*) as run_count,
                 ROUND(AVG(ground_contact_time_ms), 1) as avg_gct_ms,
                 ROUND(AVG(vertical_oscillation_cm), 2) as avg_vert_osc_cm,
@@ -369,7 +389,7 @@ def compare_shoe_biomechanics(
 
         # Post-switch query (Skechers)
         query_post = f"""
-            SELECT 
+            SELECT
                 COUNT(*) as run_count,
                 ROUND(AVG(ground_contact_time_ms), 1) as avg_gct_ms,
                 ROUND(AVG(vertical_oscillation_cm), 2) as avg_vert_osc_cm,
@@ -387,14 +407,26 @@ def compare_shoe_biomechanics(
         pre_gct = float(res_pre[0].avg_gct_ms) if res_pre and res_pre[0].avg_gct_ms else 248.0
         post_gct = float(res_post[0].avg_gct_ms) if res_post and res_post[0].avg_gct_ms else 238.0
 
-        pre_vert = float(res_pre[0].avg_vert_osc_cm) if res_pre and res_pre[0].avg_vert_osc_cm else 8.4
-        post_vert = float(res_post[0].avg_vert_osc_cm) if res_post and res_post[0].avg_vert_osc_cm else 7.6
+        pre_vert = (
+            float(res_pre[0].avg_vert_osc_cm) if res_pre and res_pre[0].avg_vert_osc_cm else 8.4
+        )
+        post_vert = (
+            float(res_post[0].avg_vert_osc_cm) if res_post and res_post[0].avg_vert_osc_cm else 7.6
+        )
 
         pre_stride = float(res_pre[0].avg_stride_m) if res_pre and res_pre[0].avg_stride_m else 1.08
-        post_stride = float(res_post[0].avg_stride_m) if res_post and res_post[0].avg_stride_m else 1.14
+        post_stride = (
+            float(res_post[0].avg_stride_m) if res_post and res_post[0].avg_stride_m else 1.14
+        )
 
-        pre_cadence = float(res_pre[0].avg_cadence_spm) if res_pre and res_pre[0].avg_cadence_spm else 168.0
-        post_cadence = float(res_post[0].avg_cadence_spm) if res_post and res_post[0].avg_cadence_spm else 174.0
+        pre_cadence = (
+            float(res_pre[0].avg_cadence_spm) if res_pre and res_pre[0].avg_cadence_spm else 168.0
+        )
+        post_cadence = (
+            float(res_post[0].avg_cadence_spm)
+            if res_post and res_post[0].avg_cadence_spm
+            else 174.0
+        )
 
         pre_vert_ratio = round((pre_vert / (pre_stride * 100.0)) * 100.0, 2)
         post_vert_ratio = round((post_vert / (post_stride * 100.0)) * 100.0, 2)

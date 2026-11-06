@@ -22,7 +22,7 @@ def debug_proactive_date() -> None:
     user_id = "default_user"
 
     query_latest = f"""
-        SELECT id, date, type, name 
+        SELECT id, date, type, name
         FROM `{config["project_id"]}.{dataset}.recent_activities`
         WHERE user_id = '{user_id}'
         ORDER BY date DESC
@@ -40,7 +40,7 @@ def debug_proactive_date() -> None:
 
     try:
         val: Any = activity.date
-        if isinstance(val, (int, float)):
+        if isinstance(val, int | float):
             print(f"localtime result: {time.localtime(val)}")
         elif isinstance(val, datetime.datetime):
             print(f"localtime on timestamp: {time.localtime(val.timestamp())}")

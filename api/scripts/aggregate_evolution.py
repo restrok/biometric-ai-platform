@@ -11,10 +11,10 @@ def aggregate_history():
 
     # 1. Fetch raw activities
     query = f"""
-        SELECT 
-            date, 
-            distance_m, 
-            vo2max, 
+        SELECT
+            date,
+            distance_m,
+            vo2max,
             avg_hr,
             type
         FROM `{project_id}.{dataset}.recent_activities`

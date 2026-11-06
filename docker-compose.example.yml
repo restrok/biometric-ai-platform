@@ -13,11 +13,11 @@ services:
     volumes:
       # Mount your environment variables
       - ./api/.env:/app/.env
-      
+
       # Mount your Garmin tokens to persist session across restarts.
       # Create this file before starting the container: touch garmin_tokens.json
       - ./garmin_tokens.json:/root/.garminconnect/garmin_tokens.json
-      
+
       # Optional: Mount logs to the host
       - ./api/api.log:/app/api.log
     environment:

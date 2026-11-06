@@ -8,7 +8,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 from langchain_core.messages import HumanMessage
 
-from src.agent.graph import AgentState, node_injury_prevention, node_metabolic_nutrition, node_sleep_recovery
+from src.agent.graph import (
+    AgentState,
+    node_injury_prevention,
+    node_metabolic_nutrition,
+    node_sleep_recovery,
+)
 
 
 @pytest.mark.asyncio
@@ -31,7 +36,14 @@ async def test_agent():
                     "hr_per_step": 1.05,  # High metabolic cost
                 }
             ],
-            "hrv": [{"date": "2026-05-24", "avg_hrv": 34.0, "baseline_low": 38.0, "status": "UNBALANCED"}],
+            "hrv": [
+                {
+                    "date": "2026-05-24",
+                    "avg_hrv": 34.0,
+                    "baseline_low": 38.0,
+                    "status": "UNBALANCED",
+                }
+            ],
             "sleep": {
                 "date": "2026-05-24",
                 "duration_sec": 23400,  # 6.5 hours
@@ -44,8 +56,14 @@ async def test_agent():
                 {"date": "2026-05-24", "resting_heart_rate": 64},
                 {"date": "2026-05-23", "resting_heart_rate": 59},
             ],
-            "personal_calibration_profile": [{"marker_type": "ac_ratio_red_line", "marker_value": 1.45}],
-            "training_status": {"acute_load": "42.0", "chronic_load": "25.0", "status": "Overreaching"},
+            "personal_calibration_profile": [
+                {"marker_type": "ac_ratio_red_line", "marker_value": 1.45}
+            ],
+            "training_status": {
+                "acute_load": "42.0",
+                "chronic_load": "25.0",
+                "status": "Overreaching",
+            },
             "latest_health_status": {
                 "feeling": "Tired",
                 "notes": "Physiological Profile: Ectomorph. Needs high calorie/carb intake.",

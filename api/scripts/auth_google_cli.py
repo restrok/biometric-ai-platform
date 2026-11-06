@@ -39,10 +39,18 @@ GOOGLE_FITNESS_SCOPES = [
 
 def main():
     parser = argparse.ArgumentParser(description="Obtain Google Health / Fitness OAuth Tokens")
-    parser.add_argument("--user-id", default="athlete_1", help="Target athlete or user ID (default: athlete_1)")
+    parser.add_argument(
+        "--user-id", default="athlete_1", help="Target athlete or user ID (default: athlete_1)"
+    )
     parser.add_argument("--client-id", default=DEFAULT_CLIENT_ID, help="Google OAuth Client ID")
-    parser.add_argument("--client-secret", default=DEFAULT_CLIENT_SECRET, help="Google OAuth Client Secret")
-    parser.add_argument("--redirect-uri", default=DEFAULT_REDIRECT_URI, help="Authorized Redirect URI in Google Cloud")
+    parser.add_argument(
+        "--client-secret", default=DEFAULT_CLIENT_SECRET, help="Google OAuth Client Secret"
+    )
+    parser.add_argument(
+        "--redirect-uri",
+        default=DEFAULT_REDIRECT_URI,
+        help="Authorized Redirect URI in Google Cloud",
+    )
     args = parser.parse_args()
 
     client_id = args.client_id or os.getenv("GOOGLE_HEALTH_CLIENT_ID")
@@ -116,7 +124,9 @@ def main():
 
     except Exception as e:
         print(f"\n❌ Error al canjear el código con Google: {e}")
-        print("Verificá que la Fitness API esté habilitada en Google Cloud y que tu email sea Test User.")
+        print(
+            "Verificá que la Fitness API esté habilitada en Google Cloud y que tu email sea Test User."
+        )
 
 
 if __name__ == "__main__":

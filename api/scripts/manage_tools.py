@@ -20,7 +20,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from src.tools.analytics import analyze_activity_efficiency, analyze_activity_stages
 from src.tools.auth_tools import complete_garmin_auth, get_garmin_auth_url
-from src.tools.data_scientist import execute_exploratory_query, execute_exploratory_query_dry_run, get_bigquery_schema
+from src.tools.data_scientist import (
+    execute_exploratory_query,
+    execute_exploratory_query_dry_run,
+    get_bigquery_schema,
+)
 from src.tools.deep_reporting import generate_deep_historical_report
 from src.tools.etl_tool import sync_biometric_data
 from src.tools.garmin_uploader import (
@@ -102,7 +106,9 @@ def list_tools():
         else:
             parameters = {"type": "object", "properties": {}}
 
-        definitions.append({"name": name, "description": tool_obj.description, "parameters": parameters})
+        definitions.append(
+            {"name": name, "description": tool_obj.description, "parameters": parameters}
+        )
     # Print only JSON to stdout
     print(json.dumps(definitions))
 
@@ -138,7 +144,7 @@ def call_tool(name):
                     else:
                         raise e
 
-            if not isinstance(result, (str, dict, list, int, float, bool, type(None))):
+            if not isinstance(result, str | dict | list | int | float | bool | type(None)):
                 result = str(result)
             print(json.dumps(result))
         else:

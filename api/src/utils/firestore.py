@@ -12,7 +12,7 @@ def get_firestore_client():
     """Returns a singleton Firestore client."""
     global _firestore_client
     if _firestore_client is None:
-        import google.cloud.firestore as firestore  # type: ignore[attr-defined]
+        import google.cloud.firestore as firestore
 
         config = get_config()
         project_id = config.get("project_id")

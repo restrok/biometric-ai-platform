@@ -1,3 +1,5 @@
+import tempfile
+
 """Incremental Biometric Sync (ETL) from Garmin to BigQuery."""
 
 import logging
@@ -31,7 +33,9 @@ BUCKET_NAME = os.getenv("DATALAKE_BUCKET")
 DATASET_NAME = os.getenv("DATASET_NAME", "biometric_data_dev")
 
 if not PROJECT_ID or not BUCKET_NAME:
-    log.warning("GOOGLE_CLOUD_PROJECT or DATALAKE_BUCKET not set. Cloud ETL requires these variables.")
+    log.warning(
+        "GOOGLE_CLOUD_PROJECT or DATALAKE_BUCKET not set. Cloud ETL requires these variables."
+    )
 
 
 def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timestamp | None:
@@ -41,21 +45,32 @@ def get_last_sync_date(table_name: str, user_id: str | None = None) -> pd.Timest
             from src.storage.factory import get_storage_engine
 
             engine = get_storage_engine(mode="local")
-            duckdb_path = getattr(engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb"))
+            duckdb_path = getattr(
+                engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb")
+            )
             import duckdb
 
             conn = duckdb.connect(duckdb_path)
             try:
                 row_cnt = conn.execute(
-                    "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [table_name]
+                    "SELECT count(*) FROM information_schema.tables WHERE table_name = ?",
+                    [table_name],
                 ).fetchone()
                 exists = bool(row_cnt and row_cnt[0] > 0)
                 if exists:
                     cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
-                    date_col = "date" if "date" in cols else ("start_time" if "start_time" in cols else None)
+                    date_col = (
+                        "date"
+                        if "date" in cols
+                        else ("start_time" if "start_time" in cols else None)
+                    )
                     if date_col:
-                        where = f"WHERE user_id = '{user_id}'" if user_id and "user_id" in cols else ""
-                        res = conn.execute(f"SELECT MAX({date_col}) FROM {table_name} {where}").fetchone()
+                        where = (
+                            f"WHERE user_id = '{user_id}'" if user_id and "user_id" in cols else ""
+                        )
+                        res = conn.execute(
+                            f"SELECT MAX({date_col}) FROM {table_name} {where}"
+                        ).fetchone()
                         if res and res[0]:
                             return pd.to_datetime(res[0])
             finally:
@@ -108,7 +123,9 @@ def _upsert_to_local_storage(
         df["user_id"] = user_id
 
     engine = get_storage_engine(mode="local")
-    duckdb_path = getattr(engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb"))
+    duckdb_path = getattr(
+        engine, "duckdb_path", os.getenv("LOCAL_DUCKDB_PATH", "/app/data/biometric.duckdb")
+    )
 
     conn = duckdb.connect(duckdb_path)
     try:
@@ -121,7 +138,9 @@ def _upsert_to_local_storage(
             conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM _temp_incoming")
             log.info(f"Created local DuckDB table '{table_name}' with {len(df)} rows.")
         else:
-            existing_cols = [c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()]
+            existing_cols = [
+                c[0].lower() for c in conn.execute(f"DESCRIBE {table_name}").fetchall()
+            ]
             keys = [unique_key] if isinstance(unique_key, str) else list(unique_key)
             key_cols = [k for k in keys if k.lower() in existing_cols and k in df.columns]
 
@@ -133,7 +152,7 @@ def _upsert_to_local_storage(
                         val = row[k]
                         if pd.isna(val):
                             continue
-                        if isinstance(val, (int, float)):
+                        if isinstance(val, int | float):
                             parts.append(f"{k} = {val}")
                         else:
                             parts.append(f"{k} = '{val}'")
@@ -151,7 +170,9 @@ def _upsert_to_local_storage(
             matching_cols = [c for c in df.columns if c.lower() in existing_cols]
             if matching_cols:
                 cols_str = ", ".join(matching_cols)
-                conn.execute(f"INSERT INTO {table_name} ({cols_str}) SELECT {cols_str} FROM _temp_incoming")
+                conn.execute(
+                    f"INSERT INTO {table_name} ({cols_str}) SELECT {cols_str} FROM _temp_incoming"
+                )
     except Exception as e:
         log.warning(f"DuckDB local sync warning for {table_name}: {e}")
     finally:
@@ -166,11 +187,18 @@ def _upsert_to_local_storage(
                     "activity_id": str(row.get("id") or row.get("activity_id") or uuid.uuid4()),
                     "activity_name": str(row.get("name") or row.get("activity_name") or "Activity"),
                     "activity_type": str(row.get("type") or row.get("activity_type") or "running"),
-                    "start_time": str(row.get("date") or row.get("start_time") or datetime.now(UTC).isoformat()),
-                    "duration_seconds": float(
-                        row.get("moving_duration_sec") or row.get("duration_sec") or row.get("duration_seconds") or 0.0
+                    "start_time": str(
+                        row.get("date") or row.get("start_time") or datetime.now(UTC).isoformat()
                     ),
-                    "distance_meters": float(row.get("distance_m") or row.get("distance_meters") or 0.0),
+                    "duration_seconds": float(
+                        row.get("moving_duration_sec")
+                        or row.get("duration_sec")
+                        or row.get("duration_seconds")
+                        or 0.0
+                    ),
+                    "distance_meters": float(
+                        row.get("distance_m") or row.get("distance_meters") or 0.0
+                    ),
                     "avg_heart_rate": float(row.get("avg_hr") or row.get("avg_heart_rate") or 0.0)
                     if pd.notna(row.get("avg_hr") or row.get("avg_heart_rate"))
                     else None,
@@ -189,7 +217,9 @@ def _upsert_to_local_storage(
                 activities_to_insert.append(act_dict)
             if activities_to_insert:
                 engine.insert_activities(user_id or "default_user", activities_to_insert)
-                log.info(f"✅ Synced {len(activities_to_insert)} activities into LocalStorageEngine.")
+                log.info(
+                    f"✅ Synced {len(activities_to_insert)} activities into LocalStorageEngine."
+                )
 
         elif table_name in ("daily_physiology", "hrv_history", "sleep_history"):
             phys_records = []
@@ -200,10 +230,16 @@ def _upsert_to_local_storage(
                     "resting_heart_rate": int(row["resting_heart_rate"])
                     if "resting_heart_rate" in row and pd.notna(row["resting_heart_rate"])
                     else None,
-                    "hrv_sdnn": float(row["hrv_sdnn"]) if "hrv_sdnn" in row and pd.notna(row["hrv_sdnn"]) else None,
+                    "hrv_sdnn": float(row["hrv_sdnn"])
+                    if "hrv_sdnn" in row and pd.notna(row["hrv_sdnn"])
+                    else None,
                     "hrv_rmssd": float(row["hrv_rmssd"])
                     if "hrv_rmssd" in row and pd.notna(row["hrv_rmssd"])
-                    else (float(row["avg_hrv"]) if "avg_hrv" in row and pd.notna(row["avg_hrv"]) else None),
+                    else (
+                        float(row["avg_hrv"])
+                        if "avg_hrv" in row and pd.notna(row["avg_hrv"])
+                        else None
+                    ),
                     "body_battery_max": int(row["body_battery_max"])
                     if "body_battery_max" in row and pd.notna(row["body_battery_max"])
                     else None,
@@ -216,15 +252,20 @@ def _upsert_to_local_storage(
                     "sleep_duration_seconds": float(row["duration_sec"])
                     if "duration_sec" in row and pd.notna(row["duration_sec"])
                     else None,
-                    "sleep_score": int(row["quality"]) if "quality" in row and pd.notna(row["quality"]) else None,
+                    "sleep_score": int(row["quality"])
+                    if "quality" in row and pd.notna(row["quality"])
+                    else None,
                     "body_battery_charged_sleep": int(row["body_battery_charged_sleep"])
-                    if "body_battery_charged_sleep" in row and pd.notna(row["body_battery_charged_sleep"])
+                    if "body_battery_charged_sleep" in row
+                    and pd.notna(row["body_battery_charged_sleep"])
                     else None,
                 }
                 phys_records.append(rec)
             if phys_records:
                 engine.insert_daily_physiology(user_id or "default_user", phys_records)
-                log.info(f"✅ Synced {len(phys_records)} {table_name} records into LocalStorageEngine.")
+                log.info(
+                    f"✅ Synced {len(phys_records)} {table_name} records into LocalStorageEngine."
+                )
     except Exception as e:
         log.warning(f"Could not map {table_name} to LocalStorageEngine canonical tables: {e}")
 
@@ -368,7 +409,9 @@ def upsert_to_bq(
         """
 
         client.query(merge_query).result()
-        log.info(f"Successfully merged {len(df)} rows into {table_name} using key(s) '{keys}' (user: {user_id}).")
+        log.info(
+            f"Successfully merged {len(df)} rows into {table_name} using key(s) '{keys}' (user: {user_id})."
+        )
     finally:
         client.delete_table(staging_table_id, not_found_ok=True)
 
@@ -418,7 +461,7 @@ def upload_to_bq(
 
     # Archive to GCS as Parquet for audit
     try:
-        local_path = Path(f"/tmp/{table_name}.parquet")
+        local_path = Path(tempfile.gettempdir()) / f"{table_name}.parquet"
         df.to_parquet(local_path, engine="pyarrow", index=False)
         gcs_client = storage.Client(project=PROJECT_ID)
         bucket = gcs_client.bucket(BUCKET_NAME)
@@ -524,7 +567,9 @@ def get_manual_weigh_ins(client: Any, start_date: str, end_date: str) -> list[di
                             "weight_kg": (m.get("weight") / 1000.0 if m.get("weight") else None),
                             "bmi": m.get("bmi"),
                             "fat_percentage": m.get("bodyFat"),
-                            "muscle_mass_kg": (m.get("muscleMass") / 1000.0 if m.get("muscleMass") else None),
+                            "muscle_mass_kg": (
+                                m.get("muscleMass") / 1000.0 if m.get("muscleMass") else None
+                            ),
                         }
                     )
     except Exception as e:
@@ -583,7 +628,9 @@ def run_etl(
         try:
             final_start = datetime.strptime(start_date, "%Y-%m-%d")
         except ValueError:
-            log.error(f"Invalid start_date format: {start_date}. Falling back to incremental logic.")
+            log.error(
+                f"Invalid start_date format: {start_date}. Falling back to incremental logic."
+            )
 
     if not final_start:
         if days_back:
@@ -615,7 +662,8 @@ def run_etl(
             new_activities = [
                 a
                 for a in activities
-                if not last_act_date or pd.to_datetime(a.date).tz_localize(None) > last_act_date.tz_localize(None)
+                if not last_act_date
+                or pd.to_datetime(a.date).tz_localize(None) > last_act_date.tz_localize(None)
             ]
 
         if new_activities:
@@ -669,9 +717,13 @@ def run_etl(
                                         dist = ld.get("distance_m") or 0.0
                                         dur = ld.get("duration_sec") or 0.0
                                         strk = ld.get("total_strokes")
-                                        ld["pace_per_100m_sec"] = round((dur / dist) * 100, 2) if dist > 0 else None
+                                        ld["pace_per_100m_sec"] = (
+                                            round((dur / dist) * 100, 2) if dist > 0 else None
+                                        )
                                         ld["stroke_rate"] = (
-                                            round(strk / (dur / 60), 2) if dur > 0 and strk is not None else None
+                                            round(strk / (dur / 60), 2)
+                                            if dur > 0 and strk is not None
+                                            else None
                                         )
                                         swim_lengths.append(ld)
                             if swim_lengths:
@@ -737,7 +789,9 @@ def run_etl(
                 if all_telemetry:
                     df_telemetry = pd.concat(all_telemetry)
                     if "run_walk_index" in df_telemetry.columns:
-                        df_telemetry["run_walk_index"] = df_telemetry["run_walk_index"].astype(float)
+                        df_telemetry["run_walk_index"] = df_telemetry["run_walk_index"].astype(
+                            float
+                        )
                     upload_to_bq(
                         df_telemetry,
                         "latest_activity_telemetry",
@@ -750,11 +804,17 @@ def run_etl(
 
     # --- 3. Incremental Sleep ---
     last_sleep_date = get_last_sync_date("sleep_history", user_id=user_id)
-    start_sleep = (last_sleep_date - timedelta(days=3)) if last_sleep_date else (final_end - timedelta(days=7))
+    start_sleep = (
+        (last_sleep_date - timedelta(days=3))
+        if last_sleep_date
+        else (final_end - timedelta(days=7))
+    )
     intra_sleep_hrv_by_date = {}
 
     if start_sleep.date() <= final_end.date():
-        log.info(f"Syncing Sleep from {start_sleep.date()} to {final_end.date()} (user: {user_id})...")
+        log.info(
+            f"Syncing Sleep from {start_sleep.date()} to {final_end.date()} (user: {user_id})..."
+        )
         sleep_data = provider.get_sleep_history(start_sleep.date(), final_end.date())
         log.info(f"Retrieved {len(sleep_data)} sleep records from Provider.")
         if sleep_data:
@@ -809,10 +869,19 @@ def run_etl(
                 # Update body_battery_charged_sleep in daily_physiology if present
                 if bb_change is not None:
                     try:
-                        df_bb = pd.DataFrame([{"date": str(s.date)[:10], "body_battery_charged_sleep": int(bb_change)}])
+                        df_bb = pd.DataFrame(
+                            [
+                                {
+                                    "date": str(s.date)[:10],
+                                    "body_battery_charged_sleep": int(bb_change),
+                                }
+                            ]
+                        )
                         upsert_to_bq(df_bb, "daily_physiology", unique_key="date", user_id=user_id)
                     except Exception as bb_err:
-                        log.debug(f"Could not persist body_battery_charged_sleep for {s.date}: {bb_err}")
+                        log.debug(
+                            f"Could not persist body_battery_charged_sleep for {s.date}: {bb_err}"
+                        )
 
             # Persist raw 5-minute HRV readings into hrv_readings_history
             if hrv_readings_all:
@@ -821,7 +890,9 @@ def run_etl(
 
                     storage_engine = get_storage_engine()
                     storage_engine.insert_hrv_readings(user_id or "default_user", hrv_readings_all)
-                    log.info(f"✅ Ingested {len(hrv_readings_all)} 5-min epoch readings into hrv_readings_history.")
+                    log.info(
+                        f"✅ Ingested {len(hrv_readings_all)} 5-min epoch readings into hrv_readings_history."
+                    )
                 except Exception as hrv_err:
                     log.warning(f"Failed to insert hrv_readings_history: {hrv_err}")
 
@@ -848,7 +919,9 @@ def run_etl(
 
     # --- 3b. Incremental HRV ---
     last_hrv_date = get_last_sync_date("hrv_history", user_id=user_id)
-    start_hrv = (last_hrv_date - timedelta(days=3)) if last_hrv_date else (final_end - timedelta(days=7))
+    start_hrv = (
+        (last_hrv_date - timedelta(days=3)) if last_hrv_date else (final_end - timedelta(days=7))
+    )
 
     if start_hrv.date() <= final_end.date():
         log.info(f"Syncing HRV from {start_hrv.date()} to {final_end.date()} (user: {user_id})...")
@@ -881,11 +954,19 @@ def run_etl(
 
     # --- 3c. Incremental Daily Physiology ---
     last_daily_date = get_last_sync_date("daily_physiology", user_id=user_id)
-    start_daily = (last_daily_date - timedelta(days=1)) if last_daily_date else (final_end - timedelta(days=7))
+    start_daily = (
+        (last_daily_date - timedelta(days=1))
+        if last_daily_date
+        else (final_end - timedelta(days=7))
+    )
 
     if start_daily.date() <= final_end.date():
-        log.info(f"Syncing Daily Physiology from {start_daily.date()} to {final_end.date()} (user: {user_id})...")
-        daily_phys = get_daily_physiology(client, start_daily.strftime("%Y-%m-%d"), final_end.strftime("%Y-%m-%d"))
+        log.info(
+            f"Syncing Daily Physiology from {start_daily.date()} to {final_end.date()} (user: {user_id})..."
+        )
+        daily_phys = get_daily_physiology(
+            client, start_daily.strftime("%Y-%m-%d"), final_end.strftime("%Y-%m-%d")
+        )
         if daily_phys:
             try:
                 df_daily = pd.DataFrame(daily_phys)
@@ -917,8 +998,8 @@ def run_etl(
                         log.info(f"Patched VO2 Max from latest activity: {row.vo2max}")
                 except StopIteration:
                     pass
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("Could not patch VO2 max from activity: %s", e)
 
         upsert_to_bq(
             pd.DataFrame([status.model_dump()]),
@@ -958,7 +1039,11 @@ def run_etl(
     # --- 6. Body Composition ---
     try:
         last_body_date = get_last_sync_date("body_composition", user_id=user_id)
-        start_body = (last_body_date + timedelta(days=1)) if last_body_date else (final_end - timedelta(days=7))
+        start_body = (
+            (last_body_date + timedelta(days=1))
+            if last_body_date
+            else (final_end - timedelta(days=7))
+        )
 
         if start_body.date() <= final_end.date():
             start_str = start_body.strftime("%Y-%m-%d")
@@ -966,14 +1051,18 @@ def run_etl(
 
             log.info(f"Syncing Body Composition from {start_str} to {end_str} (user: {user_id})...")
             body_data = get_body_composition(client, start_str, end_str)
-            df_body = pd.DataFrame([b.model_dump() for b in body_data]) if body_data else pd.DataFrame()
+            df_body = (
+                pd.DataFrame([b.model_dump() for b in body_data]) if body_data else pd.DataFrame()
+            )
 
             manual_data = get_manual_weigh_ins(client, start_str, end_str)
             if manual_data:
                 df_manual = pd.DataFrame(manual_data)
                 dfs_to_concat = [d for d in [df_body, df_manual] if not d.empty]
                 if dfs_to_concat:
-                    df_body = pd.concat(dfs_to_concat).drop_duplicates(subset=["date"], keep="first")
+                    df_body = pd.concat(dfs_to_concat).drop_duplicates(
+                        subset=["date"], keep="first"
+                    )
 
             if not df_body.empty:
                 df_body["date"] = pd.to_datetime(df_body["date"]).dt.date
@@ -983,7 +1072,11 @@ def run_etl(
                 if profile and profile.height_cm:
                     height_m = profile.height_cm / 100.0
                     df_body["bmi"] = df_body.apply(
-                        lambda row: round(row["weight_kg"] / (height_m**2), 1) if pd.isna(row["bmi"]) else row["bmi"],
+                        lambda row: (
+                            round(row["weight_kg"] / (height_m**2), 1)
+                            if pd.isna(row["bmi"])
+                            else row["bmi"]
+                        ),
                         axis=1,
                     )
 
@@ -1017,8 +1110,12 @@ def run_etl(
                     job_config = bigquery.QueryJobConfig(
                         query_parameters=[
                             bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-                            bigquery.ScalarQueryParameter("start_date", "DATE", now.date().isoformat()),
-                            bigquery.ScalarQueryParameter("end_date", "DATE", end_window.date().isoformat()),
+                            bigquery.ScalarQueryParameter(
+                                "start_date", "DATE", now.date().isoformat()
+                            ),
+                            bigquery.ScalarQueryParameter(
+                                "end_date", "DATE", end_window.date().isoformat()
+                            ),
                         ]
                     )
                     bq_client.query(delete_query, job_config=job_config).result()
@@ -1029,7 +1126,10 @@ def run_etl(
             if not df_cal.empty:
                 df_cal["date"] = pd.to_datetime(df_cal["date"])
                 # Filter strictly to the window and to 'workout' types
-                df_cal = df_cal[(df_cal["date"].dt.date >= now.date()) & (df_cal["date"].dt.date <= end_window.date())]
+                df_cal = df_cal[
+                    (df_cal["date"].dt.date >= now.date())
+                    & (df_cal["date"].dt.date <= end_window.date())
+                ]
 
                 if "itemType" in df_cal.columns:
                     df_cal = df_cal[df_cal["itemType"] == "workout"]
@@ -1067,7 +1167,9 @@ def run_etl(
             else:
                 log.info(f"Garmin calendar is empty for {user_id} in the requested window.")
         else:
-            log.warning(f"Garmin calendar fetch failed (None) for {user_id}. Skipping BigQuery wipe.")
+            log.warning(
+                f"Garmin calendar fetch failed (None) for {user_id}. Skipping BigQuery wipe."
+            )
     except Exception as e:
         log.warning(f"Scheduled Workouts sync failed: {e}")
 

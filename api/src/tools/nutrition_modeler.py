@@ -39,9 +39,15 @@ MEAL_MACRO_HEURISTICS = {
 class GlycogenReadinessInput(BaseModel):
     """Input schema for assessing athlete glycogen readiness."""
 
-    user_id: str = Field(..., description="The internal user ID (mandatory for multi-tenant isolation).")
-    target_power_watts: float = Field(300.0, description="Target workout power output in Watts (default 300W).")
-    duration_mins: float = Field(20.0, description="Target workout duration in minutes (default 20 mins).")
+    user_id: str = Field(
+        ..., description="The internal user ID (mandatory for multi-tenant isolation)."
+    )
+    target_power_watts: float = Field(
+        300.0, description="Target workout power output in Watts (default 300W)."
+    )
+    duration_mins: float = Field(
+        20.0, description="Target workout duration in minutes (default 20 mins)."
+    )
 
 
 @tool(args_schema=GlycogenReadinessInput)
@@ -69,7 +75,16 @@ def assess_glycogen_readiness(
             mem_lower = mem.lower()
             if any(
                 k in mem_lower
-                for k in ["nutritional log", "dinner", "lunch", "breakfast", "supper", "comida", "cena", "almuerzo"]
+                for k in [
+                    "nutritional log",
+                    "dinner",
+                    "lunch",
+                    "breakfast",
+                    "supper",
+                    "comida",
+                    "cena",
+                    "almuerzo",
+                ]
             ):
                 nutritional_logs.append(mem)
 
@@ -88,7 +103,9 @@ def assess_glycogen_readiness(
                 if re.search(pattern, log_lower):
                     total_carbs_g += carbs
                     total_protein_g += protein
-                    parsed_items.append({"matched_item": pattern, "carbs_g": carbs, "protein_g": protein})
+                    parsed_items.append(
+                        {"matched_item": pattern, "carbs_g": carbs, "protein_g": protein}
+                    )
 
         # Apply stochastic bounds (±15% error margin)
         min_carbs = round(total_carbs_g * 0.85, 1)
@@ -116,7 +133,7 @@ def assess_glycogen_readiness(
             try:
                 client = bigquery.Client(project=pid)
                 query_efficiency = f"""
-                    SELECT 
+                    SELECT
                         ROUND(AVG(SAFE_DIVIDE(avg_power, NULLIF(avg_hr, 0))), 3) as avg_efficiency_w_hr
                     FROM `{pid}.{ds}.recent_activities`
                     WHERE user_id = '{user_id}' AND avg_power IS NOT NULL AND avg_hr IS NOT NULL
@@ -154,9 +171,7 @@ def assess_glycogen_readiness(
             )
 
         if alcohol_flag:
-            fueling_recommendation += (
-                " WARNING: Recent alcohol consumption detected in log; monitor hydration and autonomic recovery."
-            )
+            fueling_recommendation += " WARNING: Recent alcohol consumption detected in log; monitor hydration and autonomic recovery."
 
         result = {
             "user_id": user_id,

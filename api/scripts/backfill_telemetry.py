@@ -48,7 +48,9 @@ def backfill_telemetry():
             print(f"💾 Saving {len(df)} ticks with advanced metrics...")
 
             # Delete old data for this ID to avoid duplicates
-            client.query(f"DELETE FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` WHERE activity_id = '{act_id}'").result()
+            client.query(
+                f"DELETE FROM `{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}` WHERE activity_id = '{act_id}'"
+            ).result()
 
             # Load new data
             table_ref = f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}"

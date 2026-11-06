@@ -38,22 +38,22 @@ This document outlines the strategic roadmap to evolve the Biometric AI Platform
         *   **Data Sources:** `recent_activities` (A:C ratio, cadence, vertical ratio), `hrv_history`, and `user_health_status` (pain/niggles).
         *   **Mission:** Injury avoidance over performance.
         *   **Superhuman Capability:** Detects microscopic biomechanical asymmetries (e.g., ground contact time drift) and triggers proactive alerts for rest or mobility work before a real injury occurs.
-    
+
     2.  🧬 **Sleep & Circadian Agent**
         *   **Data Sources:** `sleep_history` (REM/Light/Deep phases, duration), `user_health_status`, and activity timestamps.
         *   **Mission:** Optimize rest and circadian rhythm.
         *   **Superhuman Capability:** Cross-references evening workout intensities with sleep latency and REM drops, providing actionable scheduling advice (e.g., "Move high-intensity sessions to the morning").
-    
+
     3.  ⚖️ **Metabolic Nutrition Agent**
         *   **Data Sources:** `latest_activity_telemetry` (HR, Pace), `body_composition`, and `scheduled_workouts` (tomorrow's plan).
         *   **Mission:** Provide dynamic, expenditure-based fueling advice.
         *   **Superhuman Capability:** Calculates exact "Metabolic Cost" of today's session and cross-references it with tomorrow's demand (e.g., "You burned 800kcal today. To fuel tomorrow's 4x800m intervals, consume at least 120g of carbohydrates tonight").
-    
+
     4.  🧠 **Lifestyle Stress Auditor**
         *   **Data Sources:** `hrv_history` (nervous system stress), `daily_physiology` (all-day stress), and subjective logs.
         *   **Mission:** Delineate physical training stress from life stress.
         *   **Superhuman Capability:** Identifies when HRV drops without a corresponding high A:C Ratio, deducing mental/work stress. Intervenes with lifestyle or breathing recommendations rather than altering the running plan.
-    
+
     5.  🔬 **Autonomous Data Scientist (AgentSearch)**
         *   **Data Sources:** The entire BigQuery Data Lake.
         *   **Mission:** Continuous background analysis for hidden correlations (SensorFM AgentSearch concept).

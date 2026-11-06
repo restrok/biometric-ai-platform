@@ -98,8 +98,12 @@ def upload_knowledge(reset=False, folder="knowledge_base"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Upload markdown knowledge to BigQuery RAG.")
-    parser.add_argument("--reset", action="store_true", help="Wipe existing knowledge before uploading.")
-    parser.add_argument("--folder", type=str, default="knowledge_base", help="Folder containing .md files.")
+    parser.add_argument(
+        "--reset", action="store_true", help="Wipe existing knowledge before uploading."
+    )
+    parser.add_argument(
+        "--folder", type=str, default="knowledge_base", help="Folder containing .md files."
+    )
     args = parser.parse_args()
 
     upload_knowledge(reset=args.reset, folder=args.folder)

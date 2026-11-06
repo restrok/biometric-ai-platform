@@ -33,7 +33,9 @@ async def run_audit():
     }
 
     # Run the graph
-    async for output in graph.astream(inputs, config={"configurable": {"thread_id": f"audit_{user_id}"}}):
+    async for output in graph.astream(
+        inputs, config={"configurable": {"thread_id": f"audit_{user_id}"}}
+    ):
         for node_name, state in output.items():
             print(f"\n--- Node: {node_name} ---")
             if "messages" in state:

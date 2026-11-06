@@ -14,7 +14,7 @@ Update the `HEAD_COACH_SYSTEM_PROMPT` to explicitly forbid conversational confir
 
 #### 2. Active Validation Guardrail
 Enhance `node_validator` in `api/src/agent/graph.py` to detect discrepancies between LLM text and tool calls.
-- **Logic:** Scan the LLM response for "completion keywords" (e.g., "agendado", "subido", "scheduled"). 
+- **Logic:** Scan the LLM response for "completion keywords" (e.g., "agendado", "subido", "scheduled").
 - **Check:** If keywords are present but the corresponding tool call is missing, trigger an internal retry with a corrective system message.
 
 #### 3. Execution Specialization

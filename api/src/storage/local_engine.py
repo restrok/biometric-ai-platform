@@ -26,6 +26,9 @@ class LocalStorageEngine(StorageEngine):
         if not data_dir:
             base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             data_dir = os.path.join(base_path, "data")
+            worker = os.environ.get("PYTEST_XDIST_WORKER")
+            if worker:
+                data_dir = os.path.join(data_dir, worker)
 
         self.data_dir = os.path.abspath(data_dir)
         os.makedirs(self.data_dir, exist_ok=True)
@@ -189,7 +192,9 @@ class LocalStorageEngine(StorageEngine):
             """)
 
             # Auto-migrate columns for existing local DuckDB databases
-            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info('daily_physiology')").fetchall()}
+            existing_cols = {
+                row[1] for row in conn.execute("PRAGMA table_info('daily_physiology')").fetchall()
+            }
             new_columns = {
                 "restless_moments": "INTEGER",
                 "hrv_first_half_avg": "DOUBLE",
@@ -200,16 +205,22 @@ class LocalStorageEngine(StorageEngine):
             for col_name, col_type in new_columns.items():
                 if col_name not in existing_cols:
                     try:
-                        conn.execute(f"ALTER TABLE daily_physiology ADD COLUMN {col_name} {col_type}")
+                        conn.execute(
+                            f"ALTER TABLE daily_physiology ADD COLUMN {col_name} {col_type}"
+                        )
                     except Exception as e:
-                        log.debug(f"Column {col_name} might already exist or could not be added: {e}")
+                        log.debug(
+                            f"Column {col_name} might already exist or could not be added: {e}"
+                        )
         finally:
             conn.close()
 
     # --- Profile & User Management ---
     def get_user_profile(self, user_id: str) -> dict[str, Any]:
         with self._get_sqlite_conn() as conn:
-            cursor = conn.execute("SELECT profile_data FROM user_profiles WHERE user_id = ?", (user_id,))
+            cursor = conn.execute(
+                "SELECT profile_data FROM user_profiles WHERE user_id = ?", (user_id,)
+            )
             row = cursor.fetchone()
             if row:
                 return json.loads(row["profile_data"])
@@ -551,7 +562,9 @@ class LocalStorageEngine(StorageEngine):
         finally:
             conn.close()
 
-    def get_activity_telemetry(self, activity_id: str, _user_id: str | None = None) -> list[dict[str, Any]]:
+    def get_activity_telemetry(
+        self, activity_id: str, _user_id: str | None = None
+    ) -> list[dict[str, Any]]:
         conn = self._get_duckdb_conn()
         try:
             df = conn.execute(
@@ -583,7 +596,11 @@ class LocalStorageEngine(StorageEngine):
     ) -> list[dict[str, Any]]:
         conn = self._get_duckdb_conn()
         try:
-            time_col = "date_trunc('week', start_time)" if group_by == "weekly" else "date_trunc('month', start_time)"
+            time_col = (
+                "date_trunc('week', start_time)"
+                if group_by == "weekly"
+                else "date_trunc('month', start_time)"
+            )
             query = f"""
                 SELECT
                     {time_col} AS period,
@@ -608,7 +625,9 @@ class LocalStorageEngine(StorageEngine):
             conn.close()
 
     # --- Vector Search / RAG ---
-    def search_knowledge_vectors(self, query_vector: list[float], top_k: int = 5) -> list[dict[str, Any]]:
+    def search_knowledge_vectors(
+        self, query_vector: list[float], top_k: int = 5
+    ) -> list[dict[str, Any]]:
         conn = self._get_duckdb_conn()
         try:
             # Check if knowledge_vectors has rows
@@ -636,8 +655,8 @@ class LocalStorageEngine(StorageEngine):
                 for row in cursor.fetchall():
                     if row[0]:
                         users.add(str(row[0]))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"User profile query failed: {e}")
 
         try:
             duck_conn = self._get_duckdb_conn()
@@ -647,8 +666,8 @@ class LocalStorageEngine(StorageEngine):
                     users.add(str(u))
             finally:
                 duck_conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"DuckDB activity user query failed: {e}")
 
         if not users:
             users.add(os.getenv("DEFAULT_USER_ID", "default_user"))
@@ -714,7 +733,7 @@ class LocalStorageEngine(StorageEngine):
         try:
             conn_d.execute(
                 """
-                DELETE FROM activity_telemetry 
+                DELETE FROM activity_telemetry
                 WHERE activity_id IN (SELECT activity_id FROM activities WHERE user_id = ?)
                 """,
                 [user_id],
@@ -742,7 +761,9 @@ class LocalStorageEngine(StorageEngine):
                     (alert_key, date_str),
                 ).fetchone()
             else:
-                row = conn.execute("SELECT 1 FROM alert_dispatch_log WHERE alert_key = ?", (alert_key,)).fetchone()
+                row = conn.execute(
+                    "SELECT 1 FROM alert_dispatch_log WHERE alert_key = ?", (alert_key,)
+                ).fetchone()
             return row is not None
 
     def record_alert_dispatch(

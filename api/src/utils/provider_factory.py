@@ -65,7 +65,9 @@ def get_provider(
         from src.utils.vault import get_vault
 
         vault_tokens = get_vault().retrieve_tokens("google_health", target_user)
-        google_token_file = Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
+        google_token_file = (
+            Path.home() / ".google_health" / f"google_tokens_{user_id or 'default'}.json"
+        )
         if vault_tokens:
             provider = GoogleHealthProvider(tokens=vault_tokens)
         elif google_token_file.exists():
@@ -91,7 +93,9 @@ def get_provider(
         elif fitbit_token_file.exists():
             provider = FitbitProvider(token_path=fitbit_token_file)
         else:
-            log.info(f"No Fitbit tokens on disk for {user_id}, using MockFitbitProvider for testing.")
+            log.info(
+                f"No Fitbit tokens on disk for {user_id}, using MockFitbitProvider for testing."
+            )
             provider = MockFitbitProvider()
         _providers[cache_key] = provider
         return provider
@@ -176,7 +180,7 @@ def get_provider(
         try:
             settings = provider.client.get_userprofile_settings()
             provider.client.display_name = settings.get("displayName")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Could not retrieve display_name from provider: %s", e)
     _providers[cache_key] = provider
     return provider
