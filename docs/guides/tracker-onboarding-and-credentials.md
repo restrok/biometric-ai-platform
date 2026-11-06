@@ -35,10 +35,10 @@ In a self-hosted / homelab environment, Google OAuth requires an authorized OAut
    - Click **Create** and copy your `Client ID` and `Client Secret`.
 
 ### Step 2: Running from a Local Workstation (SSH Port Forwarding)
-When running the platform inside a remote Docker container / Raspberry Pi (`192.168.90.5:8002`) from a separate workstation:
+When running the platform inside a remote Docker container or remote server (`<server-ip>:8002`) from a separate workstation:
 1. Open an SSH local port-forwarding tunnel on your workstation:
    ```bash
-   ssh -L 8002:localhost:8002 fsirio@192.168.90.5
+   ssh -L 8002:localhost:8002 <user>@<server-ip>
    ```
 2. Open your browser to:
    ```text

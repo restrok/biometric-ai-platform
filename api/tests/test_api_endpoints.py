@@ -295,7 +295,7 @@ def test_setup_system_save(client: TestClient):
         "llm_base_url": "https://api.openai.com/v1",
         "llm_api_key": "secret-test-key",
         "embeddings_provider": "ollama",
-        "embedding_base_url": "http://192.168.89.32:11434/v1",
+        "embedding_base_url": "http://localhost:11434/v1",
         "embedding_model": "nomic-embed-text",
     }
     response = client.post("/setup/system/save", json=payload)
@@ -314,7 +314,7 @@ def test_setup_system_save(client: TestClient):
     assert get_data["llm_provider"] == "openai"
     assert get_data["llm_model"] == "gpt-4o-mini"
     assert get_data["embeddings_provider"] == "ollama"
-    assert get_data["embedding_base_url"] == "http://192.168.89.32:11434/v1"
+    assert get_data["embedding_base_url"] == "http://localhost:11434/v1"
 
 
 def test_setup_api_key_generation(client: TestClient):
