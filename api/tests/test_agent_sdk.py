@@ -5,8 +5,9 @@ from src.agent.graph import graph
 from src.tools.retriever import retrieve_biometric_data
 
 
-def test_retriever_not_empty():
+def test_retriever_not_empty(monkeypatch: pytest.MonkeyPatch):
     """Verify that the retriever returns a dictionary (even if mock)."""
+    monkeypatch.setenv("STORAGE_MODE", "local")
     data = retrieve_biometric_data.invoke({"user_id": "test_user"})
     assert isinstance(data, dict)
     assert "recent_activities" in data
