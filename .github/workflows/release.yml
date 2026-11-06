@@ -83,7 +83,7 @@ jobs:
             type=sha
 
       - name: Build and push release image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./api
           platforms: linux/amd64,linux/arm64
