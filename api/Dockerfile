@@ -22,7 +22,7 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 # --- Runtime Stage ---
-FROM python:3.11-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
